@@ -8,11 +8,11 @@ $cmid = required_param('cmid', PARAM_INT);            // Course Module ID
 $id   = optional_param('id', 0, PARAM_INT);           // EntryID
 
 if (!$cm = get_coursemodule_from_id('glossary', $cmid)) {
-    throw new \moodle_exception('invalidcoursemodule');
+    print_error('invalidcoursemodule');
 }
 
 if (!$course = $DB->get_record('course', array('id'=>$cm->course))) {
-    throw new \moodle_exception('coursemisconf');
+    print_error('coursemisconf');
 }
 
 require_login($course, false, $cm);
@@ -20,7 +20,7 @@ require_login($course, false, $cm);
 $context = context_module::instance($cm->id);
 
 if (!$glossary = $DB->get_record('glossary', array('id'=>$cm->instance))) {
-    throw new \moodle_exception('invalidid', 'glossary');
+    print_error('invalidid', 'glossary');
 }
 
 $url = new moodle_url('/mod/glossary/edit.php', array('cmid'=>$cm->id));
@@ -31,11 +31,11 @@ $PAGE->set_url($url);
 
 if ($id) { // if entry is specified
     if (isguestuser()) {
-        throw new \moodle_exception('guestnoedit', 'glossary', "$CFG->wwwroot/mod/glossary/view.php?id=$cmid");
+        print_error('guestnoedit', 'glossary', "$CFG->wwwroot/mod/glossary/view.php?id=$cmid");
     }
 
     if (!$entry = $DB->get_record('glossary_entries', array('id'=>$id, 'glossaryid'=>$glossary->id))) {
-        throw new \moodle_exception('invalidentry');
+        print_error('invalidentry');
     }
 
     // Check if the user can update the entry (trigger exception if he can't).
@@ -82,16 +82,10 @@ if (!empty($id)) {
 
 $PAGE->set_title($glossary->name);
 $PAGE->set_heading($course->fullname);
-$PAGE->set_secondary_active_tab('modulepage');
-$PAGE->activityheader->set_attrs([
-    'hidecompletion' => true,
-    'description' => ''
-]);
 echo $OUTPUT->header();
-if (!$id) {
-    echo $OUTPUT->heading(get_string('addsingleentry', 'mod_glossary'));
-} else {
-    echo $OUTPUT->heading(get_string('editentry', 'mod_glossary'));
+echo $OUTPUT->heading(format_string($glossary->name), 2);
+if ($glossary->intro) {
+    echo $OUTPUT->box(format_module_intro('glossary', $glossary, $cm->id), 'generalbox', 'intro');
 }
 
 $data = new StdClass();

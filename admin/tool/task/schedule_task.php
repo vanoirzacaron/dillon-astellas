@@ -28,6 +28,8 @@ define('NO_OUTPUT_BUFFERING', true);
 
 require('../../../config.php');
 
+require_once($CFG->libdir.'/cronlib.php');
+
 // Allow execution of single task. This requires login and has different rules.
 $taskname = required_param('task', PARAM_RAW_TRIMMED);
 
@@ -47,7 +49,11 @@ if (!\core\task\manager::is_runnable()) {
     throw new moodle_exception('cannotfindthepathtothecli', 'tool_task', $redirecturl->out());
 }
 
-if (!get_config('tool_task', 'enablerunnow') || !$task->can_run()) {
+$plugininfo = core_plugin_manager::instance()->get_plugin_info($task->get_component());
+$plugindisabled = $plugininfo && $plugininfo->is_enabled() === false &&
+    !$task->get_run_if_component_disabled();
+
+if (!get_config('tool_task', 'enablerunnow') || $plugindisabled) {
     throw new moodle_exception('nopermissions', 'error', new moodle_url('/admin/tool/task/scheduledtasks.php'),
         get_string('runnow', 'tool_task'), $task->get_name());
 }
@@ -83,18 +89,14 @@ require_sesskey();
 
 \core\session\manager::write_close();
 
-// Prepare for streamed output.
-echo $OUTPUT->footer();
-echo $OUTPUT->select_element_for_append();
-
 // Prepare to handle output via mtrace.
-echo html_writer::start_tag('pre', ['style' => 'color: #fff; background: #333; padding: 1em; min-height: 24lh']);
-
-require_once("{$CFG->dirroot}/{$CFG->admin}/tool/task/lib.php");
+echo html_writer::start_tag('pre');
+require('lib.php');
 $CFG->mtrace_wrapper = 'tool_task_mtrace_wrapper';
 
 // Run the specified task (this will output an error if it doesn't exist).
 \core\task\manager::run_from_cli($task);
+
 echo html_writer::end_tag('pre');
 
 $output = $PAGE->get_renderer('tool_task');
@@ -105,3 +107,4 @@ echo $OUTPUT->single_button(new moodle_url('/admin/tool/task/schedule_task.php',
         get_string('runagain', 'tool_task'));
 echo $output->link_back(get_class($task));
 
+echo $OUTPUT->footer();

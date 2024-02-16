@@ -164,7 +164,7 @@ function assign_prepare_update_events($assign, $course = null, $cm = null) {
     $assignment->update_calendar($cm->id);
     // Refresh the calendar events also for the assignment overrides.
     $overrides = $DB->get_records('assign_overrides', ['assignid' => $assign->id], '',
-                                  'id, groupid, userid, duedate, sortorder, timelimit');
+                                  'id, groupid, userid, duedate, sortorder');
     foreach ($overrides as $override) {
         if (empty($override->userid)) {
             unset($override->userid);
@@ -200,7 +200,7 @@ function assign_reset_gradebook($courseid, $type='') {
 /**
  * Implementation of the function for printing the form elements that control
  * whether the course reset functionality affects the assignment.
- * @param MoodleQuickForm $mform form passed by reference
+ * @param moodleform $mform form passed by reference
  */
 function assign_reset_course_form_definition(&$mform) {
     $mform->addElement('header', 'assignheader', get_string('modulenameplural', 'assign'));
@@ -293,7 +293,6 @@ function assign_update_events($assign, $override = null) {
         $groupid   = isset($current->groupid) ? $current->groupid : 0;
         $userid    = isset($current->userid) ? $current->userid : 0;
         $duedate = isset($current->duedate) ? $current->duedate : $assigninstance->duedate;
-        $timelimit = isset($current->timelimit) ? $current->timelimit : 0;
 
         // Only add 'due' events for an override if they differ from the assign default.
         $addclose = empty($current->id) || !empty($current->duedate);
@@ -309,7 +308,7 @@ function assign_update_events($assign, $override = null) {
         $event->modulename  = 'assign';
         $event->instance    = $assigninstance->id;
         $event->timestart   = $duedate;
-        $event->timeduration = $timelimit;
+        $event->timeduration = 0;
         $event->timesort    = $event->timestart + $event->timeduration;
         $event->visible     = instance_is_visible('assign', $assigninstance);
         $event->eventtype   = ASSIGN_EVENT_TYPE_DUE;
@@ -364,7 +363,7 @@ function assign_update_events($assign, $override = null) {
  * Return the list if Moodle features this module supports
  *
  * @param string $feature FEATURE_xx constant for requested feature
- * @return mixed True if module supports feature, false if not, null if doesn't know or string for the module purpose.
+ * @return mixed True if module supports feature, null if doesn't know
  */
 function assign_supports($feature) {
     switch($feature) {
@@ -392,8 +391,6 @@ function assign_supports($feature) {
             return true;
         case FEATURE_COMMENT:
             return true;
-        case FEATURE_MOD_PURPOSE:
-            return MOD_PURPOSE_ASSESSMENT;
 
         default:
             return null;
@@ -408,7 +405,7 @@ function assign_supports($feature) {
  * @return void
  */
 function assign_extend_settings_navigation(settings_navigation $settings, navigation_node $navref) {
-    global $DB;
+    global $PAGE, $DB;
 
     // We want to add these new nodes after the Edit settings node, and before the
     // Locally assigned roles node. Of course, both of those are controlled by capabilities.
@@ -421,25 +418,46 @@ function assign_extend_settings_navigation(settings_navigation $settings, naviga
         $beforekey = $keys[$i + 1];
     }
 
-    $cm = $settings->get_page()->cm;
+    $cm = $PAGE->cm;
     if (!$cm) {
         return;
     }
 
     $context = $cm->context;
-    $course = $settings->get_page()->course;
+    $course = $PAGE->course;
 
     if (!$course) {
         return;
     }
 
-    if (has_capability('mod/assign:manageoverrides', $settings->get_page()->cm->context)) {
-        $url = new moodle_url('/mod/assign/overrides.php', ['cmid' => $settings->get_page()->cm->id, 'mode' => 'user']);
+    if (has_capability('mod/assign:manageoverrides', $PAGE->cm->context)) {
+        $url = new moodle_url('/mod/assign/overrides.php', array('cmid' => $PAGE->cm->id));
+        $node = navigation_node::create(get_string('groupoverrides', 'assign'),
+            new moodle_url($url, array('mode' => 'group')),
+            navigation_node::TYPE_SETTING, null, 'mod_assign_groupoverrides');
+        $navref->add_node($node, $beforekey);
 
-        $node = navigation_node::create(get_string('overrides', 'assign'),
-            $url,
+        $node = navigation_node::create(get_string('useroverrides', 'assign'),
+            new moodle_url($url, array('mode' => 'user')),
             navigation_node::TYPE_SETTING, null, 'mod_assign_useroverrides');
         $navref->add_node($node, $beforekey);
+    }
+
+    // Link to gradebook.
+    if (has_capability('gradereport/grader:view', $cm->context) &&
+            has_capability('moodle/grade:viewall', $cm->context)) {
+        $link = new moodle_url('/grade/report/grader/index.php', array('id' => $course->id));
+        $linkname = get_string('viewgradebook', 'assign');
+        $node = $navref->add($linkname, $link, navigation_node::TYPE_SETTING);
+    }
+
+    // Link to download all submissions.
+    if (has_any_capability(array('mod/assign:grade', 'mod/assign:viewgrades'), $context)) {
+        $link = new moodle_url('/mod/assign/view.php', array('id' => $cm->id, 'action'=>'grading'));
+        $node = $navref->add(get_string('viewgrading', 'assign'), $link, navigation_node::TYPE_SETTING);
+
+        $link = new moodle_url('/mod/assign/view.php', array('id' => $cm->id, 'action'=>'downloadall'));
+        $node = $navref->add(get_string('downloadall', 'assign'), $link, navigation_node::TYPE_SETTING);
     }
 
     if (has_capability('mod/assign:revealidentities', $context)) {
@@ -616,6 +634,27 @@ function assign_page_type_list($pagetype, $parentcontext, $currentcontext) {
         'mod-assign-view' => get_string('page-mod-assign-view', 'assign'),
     );
     return $modulepagetype;
+}
+
+/**
+ * @deprecated since Moodle 3.3, when the block_course_overview block was removed.
+ */
+function assign_print_overview() {
+    throw new coding_exception('assign_print_overview() can not be used any more and is obsolete.');
+}
+
+/**
+ * @deprecated since Moodle 3.3, when the block_course_overview block was removed.
+ */
+function assign_get_mysubmission_details_for_print_overview() {
+    throw new coding_exception('assign_get_mysubmission_details_for_print_overview() can not be used any more and is obsolete.');
+}
+
+/**
+ * @deprecated since Moodle 3.3, when the block_course_overview block was removed.
+ */
+function assign_get_grade_details_for_print_overview() {
+    throw new coding_exception('assign_get_grade_details_for_print_overview() can not be used any more and is obsolete.');
 }
 
 /**
@@ -918,7 +957,7 @@ function assign_print_recent_mod_activity($activity, $courseid, $detail, $modnam
     if ($detail) {
         $modname = $modnames[$activity->type];
         echo '<div class="title">';
-        echo $OUTPUT->image_icon('monologo', $modname, 'assign');
+        echo $OUTPUT->image_icon('icon', $modname, 'assign');
         echo '<a href="' . $CFG->wwwroot . '/mod/assign/view.php?id=' . $activity->cmid . '">';
         echo $activity->name;
         echo '</a>';
@@ -938,6 +977,14 @@ function assign_print_recent_mod_activity($activity, $courseid, $detail, $modnam
     echo '</div>';
 
     echo '</td></tr></table>';
+}
+
+/**
+ * @deprecated since Moodle 3.8
+ */
+function assign_scale_used() {
+    throw new coding_exception('assign_scale_used() can not be used anymore. Plugins can implement ' .
+        '<modname>_scale_used_anywhere, all implementations of <modname>_scale_used are now ignored');
 }
 
 /**
@@ -1114,10 +1161,7 @@ function assign_get_file_areas($course, $cm, $context) {
     global $CFG;
     require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
-    $areas = array(
-        ASSIGN_INTROATTACHMENT_FILEAREA => get_string('introattachments', 'mod_assign'),
-        ASSIGN_ACTIVITYATTACHMENT_FILEAREA => get_string('activityattachments', 'mod_assign'),
-    );
+    $areas = array(ASSIGN_INTROATTACHMENT_FILEAREA => get_string('introattachments', 'mod_assign'));
 
     $assignment = new assign($context, $cm, $course);
     foreach ($assignment->get_submission_plugins() as $plugin) {
@@ -1179,7 +1223,7 @@ function assign_get_file_info($browser,
 
     // Need to find where this belongs to.
     $assignment = new assign($context, $cm, $course);
-    if ($filearea === ASSIGN_INTROATTACHMENT_FILEAREA || $filearea === ASSIGN_ACTIVITYATTACHMENT_FILEAREA) {
+    if ($filearea === ASSIGN_INTROATTACHMENT_FILEAREA) {
         if (!has_capability('moodle/course:managefiles', $context)) {
             // Students can not peak here!
             return null;
@@ -1368,7 +1412,7 @@ function assign_pluginfile($course,
     require_once($CFG->dirroot . '/mod/assign/locallib.php');
     $assign = new assign($context, $cm, $course);
 
-    if ($filearea !== ASSIGN_INTROATTACHMENT_FILEAREA && $filearea !== ASSIGN_ACTIVITYATTACHMENT_FILEAREA) {
+    if ($filearea !== ASSIGN_INTROATTACHMENT_FILEAREA) {
         return false;
     }
     if (!$assign->show_intro()) {
@@ -1409,14 +1453,6 @@ function mod_assign_output_fragment_gradingpanel($args) {
     $assign = new assign($context, null, null);
 
     $userid = clean_param($args['userid'], PARAM_INT);
-
-    $participant = $assign->get_participant($userid);
-    $isfiltered = $assign->is_userid_filtered($userid);
-    if (!$participant || !$isfiltered) {
-        // User is not enrolled or filtered out by filters and table preferences.
-        return '';
-    }
-
     $attemptnumber = clean_param($args['attemptnumber'], PARAM_INT);
     $formdata = array();
     if (!empty($args['jsonformdata'])) {
@@ -1584,14 +1620,6 @@ function mod_assign_core_calendar_provide_event_action(calendar_event $event,
             return null;
         }
 
-        $instance = $assign->get_instance();
-        if ($instance->teamsubmission && !$instance->requireallteammemberssubmit) {
-            $groupsubmission = $assign->get_group_submission($userid, 0, false);
-            if ($groupsubmission && $groupsubmission->status === ASSIGN_SUBMISSION_STATUS_SUBMITTED) {
-                return null;
-            }
-        }
-
         $participant = $assign->get_participant($userid);
 
         if (!$participant) {
@@ -1752,29 +1780,24 @@ function mod_assign_core_calendar_event_timestart_updated(\calendar_event $event
 /**
  * Return a list of all the user preferences used by mod_assign.
  *
- * @uses core_user::is_current_user
- *
- * @return array[]
+ * @return array
  */
-function mod_assign_user_preferences(): array {
+function mod_assign_user_preferences() {
     $preferences = array();
     $preferences['assign_filter'] = array(
         'type' => PARAM_ALPHA,
         'null' => NULL_NOT_ALLOWED,
-        'default' => '',
-        'permissioncallback' => [core_user::class, 'is_current_user'],
+        'default' => ''
     );
     $preferences['assign_workflowfilter'] = array(
         'type' => PARAM_ALPHA,
         'null' => NULL_NOT_ALLOWED,
-        'default' => '',
-        'permissioncallback' => [core_user::class, 'is_current_user'],
+        'default' => ''
     );
     $preferences['assign_markerfilter'] = array(
         'type' => PARAM_ALPHANUMEXT,
         'null' => NULL_NOT_ALLOWED,
-        'default' => '',
-        'permissioncallback' => [core_user::class, 'is_current_user'],
+        'default' => ''
     );
 
     return $preferences;
@@ -1802,27 +1825,4 @@ function mod_assign_get_path_from_pluginfile(string $filearea, array $args) : ar
         'itemid' => 0,
         'filepath' => $filepath,
     ];
-}
-
-/**
- * Callback to fetch the activity event type lang string.
- *
- * @param string $eventtype The event type.
- * @return lang_string The event type lang string.
- */
-function mod_assign_core_calendar_get_event_action_string(string $eventtype): string {
-    $modulename = get_string('modulename', 'assign');
-
-    switch ($eventtype) {
-        case ASSIGN_EVENT_TYPE_DUE:
-            $identifier = 'calendardue';
-            break;
-        case ASSIGN_EVENT_TYPE_GRADINGDUE:
-            $identifier = 'calendargradingdue';
-            break;
-        default:
-            return get_string('requiresaction', 'calendar', $modulename);
-    }
-
-    return get_string($identifier, 'assign', $modulename);
 }

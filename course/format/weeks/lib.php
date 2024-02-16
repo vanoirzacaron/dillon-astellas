@@ -34,7 +34,7 @@ require_once($CFG->dirroot. '/course/lib.php');
  * @copyright  2012 Marina Glancy
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class format_weeks extends core_courseformat\base {
+class format_weeks extends format_base {
 
     /**
      * Returns true if this course format uses sections
@@ -43,22 +43,6 @@ class format_weeks extends core_courseformat\base {
      */
     public function uses_sections() {
         return true;
-    }
-
-    public function uses_course_index() {
-        return true;
-    }
-
-    public function uses_indentation(): bool {
-        return (get_config('format_weeks', 'indentation')) ? true : false;
-    }
-
-    /**
-     * Generate the title for this section page
-     * @return string the page title
-     */
-    public function page_title(): string {
-        return get_string('weeklyoutline');
     }
 
     /**
@@ -104,15 +88,6 @@ class format_weeks extends core_courseformat\base {
     }
 
     /**
-     * Returns the name for the highlighted section.
-     *
-     * @return string The name for the highlighted section based on the given course format.
-     */
-    public function get_section_highlighted_name(): string {
-        return get_string('currentsection', 'format_weeks');
-    }
-
-    /**
      * The URL to use for the specified course (with section)
      *
      * @param int|stdClass $section Section object from database or just field course_sections.section
@@ -145,7 +120,7 @@ class format_weeks extends core_courseformat\base {
                     $usercoursedisplay = COURSE_DISPLAY_SINGLEPAGE;
                 }
             } else {
-                $usercoursedisplay = $course->coursedisplay ?? COURSE_DISPLAY_SINGLEPAGE;
+                $usercoursedisplay = $course->coursedisplay;
             }
             if ($sectionno != 0 && $usercoursedisplay == COURSE_DISPLAY_MULTIPAGE) {
                 $url->param('section', $sectionno);
@@ -171,10 +146,6 @@ class format_weeks extends core_courseformat\base {
         $ajaxsupport = new stdClass();
         $ajaxsupport->capable = true;
         return $ajaxsupport;
-    }
-
-    public function supports_components() {
-        return true;
     }
 
     /**
@@ -268,7 +239,7 @@ class format_weeks extends core_courseformat\base {
                     'type' => PARAM_INT,
                 ),
                 'coursedisplay' => array(
-                    'default' => $courseconfig->coursedisplay ?? COURSE_DISPLAY_SINGLEPAGE,
+                    'default' => $courseconfig->coursedisplay,
                     'type' => PARAM_INT,
                 ),
                 'automaticenddate' => array(
@@ -406,26 +377,14 @@ class format_weeks extends core_courseformat\base {
         } else {
             $sectionnum = $section;
         }
-
-        // Create a DateTime object for the start date.
-        $startdateobj = new DateTime("@$startdate");
-        $startdateobj->setTimezone(core_date::get_user_timezone_object());
-
-        // Calculate the interval for one week.
-        $oneweekinterval = new DateInterval('P7D');
-
-        // Calculate the interval for the specified number of sections.
-        for ($i = 1; $i < $sectionnum; $i++) {
-            $startdateobj->add($oneweekinterval);
-        }
-
-        // Calculate the end date.
-        $enddateobj = clone $startdateobj;
-        $enddateobj->add($oneweekinterval);
+        $oneweekseconds = 604800;
+        // Hack alert. We add 2 hours to avoid possible DST problems. (e.g. we go into daylight
+        // savings and the date changes.
+        $startdate = $startdate + 7200;
 
         $dates = new stdClass();
-        $dates->start = $startdateobj->getTimestamp();
-        $dates->end = $enddateobj->getTimestamp();
+        $dates->start = $startdate + ($oneweekseconds * ($sectionnum - 1));
+        $dates->end = $dates->start + $oneweekseconds;
 
         return $dates;
     }
@@ -546,16 +505,7 @@ class format_weeks extends core_courseformat\base {
         // Call the parent method and return the new content for .section_availability element.
         $rv = parent::section_action($section, $action, $sr);
         $renderer = $PAGE->get_renderer('format_weeks');
-
-        if (!($section instanceof section_info)) {
-            $modinfo = course_modinfo::instance($this->courseid);
-            $section = $modinfo->get_section_info($section->section);
-        }
-        $elementclass = $this->get_output_classname('content\\section\\availability');
-        $availability = new $elementclass($this, $section);
-
-        $rv['section_availability'] = $renderer->render($availability);
-
+        $rv['section_availability'] = $renderer->section_availability($this->get_section($section));
         return $rv;
     }
 
@@ -627,9 +577,7 @@ class format_weeks extends core_courseformat\base {
      */
     public function get_config_for_external() {
         // Return everything (nothing to hide).
-        $formatoptions = $this->get_format_options();
-        $formatoptions['indentation'] = get_config('format_weeks', 'indentation');
-        return $formatoptions;
+        return $this->get_format_options();
     }
 }
 

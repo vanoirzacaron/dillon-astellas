@@ -46,9 +46,6 @@ class access_controlled_link_manager_test extends \advanced_testcase {
     /** @var null|\core\oauth2\issuer which belongs to the repository_nextcloud object. */
     public $issuer = null;
 
-    /** @var string system account username. */
-    public $systemaccountusername;
-
     /**
      * SetUp to create an repository instance.
      */
@@ -309,7 +306,7 @@ XML;
 
         $this->assertEquals(201, $result);
     }
-    /**
+     /**
      * Test whether the webdav client gets the right params and whether function handles overwrite.
      *
      * @covers \repository_nextcloud\access_controlled_link_manager::transfer_file_to_path

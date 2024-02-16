@@ -206,7 +206,7 @@ abstract class restore_dbops {
      * @param int $restoreid id of backup
      * @param string $itemname name of the item
      * @param int $itemid id of item
-     * @return stdClass|false record from 'backup_ids_temp' table
+     * @return array backup id's
      * @todo MDL-25290 replace static backupids* with MUC code
      */
     protected static function get_backup_ids_cached($restoreid, $itemname, $itemid) {
@@ -578,11 +578,16 @@ abstract class restore_dbops {
             CONTEXT_SYSTEM => CONTEXT_COURSE,
             CONTEXT_COURSECAT => CONTEXT_COURSE);
 
-        /** @var restore_controller $rc */
         $rc = restore_controller_dbops::load_controller($restoreid);
-        $plan = $rc->get_plan();
-        $after35 = $plan->backup_release_compare('3.5', '>=') && $plan->backup_version_compare(20180205, '>');
+        $restoreinfo = $rc->get_info();
         $rc->destroy(); // Always need to destroy.
+        $backuprelease = $restoreinfo->backup_release; // The major version: 2.9, 3.0, 3.10...
+        preg_match('/(\d{8})/', $restoreinfo->moodle_release, $matches);
+        $backupbuild = (int)$matches[1];
+        $after35 = false;
+        if (version_compare($backuprelease, '3.5', '>=') && $backupbuild > 20180205) {
+            $after35 = true;
+        }
 
         // For any contextlevel, follow this process logic:
         //
@@ -671,16 +676,9 @@ abstract class restore_dbops {
                     $questions = self::restore_get_questions($restoreid, $category->id);
 
                     // Collect all the questions for this category into memory so we only talk to the DB once.
-                    $questioncache = $DB->get_records_sql_menu('SELECT q.id,
-                                                                       q.stamp
-                                                                  FROM {question} q
-                                                                  JOIN {question_versions} qv
-                                                                    ON qv.questionid = q.id
-                                                                  JOIN {question_bank_entries} qbe
-                                                                    ON qbe.id = qv.questionbankentryid
-                                                                  JOIN {question_categories} qc
-                                                                    ON qc.id = qbe.questioncategoryid
-                                                                 WHERE qc.id = ?', array($matchcat->id));
+                    $questioncache = $DB->get_records_sql_menu("SELECT ".$DB->sql_concat('stamp', "' '", 'version').", id
+                                                                  FROM {question}
+                                                                 WHERE category = ?", array($matchcat->id));
 
                     foreach ($questions as $question) {
                         if (isset($questioncache[$question->stamp." ".$question->version])) {
@@ -1014,26 +1012,21 @@ abstract class restore_dbops {
                 continue;
             }
 
-            // Updated the times of the new record.
-            // The file record should reflect when the file entered the system,
-            // and when this record was created.
-            $time = time();
-
             // The file record to restore.
             $file_record = array(
-                'contextid'    => $newcontextid,
-                'component'    => $component,
-                'filearea'     => $filearea,
-                'itemid'       => $rec->newitemid,
-                'filepath'     => $file->filepath,
-                'filename'     => $file->filename,
-                'timecreated'  => $time,
-                'timemodified' => $time,
-                'userid'       => $mappeduserid,
-                'source'       => $file->source,
-                'author'       => $file->author,
-                'license'      => $file->license,
-                'sortorder'    => $file->sortorder
+                'contextid'   => $newcontextid,
+                'component'   => $component,
+                'filearea'    => $filearea,
+                'itemid'      => $rec->newitemid,
+                'filepath'    => $file->filepath,
+                'filename'    => $file->filename,
+                'timecreated' => $file->timecreated,
+                'timemodified'=> $file->timemodified,
+                'userid'      => $mappeduserid,
+                'source'      => $file->source,
+                'author'      => $file->author,
+                'license'     => $file->license,
+                'sortorder'   => $file->sortorder
             );
 
             if (empty($file->repositoryid)) {
@@ -1167,10 +1160,9 @@ abstract class restore_dbops {
      * @param string $restoreid Restore ID
      * @param int $userid Default userid for files
      * @param \core\progress\base $progress Object used for progress tracking
-     * @param int $courseid Course ID
      */
     public static function create_included_users($basepath, $restoreid, $userid,
-            \core\progress\base $progress, int $courseid = 0) {
+            \core\progress\base $progress) {
         global $CFG, $DB;
         require_once($CFG->dirroot.'/user/profile/lib.php');
         $progress->start_progress('Creating included users');
@@ -1253,10 +1245,6 @@ abstract class restore_dbops {
                 } else if ($userauth->isinternal and $userauth->canresetpwd) {
                     $user->password = 'restored';
                 }
-            } else if (self::password_should_be_discarded($user->password)) {
-                // Password is not empty and it is MD5 hashed. Generate a new random password for the user.
-                // We don't want MD5 hashes in the database and users won't be able to log in with the associated password anyway.
-                $user->password = hash_internal_user_password(base64_encode(random_bytes(24)));
             }
 
             // Creating new user, we must reset the policyagreed always
@@ -1296,9 +1284,6 @@ abstract class restore_dbops {
                     }
                 }
 
-                // Trigger event that user was created.
-                \core\event\user_created::create_from_user_id_on_restore($newuserid, $restoreid, $courseid)->trigger();
-
                 // Process tags
                 if (core_tag_tag::is_enabled('core', 'user') && isset($user->tags)) { // If enabled in server and present in backup.
                     $tags = array();
@@ -1316,41 +1301,7 @@ abstract class restore_dbops {
                         $preference = (object)$preference;
                         // Prepare the record and insert it
                         $preference->userid = $newuserid;
-
-                        // Translate _loggedin / _loggedoff message user preferences to _enabled. (MDL-67853)
-                        // This code cannot be removed.
-                        if (preg_match('/message_provider_.*/', $preference->name)) {
-                            $nameparts = explode('_', $preference->name);
-                            $name = array_pop($nameparts);
-
-                            if ($name == 'loggedin' || $name == 'loggedoff') {
-                                $preference->name = implode('_', $nameparts).'_enabled';
-
-                                $existingpreference = $DB->get_record('user_preferences',
-                                    ['name' => $preference->name , 'userid' => $newuserid]);
-                                // Merge both values.
-                                if ($existingpreference) {
-                                    $values = [];
-
-                                    if (!empty($existingpreference->value) && $existingpreference->value != 'none') {
-                                        $values = explode(',', $existingpreference->value);
-                                    }
-
-                                    if (!empty($preference->value) && $preference->value != 'none') {
-                                        $values = array_merge(explode(',', $preference->value), $values);
-                                        $values = array_unique($values);
-                                    }
-
-                                    $existingpreference->value = empty($values) ? 'none' : implode(',', $values);
-
-                                    $DB->update_record('user_preferences', $existingpreference);
-                                    continue;
-                                }
-                            }
-                        }
-                        // End translating loggedin / loggedoff message user preferences.
-
-                        $DB->insert_record('user_preferences', $preference);
+                        $status = $DB->insert_record('user_preferences', $preference);
                     }
                 }
                 // Special handling for htmleditor which was converted to a preference.
@@ -1360,7 +1311,7 @@ abstract class restore_dbops {
                         $preference->userid = $newuserid;
                         $preference->name = 'htmleditor';
                         $preference->value = 'textarea';
-                        $DB->insert_record('user_preferences', $preference);
+                        $status = $DB->insert_record('user_preferences', $preference);
                     }
                 }
 
@@ -1814,9 +1765,10 @@ abstract class restore_dbops {
     public static function calculate_course_names($courseid, $fullname, $shortname) {
         global $CFG, $DB;
 
+        $currentfullname = '';
+        $currentshortname = '';
         $counter = 0;
-
-        // Iterate while fullname or shortname exist.
+        // Iteratere while the name exists
         do {
             if ($counter) {
                 $suffixfull  = ' ' . get_string('copyasnoun') . ' ' . $counter;
@@ -1825,11 +1777,8 @@ abstract class restore_dbops {
                 $suffixfull  = '';
                 $suffixshort = '';
             }
-
-            // Ensure we don't overflow maximum length of name fields, in multi-byte safe manner.
-            $currentfullname = core_text::substr($fullname, 0, 254 - strlen($suffixfull)) . $suffixfull;
-            $currentshortname = core_text::substr($shortname, 0, 100 - strlen($suffixshort)) . $suffixshort;
-
+            $currentfullname = $fullname.$suffixfull;
+            $currentshortname = substr($shortname, 0, 100 - strlen($suffixshort)).$suffixshort; // < 100cc
             $coursefull  = $DB->get_record_select('course', 'fullname = ? AND id != ?',
                     array($currentfullname, $courseid), '*', IGNORE_MULTIPLE);
             $courseshort = $DB->get_record_select('course', 'shortname = ? AND id != ?', array($currentshortname, $courseid));
@@ -1907,17 +1856,6 @@ abstract class restore_dbops {
      */
     public static function delete_course_content($courseid, array $options = null) {
         return remove_course_contents($courseid, false, $options);
-    }
-
-    /**
-     * Checks if password stored in backup is a MD5 hash.
-     * Returns true if it is, false otherwise.
-     *
-     * @param string $password The password to check.
-     * @return bool
-     */
-    private static function password_should_be_discarded(#[\SensitiveParameter] string $password): bool {
-        return (bool) preg_match('/^[0-9a-f]{32}$/', $password);
     }
 }
 

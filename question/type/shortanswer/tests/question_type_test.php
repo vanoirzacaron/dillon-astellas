@@ -111,14 +111,12 @@ class question_type_test extends \advanced_testcase {
 
         $fromform = $form->get_data();
 
-        // Create a new question version with the form submission.
-        unset($questiondata->id);
         $returnedfromsave = $this->qtype->save_question($questiondata, $fromform);
-        $actualquestionsdata = question_load_questions([$returnedfromsave->id], 'qbe.idnumber');
+        $actualquestionsdata = question_load_questions(array($returnedfromsave->id));
         $actualquestiondata = end($actualquestionsdata);
 
         foreach ($questiondata as $property => $value) {
-            if (!in_array($property, array('id', 'timemodified', 'timecreated', 'options'))) {
+            if (!in_array($property, array('id', 'version', 'timemodified', 'timecreated', 'options'))) {
                 $this->assertEquals($value, $actualquestiondata->$property);
             }
         }

@@ -437,7 +437,7 @@ EOD;
      * Create course section if does not exist yet
      * @param array|stdClass $record must contain 'course' and 'section' attributes
      * @param array|null $options
-     * @return section_info
+     * @return stdClass
      * @throws coding_exception
      */
     public function create_course_section($record = null, array $options = null) {
@@ -539,14 +539,6 @@ EOD;
 
         if (!isset($record['descriptionformat'])) {
             $record['descriptionformat'] = FORMAT_MOODLE;
-        }
-
-        if (!isset($record['visibility'])) {
-            $record['visibility'] = GROUPS_VISIBILITY_ALL;
-        }
-
-        if (!isset($record['participation'])) {
-            $record['participation'] = true;
         }
 
         $id = groups_create_group((object)$record);
@@ -1036,13 +1028,12 @@ EOD;
     /**
      * Assigns the specified role to a user in the context.
      *
-     * @param int|string $role either an int role id or a string role shortname.
+     * @param int $roleid
      * @param int $userid
-     * @param int|context $contextid Defaults to the system context
+     * @param int $contextid Defaults to the system context
      * @return int new/existing id of the assignment
      */
-    public function role_assign($role, $userid, $contextid = false) {
-        global $DB;
+    public function role_assign($roleid, $userid, $contextid = false) {
 
         // Default to the system context.
         if (!$contextid) {
@@ -1050,18 +1041,15 @@ EOD;
             $contextid = $context->id;
         }
 
-        if (empty($role)) {
+        if (empty($roleid)) {
             throw new coding_exception('roleid must be present in testing_data_generator::role_assign() arguments');
-        }
-        if (!is_number($role)) {
-            $role = $DB->get_field('role', 'id', ['shortname' => $role], MUST_EXIST);
         }
 
         if (empty($userid)) {
             throw new coding_exception('userid must be present in testing_data_generator::role_assign() arguments');
         }
 
-        return role_assign($role, $userid, $contextid);
+        return role_assign($roleid, $userid, $contextid);
     }
 
     /**
@@ -1219,7 +1207,7 @@ EOD;
     /**
      * Helper function used to create an LTI tool.
      *
-     * @param stdClass $data
+     * @param array $data
      * @return stdClass the tool
      */
     public function create_lti_tool($data = array()) {
@@ -1247,15 +1235,10 @@ EOD;
             $data->status = ENROL_INSTANCE_ENABLED;
         }
 
-        // Default to legacy lti version.
-        if (empty($data->ltiversion) || !in_array($data->ltiversion, ['LTI-1p0/LTI-2p0', 'LTI-1p3'])) {
-            $data->ltiversion = 'LTI-1p0/LTI-2p0';
-        }
-
         // Add some extra necessary fields to the data.
-        $data->name = $data->name ?? 'Test LTI';
-        $data->roleinstructor = $teacherrole->id;
-        $data->rolelearner = $studentrole->id;
+        $data->name = 'Test LTI';
+        $data->roleinstructor = $studentrole->id;
+        $data->rolelearner = $teacherrole->id;
 
         // Get the enrol LTI plugin.
         $enrolplugin = enrol_get_plugin('lti');
@@ -1472,7 +1455,7 @@ EOD;
      *
      * @param   \stdClass   $course The course to enrol in
      * @param   string      $role The role to give within the course
-     * @param   \stdClass|array   $userparams User parameters
+     * @param   \stdClass   $userparams User parameters
      * @return  \stdClass   The created user
      */
     public function create_and_enrol($course, $role = 'student', $userparams = null, $enrol = 'manual',

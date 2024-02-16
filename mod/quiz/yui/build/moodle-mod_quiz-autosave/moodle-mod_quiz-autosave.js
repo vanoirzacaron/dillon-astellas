@@ -204,7 +204,7 @@ M.mod_quiz.autosave = {
         this.form.on('submit', this.stop_autosaving, this);
 
         require(['core_form/events'], function(FormEvent) {
-            window.addEventListener(FormEvent.eventTypes.uploadChanged, this.value_changed.bind(this));
+            window.addEventListener(FormEvent.types.uploadChanged, this.value_changed.bind(this));
         }.bind(this));
 
         this.init_tinymce(this.TINYMCE_DETECTION_REPEATS);
@@ -271,12 +271,7 @@ M.mod_quiz.autosave = {
             window.tinyMCE.on('AddEditor', function(event) {
                 event.editor.on('Change Undo Redo keydown', startSaveTimer);
             });
-            // One or more editors might already have been added, so we have to attach
-            // the event handlers to these as well.
-            window.tinyMCE.get().forEach(function(editor) {
-                editor.on('Change Undo Redo keydown', startSaveTimer);
-            });
-         }
+        }
     },
 
     /**

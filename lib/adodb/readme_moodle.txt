@@ -1,4 +1,4 @@
-Description of ADOdb library import into Moodle
+Description of ADOdb v5.21.0 library import into Moodle 3.11 and up
 
 Source: https://github.com/ADOdb/ADOdb
 
@@ -14,15 +14,17 @@ Removed:
  * lang/* everything but adodb-en.inc.php (originally because they were not utf-8, now because of not used)
  * nbproject/ (if present)
  * pear/
- * replicate/ (if present)
- * scripts/ (if present)
- * server.php (if present)
+ * replicate/
+ * scripts/
+ * server.php
  * session/
- * tests/ (if present)
+ * tests/
 
 Added:
  * index.html - prevent directory browsing on misconfigured servers
  * readme_moodle.txt - this file ;-)
 
-Notes:
- * 2023-09-28 Added #[AllowDynamicProperties] above the ADOFetchObj class.
+Our changes (to be checked on next update if they are already applied upstream)::
+ * https://github.com/ADOdb/ADOdb/issues/711
+Our changes (to be checked on next update if they are already applied upstream):
+ * https://github.com/ADOdb/ADOdb/issues/791

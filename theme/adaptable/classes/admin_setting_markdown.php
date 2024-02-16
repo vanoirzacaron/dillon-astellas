@@ -24,6 +24,8 @@
 
 namespace theme_adaptable;
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * Setting that displays markdown files.  Based on admin_setting_description in adminlib.php.
  *

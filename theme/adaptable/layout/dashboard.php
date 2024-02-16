@@ -27,11 +27,13 @@
 defined('MOODLE_INTERNAL') || die;
 
 // Include header.
-$sidepostdrawer = true;
 require_once(dirname(__FILE__) . '/includes/header.php');
-$PAGE->set_secondary_navigation(false);
 
 // Set layout.
+$left = $PAGE->theme->settings->blockside;
+$hassidepost = $PAGE->blocks->region_has_content('side-post', $OUTPUT);
+$regions = theme_adaptable_grid($left, $hassidepost);
+
 $dashblocksposition = (!empty($PAGE->theme->settings->dashblocksposition)) ? $PAGE->theme->settings->dashblocksposition : 'abovecontent';
 
 $dashblocklayoutlayoutrow = '';
@@ -42,14 +44,13 @@ if (!empty($PAGE->theme->settings->dashblocksenabled)) {
 }
 ?>
 
-<div id="maincontainer" class="container outercont">
+<div class="container outercont">
     <?php
-    echo $OUTPUT->get_news_ticker();
     if ( (!empty($PAGE->theme->settings->dashblocksenabled)) &&
          (empty($PAGE->theme->settings->tabbedlayoutdashboard)) && ($dashblocksposition == 'abovecontent') ) {
         echo $dashblocklayoutlayoutrow;
     } ?>
-    <div id="page-content" class="row">
+    <div id="page-content" class="row<?php echo $regions['direction'];?>">
         <?php
         if (!empty($PAGE->theme->settings->tabbedlayoutdashboard)) {
 
@@ -91,7 +92,7 @@ if (!empty($PAGE->theme->settings->dashblocksenabled)) {
 
             $taborder = explode ('-', $PAGE->theme->settings->tabbedlayoutdashboard);
             $count = 0;
-            echo '<div id="region-main-box" class="col-12">';
+            echo '<div id="region-main-box" class="' . $regions['content'] . '">';
             echo '<section id="region-main">';
 
             echo '<main id="dashboardtabcontainer" class="tabcontentcontainer">';
@@ -145,8 +146,11 @@ if (!empty($PAGE->theme->settings->dashblocksenabled)) {
             echo '</main>';
             echo '</section>';
             echo '</div>';
+            if ($hassidepost) {
+                echo $OUTPUT->blocks('side-post', $regions['blocks'].' d-print-none ');
+            }
         } else { ?>
-        <div id="region-main-box" class="col-12">
+        <div id="region-main-box" class="<?php echo $regions['content'];?>">
             <section id="region-main">
             <?php
                 echo $OUTPUT->course_content_header();
@@ -155,10 +159,15 @@ if (!empty($PAGE->theme->settings->dashblocksenabled)) {
             ?>
             </section>
         </div>
+
             <?php
+            if ($hassidepost) {
+                echo $OUTPUT->blocks('side-post', $regions['blocks'].' d-print-none ');
+            }
         }
-        ?>
-    </div>
+    ?>
+
+</div>
 
 <?php
 if ( (!empty($PAGE->theme->settings->dashblocksenabled)) && (empty($PAGE->theme->settings->tabbedlayoutdashboard))

@@ -107,12 +107,6 @@ class file_storage {
      * @return string sha1 hash
      */
     public static function get_pathname_hash($contextid, $component, $filearea, $itemid, $filepath, $filename) {
-        if (substr($filepath, 0, 1) != '/') {
-            $filepath = '/' . $filepath;
-        }
-        if (substr($filepath, - 1) != '/') {
-            $filepath .= '/';
-        }
         return sha1("/$contextid/$component/$filearea/$itemid".$filepath.$filename);
     }
 
@@ -988,7 +982,7 @@ class file_storage {
      * @param int $itemid item ID
      * @param string $filepath file path
      * @param int $userid the user ID
-     * @return stored_file|false success
+     * @return bool success
      */
     public function create_directory($contextid, $component, $filearea, $itemid, $filepath, $userid = null) {
         global $DB;
@@ -1247,7 +1241,7 @@ class file_storage {
             $tmpfile = tempnam($this->tempdir, 'newfromurl');
             $content = download_file_content($url, $headers, $postdata, $fullresponse, $timeout, $connecttimeout, $skipcertverify, $tmpfile, $calctimeout);
             if ($content === false) {
-                throw new file_exception('storedfileproblem', 'Cannot fetch file from URL');
+                throw new file_exception('storedfileproblem', 'Can not fetch file form URL');
             }
             try {
                 $newfile = $this->create_file_from_pathname($filerecord, $tmpfile);
@@ -1261,7 +1255,7 @@ class file_storage {
         } else {
             $content = download_file_content($url, $headers, $postdata, $fullresponse, $timeout, $connecttimeout, $skipcertverify, NULL, $calctimeout);
             if ($content === false) {
-                throw new file_exception('storedfileproblem', 'Cannot fetch file from URL');
+                throw new file_exception('storedfileproblem', 'Can not fetch file form URL');
             }
             return $this->create_file_from_string($filerecord, $content);
         }
@@ -1806,7 +1800,7 @@ class file_storage {
                 // the latter of which can go to 100, we need to make sure that quality here is
                 // in a safe range or PHP WILL CRASH AND DIE. You have been warned.
                 $quality = $quality > 9 ? (int)(max(1.0, (float)$quality / 100.0) * 9.0) : $quality;
-                imagepng($img, null, $quality, PNG_NO_FILTER);
+                imagepng($img, NULL, $quality, NULL);
                 break;
 
             default:
@@ -2256,11 +2250,12 @@ class file_storage {
      */
     public function cron() {
         global $CFG, $DB;
+        require_once($CFG->libdir.'/cronlib.php');
 
         // find out all stale draft areas (older than 4 days) and purge them
         // those are identified by time stamp of the /. root dir
         mtrace('Deleting old draft files... ', '');
-        \core\cron::trace_time_and_memory();
+        cron_trace_time_and_memory();
         $old = time() - 60*60*24*4;
         $sql = "SELECT *
                   FROM {files}
@@ -2277,7 +2272,7 @@ class file_storage {
         // * preview files in the core preview filearea without the existing original file.
         // * document converted files in core documentconversion filearea without the existing original file.
         mtrace('Deleting orphaned preview, and document conversion files... ', '');
-        \core\cron::trace_time_and_memory();
+        cron_trace_time_and_memory();
         $sql = "SELECT p.*
                   FROM {files} p
              LEFT JOIN {files} o ON (p.filename = o.contenthash)
@@ -2304,7 +2299,7 @@ class file_storage {
             require_once($CFG->libdir.'/filelib.php');
             // Delete files that are associated with a context that no longer exists.
             mtrace('Cleaning up files from deleted contexts... ', '');
-            \core\cron::trace_time_and_memory();
+            cron_trace_time_and_memory();
             $sql = "SELECT DISTINCT f.contextid
                     FROM {files} f
                     LEFT OUTER JOIN {context} c ON f.contextid = c.id
@@ -2320,7 +2315,7 @@ class file_storage {
             mtrace('done.');
 
             mtrace('Call filesystem cron tasks.', '');
-            \core\cron::trace_time_and_memory();
+            cron_trace_time_and_memory();
             $this->filesystem->cron();
             mtrace('done.');
         }
@@ -2467,6 +2462,6 @@ class file_storage {
      * @return  string The file's content hash
      */
     public static function hash_from_string($content) {
-        return sha1($content ?? '');
+        return sha1($content);
     }
 }

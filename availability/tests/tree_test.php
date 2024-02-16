@@ -330,30 +330,15 @@ class tree_test extends \advanced_testcase {
      * @param int $userid User id
      */
     protected function get_available_results($structure, \core_availability\info $info, $userid) {
-        global $PAGE, $OUTPUT;
+        global $PAGE;
         $tree = new tree($structure);
         $result = $tree->check_available(false, $info, true, $userid);
         $information = $tree->get_result_information($info, $result);
         if (!is_string($information)) {
-            $renderable = new \core_availability\output\availability_info($information);
-            $information = str_replace(array("\r", "\n"), '', $OUTPUT->render($renderable));
+            $renderer = $PAGE->get_renderer('core', 'availability');
+            $information = $renderer->render($information);
         }
         return array($result->is_available(), $information);
-    }
-
-    /**
-     * Shortcut function to render the full availability information.
-     *
-     * @param \stdClass $structure Tree structure
-     * @param \core_availability\info $info Location info
-     */
-    protected function render_full_information($structure, \core_availability\info $info) {
-        global $OUTPUT;
-        $tree = new tree($structure);
-        $information = $tree->get_full_information($info);
-        $renderable = new \core_availability\output\availability_info($information);
-        $html = $OUTPUT->render($renderable);
-        return str_replace(array("\r", "\n"), '', $html);
     }
 
     /**
@@ -400,6 +385,7 @@ class tree_test extends \advanced_testcase {
      */
     public function test_get_full_information() {
         global $PAGE;
+        $renderer = $PAGE->get_renderer('core', 'availability');
         // Setup.
         $info = new \core_availability\mock_info();
 
@@ -426,43 +412,48 @@ class tree_test extends \advanced_testcase {
                     self::mock(array('m' => '1')),
                     self::mock(array('m' => '2'))), tree::OP_AND),
                 self::mock(array('m' => 3)));
+        $tree = new tree($structure);
         $this->assertMatchesRegularExpression('~<ul.*<ul.*<li.*1.*<li.*2.*</ul>.*<li.*3~',
-                $this->render_full_information($structure, $info));
+                $renderer->render($tree->get_full_information($info)));
 
         // Test intro messages before list. First, OR message.
         $structure->c = array(
                 self::mock(array('m' => '1')),
                 self::mock(array('m' => '2'))
         );
-        $this->assertMatchesRegularExpression('~Not available unless any of:.*<ul~',
-                $this->render_full_information($structure, $info));
+        $tree = new tree($structure);
+        $this->assertMatchesRegularExpression('~Not available unless any of:.*<ul>~',
+                $renderer->render($tree->get_full_information($info)));
 
         // Now, OR message when not shown.
         $structure->show = false;
-
-        $this->assertMatchesRegularExpression('~hidden.*<ul~',
-                $this->render_full_information($structure, $info));
+        $tree = new tree($structure);
+        $this->assertMatchesRegularExpression('~hidden.*<ul>~',
+                $renderer->render($tree->get_full_information($info)));
 
         // AND message.
         $structure->op = '&';
         unset($structure->show);
         $structure->showc = array(false, false);
-        $this->assertMatchesRegularExpression('~Not available unless:.*<ul~',
-                $this->render_full_information($structure, $info));
+        $tree = new tree($structure);
+        $this->assertMatchesRegularExpression('~Not available unless:.*<ul>~',
+                $renderer->render($tree->get_full_information($info)));
 
         // Hidden markers on items.
         $this->assertMatchesRegularExpression('~1.*hidden.*2.*hidden~',
-                $this->render_full_information($structure, $info));
+                $renderer->render($tree->get_full_information($info)));
 
         // Hidden markers on child tree and items.
         $structure->c[1] = tree::get_nested_json(array(
                 self::mock(array('m' => '2')),
                 self::mock(array('m' => '3'))), tree::OP_AND);
+        $tree = new tree($structure);
         $this->assertMatchesRegularExpression('~1.*hidden.*All of \(hidden.*2.*3~',
-                $this->render_full_information($structure, $info));
+                $renderer->render($tree->get_full_information($info)));
         $structure->c[1]->op = '|';
+        $tree = new tree($structure);
         $this->assertMatchesRegularExpression('~1.*hidden.*Any of \(hidden.*2.*3~',
-                $this->render_full_information($structure, $info));
+                $renderer->render($tree->get_full_information($info)));
 
         // Hidden markers on single-item display, AND and OR.
         $structure->showc = array(false);
@@ -484,8 +475,9 @@ class tree_test extends \advanced_testcase {
         $structure->c[0] = tree::get_nested_json(array(
                 self::mock(array('m' => '1')),
                 self::mock(array('m' => '2'))), tree::OP_AND);
+        $tree = new tree($structure);
         $this->assertMatchesRegularExpression('~Not available \(hidden.*1.*2~',
-                $this->render_full_information($structure, $info));
+                $renderer->render($tree->get_full_information($info)));
 
         // Single item tree containing single item.
         unset($structure->c[0]->c[1]);

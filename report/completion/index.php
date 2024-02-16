@@ -56,11 +56,6 @@ $PAGE->set_pagelayout('report');
 $firstnamesort = ($sort == 'firstname');
 $excel = ($format == 'excelcsv');
 $csv = ($format == 'csv' || $excel);
-if ($csv) {
-    $dateformat = "%F %T";
-} else {
-    $dateformat = get_string('strftimedatetimeshort', 'langconfig');
-}
 
 // Load CSV library
 if ($csv) {
@@ -72,8 +67,9 @@ $start   = optional_param('start', 0, PARAM_INT);
 $sifirst = optional_param('sifirst', 'all', PARAM_NOTAGS);
 $silast  = optional_param('silast', 'all', PARAM_NOTAGS);
 
-// Whether to show extra user identity information.
-$extrafields = \core_user\fields::get_identity_fields($context, true);
+// Whether to show extra user identity information
+// TODO Does not support custom user profile fields (MDL-70456).
+$extrafields = \core_user\fields::get_identity_fields($context, false);
 $leftcols = 1 + count($extrafields);
 
 // Check permissions
@@ -98,7 +94,7 @@ $modinfo = get_fast_modinfo($course);
 $completion = new completion_info($course);
 
 if (!$completion->has_criteria()) {
-    throw new \moodle_exception('nocriteriaset', 'completion', $CFG->wwwroot.'/course/report.php?id='.$course->id);
+    print_error('nocriteriaset', 'completion', $CFG->wwwroot.'/course/report.php?id='.$course->id);
 }
 
 // Get criteria and put in correct order
@@ -118,6 +114,8 @@ foreach ($completion->get_criteria() as $criterion) {
         $criteria[] = $criterion;
     }
 }
+
+report_helper::save_selected_report($courseid, $url);
 
 // Can logged in user mark users as complete?
 // (if the logged in user has a role defined in the role criteria)
@@ -313,7 +311,7 @@ if (!$csv) {
     }
 
     print '<table id="completion-progress" class="table table-bordered generaltable flexible boxaligncenter
-        completionreport" cellpadding="5" border="1">';
+        completionreport" style="text-align: left" cellpadding="5" border="1">';
 
     // Print criteria group names
     print PHP_EOL.'<thead><tr style="vertical-align: top">';
@@ -597,7 +595,7 @@ foreach ($progress as $user) {
                 $state = COMPLETION_INCOMPLETE;
             }
             if ($is_complete) {
-                $date = userdate($criteria_completion->timecompleted, $dateformat);
+                $date = userdate($criteria_completion->timecompleted, get_string('strftimedatetimeshort', 'langconfig'));
             } else {
                 $date = '';
             }
@@ -645,7 +643,7 @@ foreach ($progress as $user) {
         $a->state    = $describe;
 
         if ($is_complete) {
-            $a->date = userdate($criteria_completion->timecompleted, $dateformat);
+            $a->date = userdate($criteria_completion->timecompleted, get_string('strftimedatetimeshort', 'langconfig'));
         } else {
             $a->date = '';
         }
@@ -699,7 +697,7 @@ foreach ($progress as $user) {
     $a = new StdClass;
 
     if ($ccompletion->is_complete()) {
-        $a->date = userdate($ccompletion->timecompleted, $dateformat);
+        $a->date = userdate($ccompletion->timecompleted, get_string('strftimedatetimeshort', 'langconfig'));
     } else {
         $a->date = '';
     }

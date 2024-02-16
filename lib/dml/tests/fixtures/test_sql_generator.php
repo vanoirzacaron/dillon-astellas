@@ -23,14 +23,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace core;
-
 defined('MOODLE_INTERNAL') || die();
 
 require_once(__DIR__.'/../../../ddl/sql_generator.php');
-
-use xmldb_table;
-use xmldb_field;
 
 /**
  * Test SQL code generator class
@@ -41,7 +36,7 @@ use xmldb_field;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  *
  */
-class test_sql_generator extends \sql_generator {
+class test_sql_generator extends sql_generator {
     // phpcs:disable moodle.NamingConventions.ValidFunctionName.LowercaseMethod
 
     /**

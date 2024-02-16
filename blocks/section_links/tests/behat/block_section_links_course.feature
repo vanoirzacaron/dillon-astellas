@@ -21,24 +21,20 @@ Feature: The section links block allows users to quickly navigate around a moodl
     And I am on "Course 1" course homepage with editing mode on
 
   Scenario: Add the section links block to a course.
-    Given the following config values are set as admin:
-      | unaddableblocks | | theme_boost|
-    And I add the "Section links" block
+    Given I add the "Section links" block
     And I turn editing mode off
     And I should see "5" in the "Section links" "block"
     When I follow "5"
     Then I should see "Test assignment 1"
 
   Scenario: Add the section links block to a course and limit the sections displayed.
-    Given the following config values are set as admin:
-      | unaddableblocks | | theme_boost|
-    And I add the "Section links" block
+    Given I add the "Section links" block
     And I configure the "Section links" block
     And I set the following fields to these values:
-      | config_numsections1 | 5 |
-      | config_incby1 | 5 |
-      | config_numsections2 | 40 |
-      | config_incby2 | 10 |
+      | id_config_numsections1 | 5 |
+      | id_config_incby1 | 5 |
+      | id_config_numsections2 | 40 |
+      | id_config_incby2 | 10 |
     And I press "Save changes"
     And I turn editing mode off
     And I should see "5" in the "Section links" "block"
@@ -46,15 +42,13 @@ Feature: The section links block allows users to quickly navigate around a moodl
     Then I should see "Test assignment 1"
 
   Scenario: Add the section links block to a course and limit the sections displayed using the alternative number of sections.
-    Given the following config values are set as admin:
-      | unaddableblocks | | theme_boost|
-    And I add the "Section links" block
+    Given I add the "Section links" block
     And I configure the "Section links" block
     And I set the following fields to these values:
-      | config_numsections1 | 5 |
-      | config_incby1 | 1 |
-      | config_numsections2 | 10 |
-      | config_incby2 | 5 |
+      | id_config_numsections1 | 5 |
+      | id_config_incby1 | 1 |
+      | id_config_numsections2 | 10 |
+      | id_config_incby2 | 5 |
     And I press "Save changes"
     And I turn editing mode off
     And I should see "5" in the "Section links" "block"

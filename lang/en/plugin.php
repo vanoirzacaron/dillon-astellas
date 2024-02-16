@@ -124,10 +124,6 @@ $string['type_cachestore'] = 'Cache store';
 $string['type_cachestore_plural'] = 'Cache stores';
 $string['type_calendartype'] = 'Calendar type';
 $string['type_calendartype_plural'] = 'Calendar types';
-$string['type_communication'] = 'Communication provider';
-$string['type_communication_plural'] = 'Communication providers';
-$string['type_contenttype'] = 'Content bank';
-$string['type_contenttype_plural'] = 'Content bank plugins';
 $string['type_contentbank'] = 'Content bank';
 $string['type_contentbank_plural'] = 'Content bank plugins';
 $string['type_customfield'] = 'Custom field';
@@ -196,8 +192,6 @@ $string['type_tool'] = 'Admin tool';
 $string['type_tool_plural'] = 'Admin tools';
 $string['type_webservice'] = 'Webservice protocol';
 $string['type_webservice_plural'] = 'Webservice protocols';
-$string['type_qbank'] = 'Question bank plugin';
-$string['type_qbank_plural'] = 'Question bank plugins';
 $string['updateavailable'] = 'There is a new version {$a} available!';
 $string['updateavailable_moreinfo'] = 'More info...';
 $string['updateavailable_release'] = 'Release {$a}';
@@ -260,7 +254,3 @@ $string['validationmsglevel_warning'] = 'Warning';
 $string['version'] = 'Version';
 $string['versiondb'] = 'Current version';
 $string['versiondisk'] = 'New version';
-
-// Deprecated since Moodle 4.2.
-$string['type_contentbank'] = 'Content bank';
-$string['type_contentbank_plural'] = 'Content bank plugins';

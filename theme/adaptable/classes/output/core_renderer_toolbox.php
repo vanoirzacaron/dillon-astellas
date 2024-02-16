@@ -27,6 +27,8 @@
 
 namespace theme_adaptable\output;
 
+defined('MOODLE_INTERNAL') || die;
+
 use block_contents;
 use context_course;
 use custom_menu;
@@ -183,6 +185,20 @@ trait core_renderer_toolbox {
         return $sortedcourses;
     }
 
+
+
+    /**
+     * Returns the URL for the favicon.
+     *
+     * @return moodle_url The favicon Moodle URL.
+     */
+    public function favicon() {
+        if (!empty($this->page->theme->settings->favicon)) {
+            return \theme_adaptable\toolbox::get_setting_moodle_url('favicon', $this->page->theme);
+        }
+        return parent::favicon();
+    }
+
     /**
      * Returns settings as formatted text
      *
@@ -206,10 +222,8 @@ trait core_renderer_toolbox {
             return $theme->settings->$setting;
         } else if ($format === 'format_text') {
             return format_text($theme->settings->$setting, FORMAT_PLAIN);
-        } else if ($format === 'format_moodle') {
-            return format_text($theme->settings->$setting, FORMAT_MOODLE);
         } else if ($format === 'format_html') {
-            return format_text($theme->settings->$setting, FORMAT_HTML);
+            return format_text($theme->settings->$setting, FORMAT_HTML, array('trusted' => true));
         } else {
             return format_string($theme->settings->$setting);
         }
@@ -670,6 +684,32 @@ trait core_renderer_toolbox {
     }
 
     /**
+     * Returns html to render Development version alert message in the header
+     *
+     * @return string
+     */
+    public function get_dev_alert() {
+        global $CFG;
+        $output = '';
+
+        // Development version.
+        if (get_config('theme_adaptable', 'version') < '2019051300') {
+            $output .= '<div id="beta"><h3>';
+            $output .= get_string('beta', 'theme_adaptable');
+            $output .= '</h3></div>';
+        }
+
+        // Deprecated moodle version (< 3.6).
+        if ($CFG->version < 2018120300) {
+            $output .= '<div id="beta"><center><h3>';
+            $output .= get_string('deprecated', 'theme_adaptable');
+            $output .= '</h3></center></div>';
+        }
+
+        return $output;
+    }
+
+    /**
      * Returns Google Analytics code if analytics are enabled
      *
      * @return string
@@ -725,27 +765,39 @@ EOT;
     }
 
     /**
-     * Returns Piwik code if enabled.
+     * Returns Piwik code if enabled
      *
      * @copyright  2016 COMETE-UPO (Universit\E9 Paris Ouest)
      *
      * @return string
      */
     public function get_piwik() {
+        global $DB;
+
+        $enabled = $this->page->theme->settings->piwikenabled;
+        $imagetrack = $this->page->theme->settings->piwikimagetrack;
         $siteurl = $this->page->theme->settings->piwiksiteurl;
         $siteid = $this->page->theme->settings->piwiksiteid;
+        $trackadmin = $this->page->theme->settings->piwiktrackadmin;
+
+        $enabled = $this->page->theme->settings->piwikenabled;
+        $imagetrack = $this->page->theme->settings->piwikimagetrack;
+        $siteurl = $this->page->theme->settings->piwiksiteurl;
+        $siteid = $this->page->theme->settings->piwiksiteid;
+        $trackadmin = $this->page->theme->settings->piwiktrackadmin;
 
         $analytics = '';
-        if ($this->page->theme->settings->piwikenabled &&
-            !empty($siteurl) &&
-            !empty($siteid) &&
-            ($this->page->theme->settings->piwiktrackadmin || !is_siteadmin())) {
+        if ($enabled && !empty($siteurl) && !empty($siteid) && (!is_siteadmin() || $trackadmin)) {
+            if ($imagetrack) {
+                $addition = '<noscript><p><img src="//'.$siteurl.'/piwik.php?idsite='.$siteid.' style="border:0;"/></p></noscript>';
+            } else {
+                $addition = '';
+            }
             // Cleanurl.
             $pageinfo = get_context_info_array($this->page->context->id);
             $trackurl = '';
             // Adds course category name.
             if (isset($pageinfo[1]->category)) {
-                global $DB;
                 if ($category = $DB->get_record('course_categories', array('id' => $pageinfo[1]->category))) {
                     $cats = explode("/", $category->path);
                     foreach (array_filter($cats) as $cat) {
@@ -757,39 +809,36 @@ EOT;
             }
             // Adds course full name.
             if (isset($pageinfo[1]->fullname)) {
-                $trackurl .= $pageinfo[1]->fullname.'/';
-                if (!isset($pageinfo[2]->name)) {
-                    if ($this->page->user_is_editing()) {
-                        $trackurl .= get_string('edit');
-                    } else {
-                        $trackurl .= get_string('view');
-                    }
+                if (isset($pageinfo[2]->name)) {
+                    $trackurl .= $pageinfo[1]->fullname.'/';
+                } else if ($this->page->user_is_editing()) {
+                    $trackurl .= $pageinfo[1]->fullname.'/'.get_string('edit', 'local_analytics');
+                } else {
+                    $trackurl .= $pageinfo[1]->fullname.'/'.get_string('view', 'local_analytics');
                 }
             }
-            // Adds module name.
+            // Adds activity name.
             if (isset($pageinfo[2]->name)) {
-                $trackurl .= get_string('pluginname', 'mod_'.$pageinfo[2]->modname).'/'.$pageinfo[2]->name;
+                $trackurl .= $pageinfo[2]->modname.'/'.$pageinfo[2]->name;
             }
-            $trackurl = mb_ereg_replace('"', '\"', $trackurl);
+            $trackurl = '"'.str_replace('"', '\"', $trackurl).'"';
             // Here we go.
-            $analytics .= '<!-- Start Piwik Code -->'.PHP_EOL.
-                '<script type="text/javascript">'.
-                '   var _paq = _paq || [];'.
-                '   _paq.push(["setDocumentTitle", "'.$trackurl.'"]);'.
-                '   _paq.push(["trackPageView"]);'.
-                '   _paq.push(["enableLinkTracking"]);'.
-                '   (function() {'.
-                '     var u="//'.$siteurl.'/";'.
-                '     _paq.push(["setTrackerUrl", u+"piwik.php"]);'.
-                '     _paq.push(["setSiteId", '.$siteid.']);'.
-                '     var d=document, g=d.createElement("script"), s=d.getElementsByTagName("script")[0];'.
-                '   g.type="text/javascript"; g.async=true; g.defer=true; g.src=u+"piwik.js";s.parentNode.insertBefore(g,s);'.
-                '   })();'.
-                '</script>'.PHP_EOL;
-            if ($this->page->theme->settings->piwikimagetrack) {
-                $analytics .= '<noscript><p><img src="//'.$siteurl.'/piwik.php?idsite='.$siteid.'" style="border:0;"/></p></noscript>'.PHP_EOL;
-            }
-            $analytics .= '<!-- End Piwik Code -->';
+            $analytics .= '<!-- Start Piwik Code -->'."\n".
+                '<script type="text/javascript">'."\n".
+                '   var _paq = _paq || [];'."\n".
+                '   _paq.push(["setDocumentTitle", '.$trackurl.']);'."\n".
+                '   _paq.push(["trackPageView"]);'."\n".
+                '   _paq.push(["enableLinkTracking"]);'."\n".
+                '   (function() {'."\n".
+                '     var u="//'.$siteurl.'/";'."\n".
+                '     _paq.push(["setTrackerUrl", u+"piwik.php"]);'."\n".
+                '     _paq.push(["setSiteId", '.$siteid.']);'."\n".
+                '     var d=document, g=d.createElement("script"), s=d.getElementsByTagName("script")[0];'."\n".
+                '   g.type="text/javascript"; g.async=true; g.defer=true; g.src=u+"piwik.js";s.parentNode.insertBefore(g,s);'."\n".
+                '   })();'."\n".
+                '</script>'.$addition."\n".
+                '<!-- End Piwik Code -->'."\n".
+                '';
         }
         return $analytics;
     }
@@ -812,12 +861,11 @@ EOT;
      * Note: Not called directly by theme but by core in its way of setting the 'page button'
      *       attribute.  This version needed for 'Edit button keep position' in adaptable.js.
      *
-     * @param moodle_url $url The URL + params to send through when clicking the button.
-     * @parmm string $method Not used.
+     * @param moodle_url $url The URL + params to send through when clicking the button
      * @return string HTML the button
      * Written by G J Barnard
      */
-    public function edit_button(moodle_url $url, string $method = 'post') {
+    public function edit_button(moodle_url $url) {
         $url->param('sesskey', sesskey());
         if ($this->page->user_is_editing()) {
             $url->param('edit', 'off');
@@ -1161,7 +1209,7 @@ EOT;
                     $fieldname = $settingname . $blockcount;
                     if (isset($this->page->theme->settings->$fieldname)) {
                         // Add HTML format.
-                        $retval .= $this->get_setting($fieldname, 'format_moodle');
+                        $retval .= $this->get_setting($fieldname, 'format_html');
                     }
                     $retval .= '</div>';
                 }
@@ -1399,7 +1447,7 @@ EOT;
      *
      * @return string Markup.
      */
-    public function navbar(): string {
+    public function navbar() {
         $items = $this->page->navbar->get_items();
         $breadcrumbseparator = $this->page->theme->settings->breadcrumbseparator;
 
@@ -1539,11 +1587,11 @@ EOT;
                 $branchlabel .= $branchtitle;
 
                 if (!empty($this->page->theme->settings->enablehomeredirect)) {
-                    $branchurl = new moodle_url('/?redirect=0');
+                    $branchurl   = new moodle_url('/?redirect=0');
                 } else {
-                    $branchurl = new moodle_url('/');
+                    $branchurl   = new moodle_url('/');
                 }
-                $branchsort = 9998;
+                $branchsort  = 9998;
                 $branch = $menu->add($branchlabel, $branchurl, $branchtitle, $branchsort);
             }
 
@@ -1554,8 +1602,8 @@ EOT;
                     $branchlabel .= '<i class="fa fa-dashboard fa-lg"></i>';
                 }
                 $branchlabel .= $branchtitle;
-                $branchurl = new moodle_url('/my/index.php');
-                $branchsort = 9999;
+                $branchurl   = new moodle_url('/my/index.php');
+                $branchsort  = 9999;
                 $branch = $menu->add($branchlabel, $branchurl, $branchtitle, $branchsort);
             }
 
@@ -1567,8 +1615,8 @@ EOT;
                 }
                 $branchlabel .= $branchtitle;
 
-                $branchurl = new moodle_url('/calendar/view.php');
-                $branchsort = 10000;
+                $branchurl   = new moodle_url('/calendar/view.php');
+                $branchsort  = 10000;
                 $branch = $menu->add($branchlabel, $branchurl, $branchtitle, $branchsort);
             }
 
@@ -1618,8 +1666,8 @@ EOT;
                     }
                     $branchlabel .= $branchtitle;
 
-                    $branchurl = new moodle_url('#');
-                    $branchsort = 10001;
+                    $branchurl   = new moodle_url('#');
+                    $branchsort  = 10001;
 
                     $menudisplayoption = '';
 
@@ -1859,11 +1907,11 @@ EOT;
                     $data = theme_adaptable_get_course_activities();
                     foreach ($data as $modname => $modfullname) {
                         if ($modname === 'resources') {
-                            $icon = $this->pix_icon('monologo', '', 'mod_page');
+                            $icon = $this->pix_icon('icon', '', 'mod_page');
                             $branch->add($icon.$modfullname, new moodle_url('/course/resources.php',
                                 array('id' => $this->page->course->id)), $modfullname);
                         } else {
-                            $icon = $this->pix_icon('monologo', '', $modname);
+                            $icon = $this->pix_icon('icon', '', $modname);
                             $branch->add($icon.$modfullname, new moodle_url('/mod/'.$modname.'/index.php',
                                     array('id' => $this->page->course->id)), $modfullname);
                         }
@@ -1904,7 +1952,7 @@ EOT;
                         $branchurl = new moodle_url($this->page->theme->settings->$enablehelpsetting,
                             array('helptarget' => $this->page->theme->settings->helptarget));
 
-                        $branchsort = 10003;
+                        $branchsort  = 10003;
                         $branch = $menu->add($branchlabel, $branchurl, $branchtitle, $branchsort);
                     }
                 }
@@ -2075,7 +2123,7 @@ EOT;
 
         if (!empty($sectionsformnenu)) { // Rare but possible!
             $branchtitle = get_string('sections', 'theme_adaptable');
-            $branchlabel = '<i class="icon sections-menu fa fa-list-ol fa-lg"></i>'.$branchtitle;
+            $branchlabel = '<i class="icon fa fa-list-ol fa-lg"></i>'.$branchtitle;
             $branch = $menu->add($branchlabel, null, $branchtitle, 100003);
 
             foreach ($sectionsformnenu as $sectionformenu) {
@@ -2122,7 +2170,7 @@ EOT;
     /**
      * Returns html to render tools menu in main navigation bar
      *
-     * @param string $menuid The id to use when creating menu.  Used so this could be called for a nav drawer style display.
+     * @param string $menuid The id to use when creating menu. Used so this can be called for a nav drawer style display.
      *
      *
      * @return string
@@ -2747,6 +2795,21 @@ EOT;
     }
 
     /**
+     * Wrap html round custom menu
+     *
+     * @param string $custommenu
+     * @param string $classno
+     *
+     * @return string
+     */
+    public function wrap_custom_menu_top($custommenu, $classno) {
+        $retval = '<div class="dropdown pull-right newmenus newmenu$classno">';
+        $retval .= $custommenu;
+        $retval .= '</div>';
+        return $retval;
+    }
+
+    /**
      * Returns language menu
      *
      * @param bool $showtext
@@ -2777,7 +2840,7 @@ EOT;
                 $currentlang = '';
             }
 
-            $this->language = $langmenu->add('<i class="icon fa fa-globe fa-lg"></i><span class="langdesc">'.$currentlang.'</span>',
+            $this->language = $langmenu->add('<i class="fa fa-globe fa-lg"></i><span class="langdesc">'.$currentlang.'</span>',
                 new moodle_url($this->page->url), $strlang, 10000);
 
             foreach ($langs as $langtype => $langname) {
@@ -2874,6 +2937,7 @@ EOT;
                 $content .= $this->render_custom_menu_item($menunode, 1, $menuid . $submenucount);
             }
             $content .= '</ul></li>';
+
         } else {
             if (preg_match("/^#+$/", $menunode->get_text())) {
                 // This is a divider.
@@ -2891,18 +2955,15 @@ EOT;
                  * "helptarget", which when equal to "_blank", will create a link with target="_blank" to allow the link to open
                  * in a new window.  This param is removed once checked.
                  */
-                $attributes = array(
-                    'title' => $menunode->get_title(),
-                    'class' => $linkclass
-                );
-                if (is_object($url) && (get_class($url) == 'moodle_url')) {
+                if (is_object($url) && (get_class($url) == 'moodle_url') && ($url->get_param('helptarget') != null)) {
                     $helptarget = $url->get_param('helptarget');
-                    if ($helptarget != null) {
-                        $url->remove_params('helptarget');
-                        $attributes['target'] = $helptarget;
-                    }
+                    $url->remove_params('helptarget');
+                    $content .= html_writer::link($url, $menunode->get_text(), array('title' => $menunode->get_title(),
+                        'target' => $helptarget, 'class' => $linkclass));
+                } else {
+                    $content .= html_writer::link($url, $menunode->get_text(),
+                        array('title' => $menunode->get_title(), 'class' => $linkclass));
                 }
-                $content .= html_writer::link($url, $menunode->get_text(), $attributes);
 
                 $content .= "</li>";
             }
@@ -3106,6 +3167,29 @@ EOT;
                 throw new coding_exception('Unexpected type of thing (' . get_class($bc) . ') found in list of block contents.');
             }
         }
+        return $output;
+    }
+
+    /**
+     * Get the HTML for blocks in the given region.
+     *
+     * @since Moodle 2.5.1 2.6
+     * @param string $region The region to get HTML for.
+     * @param array $classes Wrapping tag classes.
+     * @param string $tag Wrapping tag.
+     * @param boolean $fakeblocksonly Include fake blocks only.
+     * @return string HTML.
+     */
+    public function blocks($region, $classes = array(), $tag = 'aside', $fakeblocksonly = false) {
+        $output = parent::blocks($region, $classes, $tag, $fakeblocksonly);
+
+        if ((!empty($output)) && ($region == 'side-post')) {
+            $output .= html_writer::tag('div',
+                html_writer::tag('i', '', array('class' => 'fa fa-3x fa-angle-left', 'aria-hidden' => 'true')),
+                array('id' => 'showsidebaricon', 'title' => get_string('sidebaricon', 'theme_adaptable')));
+            $this->page->requires->js_call_amd('theme_adaptable/showsidebar', 'init');
+        }
+
         return $output;
     }
 
@@ -3465,21 +3549,5 @@ EOT;
         ];
 
         return $this->render_from_template('core/search_input_navbar', $data);
-    }
-
-    /**
-     * Returns the activity header if any.
-     *
-     * @return string HTML with the activity header if generated.
-     */
-    public function activity_header() {
-        $output = '';
-
-        $activityheadercontext = $this->page->activityheader->export_for_template($this);
-        if (!empty($activityheadercontext)) {
-            $output = $this->render_from_template('core/activity_header', $activityheadercontext);
-        }
-
-        return $output;
     }
 }

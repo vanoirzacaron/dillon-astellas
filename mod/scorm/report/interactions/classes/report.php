@@ -44,13 +44,6 @@ class report extends \mod_scorm\report {
         $attemptsmode = optional_param('attemptsmode', SCORM_REPORT_ATTEMPTS_ALL_STUDENTS, PARAM_INT);
         $PAGE->set_url(new \moodle_url($PAGE->url, array('attemptsmode' => $attemptsmode)));
 
-        // Scorm action bar for report.
-        if ($download === '') {
-            $actionbar = new \mod_scorm\output\actionbar($cm->id, true, $attemptsmode);
-            $renderer = $PAGE->get_renderer('mod_scorm');
-            echo $renderer->report_actionbar($actionbar);
-        }
-
         if ($action == 'delete' && has_capability('mod/scorm:deleteresponses', $contextmodule) && confirm_sesskey()) {
             if (scorm_delete_responses($attemptids, $scorm)) { // Delete responses.
                 echo $OUTPUT->notification(get_string('scormresponsedeleted', 'scorm'), 'notifysuccess');
@@ -163,32 +156,32 @@ class report extends \mod_scorm\report {
             }
 
             // Construct the SQL.
-            $select = 'SELECT DISTINCT '.$DB->sql_concat('u.id', '\'#\'', 'COALESCE(sa.attempt, 0)').' AS uniqueid, ';
+            $select = 'SELECT DISTINCT '.$DB->sql_concat('u.id', '\'#\'', 'COALESCE(st.attempt, 0)').' AS uniqueid, ';
             // TODO Does not support custom user profile fields (MDL-70456).
             $userfields = \core_user\fields::for_identity($coursecontext, false)->with_userpic()->including('idnumber');
             $selectfields = $userfields->get_sql('u', false, '', 'userid')->selects;
-            $select .= 'sa.scormid AS scormid, sa.attempt AS attempt ' . $selectfields . ' ';
+            $select .= 'st.scormid AS scormid, st.attempt AS attempt ' . $selectfields . ' ';
 
-            // This part is the same for all cases - join users and user tracking tables.
+            // This part is the same for all cases - join users and scorm_scoes_track tables.
             $from = 'FROM {user} u ';
-            $from .= 'LEFT JOIN {scorm_attempt} sa ON sa.userid = u.id AND sa.scormid = '.$scorm->id;
+            $from .= 'LEFT JOIN {scorm_scoes_track} st ON st.userid = u.id AND st.scormid = '.$scorm->id;
             switch ($attemptsmode) {
                 case SCORM_REPORT_ATTEMPTS_STUDENTS_WITH:
                     // Show only students with attempts.
-                    $where = " WHERE u.id IN ({$allowedlistsql}) AND sa.userid IS NOT NULL";
+                    $where = " WHERE u.id IN ({$allowedlistsql}) AND st.userid IS NOT NULL";
                     break;
                 case SCORM_REPORT_ATTEMPTS_STUDENTS_WITH_NO:
                     // Show only students without attempts.
-                    $where = " WHERE u.id IN ({$allowedlistsql}) AND sa.userid IS NULL";
+                    $where = " WHERE u.id IN ({$allowedlistsql}) AND st.userid IS NULL";
                     break;
                 case SCORM_REPORT_ATTEMPTS_ALL_STUDENTS:
                     // Show all students with or without attempts.
-                    $where = " WHERE u.id IN ({$allowedlistsql}) AND (sa.userid IS NOT NULL OR sa.userid IS NULL)";
+                    $where = " WHERE u.id IN ({$allowedlistsql}) AND (st.userid IS NOT NULL OR st.userid IS NULL)";
                     break;
             }
 
-            $countsql = 'SELECT COUNT(DISTINCT('.$DB->sql_concat('u.id', '\'#\'', 'COALESCE(sa.attempt, 0)').')) AS nbresults, ';
-            $countsql .= 'COUNT(DISTINCT('.$DB->sql_concat('u.id', '\'#\'', 'sa.attempt').')) AS nbattempts, ';
+            $countsql = 'SELECT COUNT(DISTINCT('.$DB->sql_concat('u.id', '\'#\'', 'COALESCE(st.attempt, 0)').')) AS nbresults, ';
+            $countsql .= 'COUNT(DISTINCT('.$DB->sql_concat('u.id', '\'#\'', 'st.attempt').')) AS nbattempts, ';
             $countsql .= 'COUNT(DISTINCT(u.id)) AS nbusers ';
             $countsql .= $from.$where;
             $questioncount = get_scorm_question_count($scorm->id);
@@ -453,10 +446,9 @@ class report extends \mod_scorm\report {
                     } else {
                         if (!$download) {
                             $url = new \moodle_url('/mod/scorm/report/userreport.php',
-                                array('id' => $cm->id,
-                                    'user' => $scouser->userid,
-                                    'attempt' => $scouser->attempt,
-                                    'mode' => 'interactions'));
+                                                    array('id' => $cm->id,
+                                                        'user' => $scouser->userid,
+                                                        'attempt' => $scouser->attempt));
                             $row[] = \html_writer::link($url, $scouser->attempt);
                         } else {
                             $row[] = $scouser->attempt;
@@ -494,8 +486,7 @@ class report extends \mod_scorm\report {
                                 }
                                 if (!$download) {
                                     $url = new \moodle_url('/mod/scorm/report/userreporttracks.php', array('id' => $cm->id,
-                                        'scoid' => $sco->id, 'user' => $scouser->userid, 'attempt' => $scouser->attempt,
-                                        'mode' => 'interactions'));
+                                        'scoid' => $sco->id, 'user' => $scouser->userid, 'attempt' => $scouser->attempt));
                                     $row[] = $OUTPUT->pix_icon($trackdata->status, $strstatus, 'scorm') . '<br>' .
                                         \html_writer::link($url, $score, array('title' => get_string('details', 'scorm')));
                                 } else {
@@ -586,6 +577,34 @@ class report extends \mod_scorm\report {
                         // Close form.
                         echo \html_writer::end_tag('div');
                         echo \html_writer::end_tag('form');
+                    }
+                    echo \html_writer::end_div();
+                    if (!empty($attempts)) {
+                        echo \html_writer::start_tag('table', array('class' => 'boxaligncenter')).\html_writer::start_tag('tr');
+                        echo \html_writer::start_tag('td');
+                        echo $OUTPUT->single_button(new \moodle_url($PAGE->url,
+                                                                   array('download' => 'ODS') + $displayoptions),
+                                                                   get_string('downloadods'),
+                                                                   'post',
+                                                                   ['class' => 'mt-1']);
+                        echo \html_writer::end_tag('td');
+                        echo \html_writer::start_tag('td');
+                        echo $OUTPUT->single_button(new \moodle_url($PAGE->url,
+                                                                   array('download' => 'Excel') + $displayoptions),
+                                                                   get_string('downloadexcel'),
+                                                                   'post',
+                                                                   ['class' => 'mt-1']);
+                        echo \html_writer::end_tag('td');
+                        echo \html_writer::start_tag('td');
+                        echo $OUTPUT->single_button(new \moodle_url($PAGE->url,
+                                                                   array('download' => 'CSV') + $displayoptions),
+                                                                   get_string('downloadtext'),
+                                                                   'post',
+                                                                   ['class' => 'mt-1']);
+                        echo \html_writer::end_tag('td');
+                        echo \html_writer::start_tag('td');
+                        echo \html_writer::end_tag('td');
+                        echo \html_writer::end_tag('tr').\html_writer::end_tag('table');
                     }
                 }
             } else {

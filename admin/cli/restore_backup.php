@@ -69,19 +69,19 @@ if ($options['showdebugging']) {
 }
 
 if (!$admin = get_admin()) {
-    throw new \moodle_exception('noadmins');
+    print_error('noadmins');
 }
 
 if (!file_exists($options['file'])) {
-    throw new \moodle_exception('filenotfound');
+    print_error('filenotfound');
 }
 
 if (!$category = $DB->get_record('course_categories', ['id' => $options['categoryid']], 'id')) {
-    throw new \moodle_exception('invalidcategoryid');
+    print_error('invalidcategoryid');
 }
 
-$backupdir = restore_controller::get_tempdir_name(SITEID, $USER->id);
-$path = make_backup_temp_directory($backupdir);
+$backupdir = "restore_" . uniqid();
+$path = $CFG->tempdir . DIRECTORY_SEPARATOR . "backup" . DIRECTORY_SEPARATOR . $backupdir;
 
 cli_heading(get_string('extractingbackupfileto', 'backup', $path));
 $fp = get_file_packer('application/vnd.moodle.backup');
@@ -102,7 +102,7 @@ try {
 } catch (Exception $e) {
     cli_heading(get_string('cleaningtempdata'));
     fulldelete($path);
-    throw new \moodle_exception('generalexceptionmessage', 'error', '', $e->getMessage());
+    print_error('generalexceptionmessage', 'error', '', $e->getMessage());
 }
 
 cli_heading(get_string('restoredcourseid', 'backup', $courseid));

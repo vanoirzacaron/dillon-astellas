@@ -19,13 +19,11 @@ use ScssPhp\ScssPhp\SourceMap\SourceMapGenerator;
  * Base formatter
  *
  * @author Leaf Corcoran <leafot@gmail.com>
- *
- * @internal
  */
 abstract class Formatter
 {
     /**
-     * @var int
+     * @var integer
      */
     public $indentLevel;
 
@@ -60,7 +58,7 @@ abstract class Formatter
     public $assignSeparator;
 
     /**
-     * @var bool
+     * @var boolean
      */
     public $keepSemicolons;
 
@@ -70,17 +68,17 @@ abstract class Formatter
     protected $currentBlock;
 
     /**
-     * @var int
+     * @var integer
      */
     protected $currentLine;
 
     /**
-     * @var int
+     * @var integer
      */
     protected $currentColumn;
 
     /**
-     * @var \ScssPhp\ScssPhp\SourceMap\SourceMapGenerator|null
+     * @var \ScssPhp\ScssPhp\SourceMap\SourceMapGenerator
      */
     protected $sourceMapGenerator;
 
@@ -141,8 +139,6 @@ abstract class Formatter
      * Output lines inside a block
      *
      * @param \ScssPhp\ScssPhp\Formatter\OutputBlock $block
-     *
-     * @return void
      */
     protected function blockLines(OutputBlock $block)
     {
@@ -160,13 +156,9 @@ abstract class Formatter
      * Output block selectors
      *
      * @param \ScssPhp\ScssPhp\Formatter\OutputBlock $block
-     *
-     * @return void
      */
     protected function blockSelectors(OutputBlock $block)
     {
-        assert(! empty($block->selectors));
-
         $inner = $this->indentStr();
 
         $this->write($inner
@@ -178,8 +170,6 @@ abstract class Formatter
      * Output block children
      *
      * @param \ScssPhp\ScssPhp\Formatter\OutputBlock $block
-     *
-     * @return void
      */
     protected function blockChildren(OutputBlock $block)
     {
@@ -192,8 +182,6 @@ abstract class Formatter
      * Output non-empty block
      *
      * @param \ScssPhp\ScssPhp\Formatter\OutputBlock $block
-     *
-     * @return void
      */
     protected function block(OutputBlock $block)
     {
@@ -239,7 +227,7 @@ abstract class Formatter
      *
      * @param \ScssPhp\ScssPhp\Formatter\OutputBlock $block
      *
-     * @return bool
+     * @return boolean
      */
     protected function testEmptyChildren($block)
     {
@@ -286,18 +274,9 @@ abstract class Formatter
 
         ob_start();
 
-        try {
-            $this->block($block);
-        } catch (\Exception $e) {
-            ob_end_clean();
-            throw $e;
-        } catch (\Throwable $e) {
-            ob_end_clean();
-            throw $e;
-        }
+        $this->block($block);
 
         $out = ob_get_clean();
-        assert($out !== false);
 
         return $out;
     }
@@ -306,8 +285,6 @@ abstract class Formatter
      * Output content
      *
      * @param string $str
-     *
-     * @return void
      */
     protected function write($str)
     {
@@ -340,8 +317,6 @@ abstract class Formatter
                 // If the written line starts is empty, adding a mapping would add it for
                 // a non-existent column as we are at the end of the line
                 if ($line !== '') {
-                    assert($this->currentBlock->sourceLine !== null);
-                    assert($this->currentBlock->sourceName !== null);
                     $this->sourceMapGenerator->addMapping(
                         $this->currentLine,
                         $this->currentColumn,
@@ -357,8 +332,6 @@ abstract class Formatter
             }
 
             if ($lastLine !== '') {
-                assert($this->currentBlock->sourceLine !== null);
-                assert($this->currentBlock->sourceName !== null);
                 $this->sourceMapGenerator->addMapping(
                     $this->currentLine,
                     $this->currentColumn,

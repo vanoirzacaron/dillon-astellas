@@ -72,7 +72,6 @@ class dates extends activity_dates {
         if ($timeopen) {
             $openlabelid = $timeopen > $now ? 'activitydate:submissionsopen' : 'activitydate:submissionsopened';
             $date = [
-                'dataid' => 'allowsubmissionsfromdate',
                 'label' => get_string($openlabelid, 'mod_assign'),
                 'timestamp' => (int) $timeopen,
             ];
@@ -84,7 +83,6 @@ class dates extends activity_dates {
 
         if ($timedue) {
             $date = [
-                'dataid' => 'duedate',
                 'label' => get_string('activitydate:submissionsdue', 'mod_assign'),
                 'timestamp' => (int) $timedue,
             ];

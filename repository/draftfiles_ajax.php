@@ -33,7 +33,7 @@ require_once($CFG->dirroot.'/repository/lib.php');
 $PAGE->set_context(context_system::instance());
 require_login();
 if (isguestuser()) {
-    throw new \moodle_exception('noguest');
+    print_error('noguest');
 }
 require_sesskey();
 
@@ -237,11 +237,7 @@ switch ($action) {
                 return $result !== true;
             });
             if (count($failed) > 0) {
-                if ($failed[0] == "cannotunzipquotaexceeded") {
-                    $return->error = get_string($failed[0],  'repository');
-                } else {
-                    $return->error = get_string('cannotunzipextractfileerror',  'repository');
-                }
+                $return->error = get_string('cannotunzipextractfileerror',  'repository');
                 die(json_encode($return));
             }
 

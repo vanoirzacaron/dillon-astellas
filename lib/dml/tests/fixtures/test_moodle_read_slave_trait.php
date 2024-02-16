@@ -23,9 +23,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace core;
+defined('MOODLE_INTERNAL') || die();
 
-use ReflectionProperty;
+require_once(__DIR__.'/../../pgsql_native_moodle_database.php');
 
 /**
  * Read slave helper that exposes selected moodle_read_slave_trait metods
@@ -51,16 +51,12 @@ trait test_moodle_read_slave_trait {
         fputs($ro, 'ro');
 
         $this->prefix = 'test_'; // Default, not to leave empty.
-
-        $rcp = new ReflectionProperty(parent::class, 'wantreadslave');
-        $rcp->setAccessible(true);
-        $rcp->setValue($this, true);
-
+        $this->wantreadslave = true;
         $this->dbhwrite = $rw;
         $this->dbhreadonly = $ro;
         $this->set_db_handle($this->dbhwrite);
 
-        $this->temptables = new \moodle_temptables($this);
+        $this->temptables = new moodle_temptables($this);
     }
 
     /**

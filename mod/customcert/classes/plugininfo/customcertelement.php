@@ -25,6 +25,8 @@ namespace mod_customcert\plugininfo;
 
 use core\plugininfo\base;
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * Subplugin info class.
  *
@@ -59,7 +61,7 @@ class customcertelement extends base {
             return;
         }
 
-        if (!$hassiteconfig || !file_exists($this->full_path('settings.php'))) {
+        if (!$hassiteconfig or !file_exists($this->full_path('settings.php'))) {
             return;
         }
 

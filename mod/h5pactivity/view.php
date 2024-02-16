@@ -68,28 +68,36 @@ $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_context($context);
 
 echo $OUTPUT->header();
+echo $OUTPUT->heading(format_string($moduleinstance->name));
+
+// Render the activity information.
+$completiondetails = \core_completion\cm_completion_details::get_instance($cm, $USER->id);
+$activitydates = \core\activity_dates::get_dates_for_module($cm, $USER->id);
+echo $OUTPUT->activity_information($cm, $completiondetails, $activitydates);
 
 $instance = $manager->get_instance();
-
-// Only users without permission to submit can see the warning messages.
-if (!$manager->can_submit()) {
-    // Show preview mode message.
-    $message = get_string('previewmode', 'mod_h5pactivity');
-    echo $OUTPUT->notification($message, \core\output\notification::NOTIFY_INFO, false);
-
-    // If tracking is disabled, show a warning.
-    if (!$manager->is_tracking_enabled()) {
-        if (has_capability('moodle/course:manageactivities', $context)) {
-            $url = new moodle_url('/course/modedit.php', ['update' => $cm->id]);
-            $message = get_string('trackingdisabled_enable', 'mod_h5pactivity', $url->out());
-        } else {
-            $message = get_string('trackingdisabled', 'mod_h5pactivity');
-        }
-        echo $OUTPUT->notification($message, \core\output\notification::NOTIFY_WARNING);
-    }
-
+if (!empty($instance->intro)) {
+    echo $OUTPUT->box(format_module_intro('h5pactivity', $instance, $cm->id), 'generalbox', 'intro');
 }
 
-echo player::display($fileurl, $config, true, 'mod_h5pactivity', true);
+// Attempts review.
+if ($manager->can_view_all_attempts()) {
+    $reviewurl = new moodle_url('report.php', ['a' => $cm->instance]);
+    $reviewmessage = get_string('review_all_attempts', 'mod_h5pactivity', $manager->count_attempts());
+} else if ($manager->can_view_own_attempts() && $manager->count_attempts($USER->id)) {
+    $reviewurl = new moodle_url('report.php', ['a' => $cm->instance, 'userid' => $USER->id]);
+    $reviewmessage = get_string('review_my_attempts', 'mod_h5pactivity');
+}
+if (isset($reviewurl)) {
+    $widget = new mod_h5pactivity\output\reportlink($reviewurl, $reviewmessage);
+    echo $OUTPUT->render($widget);
+}
+
+if (!$manager->is_tracking_enabled()) {
+    $message = get_string('previewmode', 'mod_h5pactivity');
+    echo $OUTPUT->notification($message, \core\output\notification::NOTIFY_WARNING);
+}
+
+echo player::display($fileurl, $config, true, 'mod_h5pactivity');
 
 echo $OUTPUT->footer();

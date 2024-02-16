@@ -24,6 +24,8 @@
 
 namespace customcertelement_bgimage\privacy;
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * Privacy Subsystem for customcertelement_bgimage implementing null_provider.
  *

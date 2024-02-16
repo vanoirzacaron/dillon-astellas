@@ -30,6 +30,7 @@ Feature: A teacher can duplicate questions in the question bank
     And I press "id_submitbutton"
     Then I should see "Duplicated question name"
     And I should see "Test question to be copied"
+    And "Duplicated question name" row "Last modified by" column of "categoryquestions" table should contain "Teacher One"
     And I should see "ID number" in the "Test question to be copied" "table_row"
     And I should see "qid" in the "Test question to be copied" "table_row"
 
@@ -42,7 +43,7 @@ Feature: A teacher can duplicate questions in the question bank
     When I choose "Duplicate" action for "Test question to be copied" in the question bank
     And I press "Cancel"
     Then I should see "Test question to be copied"
-    And I should see "Test questions (1)" in the "Filter 1" "fieldset"
+    And the field "Select a category" matches value "&nbsp;&nbsp;&nbsp;Test questions (1)"
 
   Scenario: Duplicating a question with an idnumber increments it
     Given the following "questions" exist:

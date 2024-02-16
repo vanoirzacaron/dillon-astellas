@@ -78,9 +78,10 @@
         require(['jquery', 'core/custom_interaction_events'], function($, CustomEvents) {
             CustomEvents.define('#{{id}}', [CustomEvents.events.accessibleChange]);
             $('#{{id}}').on(CustomEvents.events.accessibleChange, function() {
-                if ($(this).val()) {
-                    $('#{{formid}}').submit();
+                if (!$(this).val()) {
+                    return false;
                 }
+                $('#{{formid}}').submit();
             });
         });
     {{/js}}

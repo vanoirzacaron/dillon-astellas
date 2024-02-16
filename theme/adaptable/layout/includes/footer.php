@@ -55,7 +55,7 @@ if ($PAGE->theme->settings->hidefootersocial == 1) {
             <div class="row">
                 <div class="tool_usertours-resettourcontainer"></div>
                 <?php
-                $footnote = $OUTPUT->get_setting('footnote', 'format_moodle');
+                $footnote = $OUTPUT->get_setting('footnote', 'format_html');
                 if (!empty($footnote)) {
                     if ($PAGE->theme->settings->moodledocs) {
                         $footnoteclass = 'col-md-4';
@@ -75,14 +75,6 @@ if ($PAGE->theme->settings->hidefootersocial == 1) {
                     <?php echo $OUTPUT->standard_footer_html(); ?>
                 </div>
             </div>
-            <?php
-            $debug = $OUTPUT->debug_footer_html();
-            if (!empty($debug)) {
-                echo '<div class="row"><div class="col-12 my-md-0 my-2">';
-                echo $debug;
-                echo '</div>';
-            }
-            ?>
         </div>
     </div>
 </footer>
@@ -92,8 +84,8 @@ if ($PAGE->theme->settings->hidefootersocial == 1) {
 <?php
 // If admin settings page, show template for floating save / discard buttons.
 $templatecontext = [
-    'topmargin' => ($PAGE->theme->settings->stickynavbar ? '35px' : '0'),
-    'savetext' => get_string('savebuttontext', 'theme_adaptable'),
+    'topmargin'   => ($PAGE->theme->settings->stickynavbar ? '35px' : '0'),
+    'savetext'    => get_string('savebuttontext', 'theme_adaptable'),
     'discardtext' => get_string('discardbuttontext', 'theme_adaptable')
 ];
 if (strstr($PAGE->pagetype, 'admin-setting')) {
@@ -146,12 +138,11 @@ if (!empty($PAGE->theme->settings->jssectionrestrictedprofilefield)) {
 }
 echo $OUTPUT->get_all_tracking_methods();
 ?>
-</body>
-</html>
 <script type="text/javascript">
     M.util.js_pending('theme_boost/loader');
-    require(['theme_boost/loader', 'theme_boost/drawer'], function(Loader, Drawer) {
-        Drawer.init();
+        require(['theme_boost/loader'], function() {
         M.util.js_complete('theme_boost/loader');
     });
 </script>
+</body>
+</html>

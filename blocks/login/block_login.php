@@ -77,12 +77,13 @@ class block_login extends block_base {
             $this->content->text .= ' class="form-control" value="" autocomplete="current-password"/>';
             $this->content->text .= '</div>';
 
-            // ReCaptcha.
-            if (login_captcha_enabled()) {
-                require_once($CFG->libdir . '/recaptchalib_v2.php');
-                $this->content->text .= '<div class="form-group">';
-                $this->content->text .= recaptcha_get_challenge_html(RECAPTCHA_API_URL, $CFG->recaptchapublickey,
-                    current_language(), true);
+            if (isset($CFG->rememberusername) and $CFG->rememberusername == 2) {
+                $checked = $username ? 'checked="checked"' : '';
+                $this->content->text .= '<div class="form-check">';
+                $this->content->text .= '<label class="form-check-label">';
+                $this->content->text .= '<input type="checkbox" name="rememberusername" id="rememberusername"
+                        class="form-check-input" value="1" '.$checked.'/> ';
+                $this->content->text .= get_string('rememberusername', 'admin').'</label>';
                 $this->content->text .= '</div>';
             }
 

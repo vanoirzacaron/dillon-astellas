@@ -19,9 +19,6 @@
  *
  * All CLI utilities uses $CFG->behat_dataroot and $CFG->prefix_dataroot as
  * $CFG->dataroot and $CFG->prefix
- * Same applies for $CFG->behat_dbname, $CFG->behat_dbuser, $CFG->behat_dbpass
- * and $CFG->behat_dbhost. But if any of those is not defined $CFG->dbname,
- * $CFG->dbuser, $CFG->dbpass and/or $CFG->dbhost will be used.
  *
  * @package    tool_behat
  * @copyright  2012 David Monllaó
@@ -89,7 +86,7 @@ Options:
 Example from Moodle root directory:
 \$ php admin/tool/behat/cli/util_single_run.php --enable
 
-More info in https://moodledev.io/general/development/tools/behat/running
+More info in http://docs.moodle.org/dev/Acceptance_testing#Running_tests
 ";
 
 if (!empty($options['help'])) {

@@ -46,12 +46,6 @@ if (!class_exists('qformat_default')) {
  */
 class qformat_xml extends qformat_default {
 
-    /** @var array Array of files for question answers. */
-    protected $answerfiles = [];
-
-    /** @var array Array of files for feedback to question answers. */
-    protected $feedbackfiles = [];
-
     public function provide_import() {
         return true;
     }
@@ -540,8 +534,6 @@ class qformat_xml extends qformat_default {
             $fs->create_file_from_string($filerecord, base64_decode($filedata));
             $qo->questiontext .= ' <img src="@@PLUGINFILE@@/' . $filename . '" />';
         }
-
-        $qo->idnumber = $this->getpath($question, ['#', 'idnumber', 0, '#'], null);
 
         // Restore files in generalfeedback.
         $generalfeedback = $this->import_text_with_files($question,
@@ -1133,7 +1125,7 @@ class qformat_xml extends qformat_default {
      * @return string the string, wrapped in CDATA if necessary.
      */
     public function xml_escape($string) {
-        if (!empty($string) && htmlspecialchars($string, ENT_COMPAT) != $string) {
+        if (!empty($string) && htmlspecialchars($string) != $string) {
             // If the string contains something that looks like the end
             // of a CDATA section, then we need to avoid errors by splitting
             // the string between two CDATA sections.
@@ -1202,7 +1194,6 @@ class qformat_xml extends qformat_default {
         $invalidquestion = false;
         $fs = get_file_storage();
         $contextid = $question->contextid;
-        $question->status = 0;
         // Get files used by the questiontext.
         $question->questiontextfiles = $fs->get_area_files(
                 $contextid, 'question', 'questiontext', $question->id);
@@ -1211,9 +1202,9 @@ class qformat_xml extends qformat_default {
                 $contextid, 'question', 'generalfeedback', $question->id);
         if (!empty($question->options->answers)) {
             foreach ($question->options->answers as $answer) {
-                $this->answerfiles[$answer->id] = $fs->get_area_files(
+                $answer->answerfiles = $fs->get_area_files(
                         $contextid, 'question', 'answer', $answer->id);
-                $this->feedbackfiles[$answer->id] = $fs->get_area_files(
+                $answer->feedbackfiles = $fs->get_area_files(
                         $contextid, 'question', 'answerfeedback', $answer->id);
             }
         }
@@ -1226,10 +1217,7 @@ class qformat_xml extends qformat_default {
         // Check question type.
         $questiontype = $this->get_qtype($question->qtype);
 
-        $idnumber = '';
-        if (isset($question->idnumber)) {
-            $idnumber = htmlspecialchars($question->idnumber, ENT_COMPAT);
-        }
+        $idnumber = htmlspecialchars($question->idnumber);
 
         // Categories are a special case.
         if ($question->qtype == 'category') {
@@ -1266,7 +1254,7 @@ class qformat_xml extends qformat_default {
             $expout .= "    <defaultgrade>{$question->defaultmark}</defaultgrade>\n";
         }
         $expout .= "    <penalty>{$question->penalty}</penalty>\n";
-        $expout .= "    <hidden>{$question->status}</hidden>\n";
+        $expout .= "    <hidden>{$question->hidden}</hidden>\n";
         $expout .= "    <idnumber>{$idnumber}</idnumber>\n";
 
         // The rest of the output depends on question type.
@@ -1439,20 +1427,22 @@ class qformat_xml extends qformat_default {
 
                 foreach ($question->options->answers as $answer) {
                     $percent = 100 * $answer->fraction;
-                    $expout .= "    <answer fraction=\"{$percent}\">\n";
+                    $expout .= "<answer fraction=\"{$percent}\">\n";
                     // The "<text/>" tags are an added feature, old files won't have them.
-                    $expout .= $this->writetext($answer->answer, 3);
-                    $expout .= "      <tolerance>{$answer->tolerance}</tolerance>\n";
-                    $expout .= "      <tolerancetype>{$answer->tolerancetype}</tolerancetype>\n";
-                    $expout .= "      <correctanswerformat>" .
+                    $expout .= "    <text>{$answer->answer}</text>\n";
+                    $expout .= "    <tolerance>{$answer->tolerance}</tolerance>\n";
+                    $expout .= "    <tolerancetype>{$answer->tolerancetype}</tolerancetype>\n";
+                    $expout .= "    <correctanswerformat>" .
                             $answer->correctanswerformat . "</correctanswerformat>\n";
-                    $expout .= "      <correctanswerlength>" .
+                    $expout .= "    <correctanswerlength>" .
                             $answer->correctanswerlength . "</correctanswerlength>\n";
-                    $expout .= "      <feedback {$this->format($answer->feedbackformat)}>\n";
-                    $expout .= $this->writetext($answer->feedback, 4);
-                    $expout .= $this->write_files($this->feedbackfiles[$answer->id]);
-                    $expout .= "      </feedback>\n";
-                    $expout .= "    </answer>\n";
+                    $expout .= "    <feedback {$this->format($answer->feedbackformat)}>\n";
+                    $files = $fs->get_area_files($contextid, $component,
+                            'instruction', $question->id);
+                    $expout .= $this->writetext($answer->feedback);
+                    $expout .= $this->write_files($answer->feedbackfiles);
+                    $expout .= "    </feedback>\n";
+                    $expout .= "</answer>\n";
                 }
                 if (isset($question->options->unitgradingtype)) {
                     $expout .= "    <unitgradingtype>" .
@@ -1599,10 +1589,10 @@ class qformat_xml extends qformat_default {
         $output = '';
         $output .= "    <answer fraction=\"{$percent}\" {$this->format($answer->answerformat)}>\n";
         $output .= $this->writetext($answer->answer, 3);
-        $output .= $this->write_files($this->answerfiles[$answer->id]);
+        $output .= $this->write_files($answer->answerfiles);
         $output .= "      <feedback {$this->format($answer->feedbackformat)}>\n";
         $output .= $this->writetext($answer->feedback, 4);
-        $output .= $this->write_files($this->feedbackfiles[$answer->id]);
+        $output .= $this->write_files($answer->feedbackfiles);
         $output .= "      </feedback>\n";
         $output .= $extra;
         $output .= "    </answer>\n";

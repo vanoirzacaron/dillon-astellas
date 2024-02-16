@@ -54,20 +54,6 @@ class core_completion_bulkedit_form extends core_completion_edit_base_form {
     }
 
     /**
-     * It will return the course module when $cms has only one course module; otherwise, null will be returned.
-     *
-     * @return cm_info|null
-     */
-    protected function get_cm(): ?cm_info {
-        if (count($this->cms) === 1) {
-            return reset($this->cms);
-        }
-
-        // If there are multiple modules, so none will be selected.
-        return null;
-    }
-
-    /**
      * Returns an instance of component-specific module form for the first selected module
      *
      * @return moodleform_mod|null
@@ -87,7 +73,7 @@ class core_completion_bulkedit_form extends core_completion_edit_base_form {
         if (file_exists($modmoodleform)) {
             require_once($modmoodleform);
         } else {
-            throw new \moodle_exception('noformdesc');
+            print_error('noformdesc');
         }
 
         list($cmrec, $context, $module, $data, $cw) = get_moduleinfo_data($cm, $course);
@@ -151,8 +137,7 @@ class core_completion_bulkedit_form extends core_completion_edit_base_form {
         // Completion: Don't let them choose automatic completion without turning
         // on some conditions.
         if (array_key_exists('completion', $data) &&
-                $data['completion'] == COMPLETION_TRACKING_AUTOMATIC &&
-                (!empty($data['completionusegrade']) || !empty($data['completionpassgrade']))) {
+                $data['completion'] == COMPLETION_TRACKING_AUTOMATIC && !empty($data['completionusegrade'])) {
             require_once($CFG->libdir.'/gradelib.php');
             $moduleswithoutgradeitem = [];
             foreach ($this->cms as $cm) {

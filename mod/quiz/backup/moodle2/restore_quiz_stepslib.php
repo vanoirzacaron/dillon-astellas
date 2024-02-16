@@ -14,13 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-use mod_quiz\question\display_options;
+/**
+ * @package    mod_quiz
+ * @subpackage backup-moodle2
+ * @copyright  2010 onwards Eloy Lafuente (stronk7) {@link http://stronk7.com}
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+
+defined('MOODLE_INTERNAL') || die();
+
 
 /**
  * Structure step to restore one quiz activity
  *
- * @package    mod_quiz
- * @subpackage backup-moodle2
  * @copyright  2010 onwards Eloy Lafuente (stronk7) {@link http://stronk7.com}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -42,17 +49,9 @@ class restore_quiz_activity_structure_step extends restore_questions_activity_st
      */
     protected $legacyshufflequestionsoption = false;
 
-    /** @var stdClass */
-    protected $oldquizlayout;
-
-    /**
-     * @var array Track old question ids that need to be removed at the end of the restore.
-     */
-    protected $oldquestionids = [];
-
     protected function define_structure() {
 
-        $paths = [];
+        $paths = array();
         $userinfo = $this->get_setting_value('userinfo');
 
         $quiz = new restore_path_element('quiz', '/activity/quiz');
@@ -61,16 +60,10 @@ class restore_quiz_activity_structure_step extends restore_questions_activity_st
         // A chance for access subplugings to set up their quiz data.
         $this->add_subplugin_structure('quizaccess', $quiz);
 
-        $quizquestioninstance = new restore_path_element('quiz_question_instance',
-            '/activity/quiz/question_instances/question_instance');
-        $paths[] = $quizquestioninstance;
-        if ($this->task->get_old_moduleversion() < 2021091700) {
-            $paths[] = new restore_path_element('quiz_slot_tags',
+        $paths[] = new restore_path_element('quiz_question_instance',
+                '/activity/quiz/question_instances/question_instance');
+        $paths[] = new restore_path_element('quiz_slot_tags',
                 '/activity/quiz/question_instances/question_instance/tags/tag');
-        } else {
-            $this->add_question_references($quizquestioninstance, $paths);
-            $this->add_question_set_references($quizquestioninstance, $paths);
-        }
         $paths[] = new restore_path_element('quiz_section', '/activity/quiz/sections/section');
         $paths[] = new restore_path_element('quiz_feedback', '/activity/quiz/feedbacks/feedback');
         $paths[] = new restore_path_element('quiz_override', '/activity/quiz/overrides/override');
@@ -106,11 +99,6 @@ class restore_quiz_activity_structure_step extends restore_questions_activity_st
         return $this->prepare_activity_structure($paths);
     }
 
-    /**
-     * Process the quiz data.
-     *
-     * @param stdClass|array $data
-     */
     protected function process_quiz($data) {
         global $CFG, $DB, $USER;
 
@@ -172,79 +160,70 @@ class restore_quiz_activity_structure_step extends restore_questions_activity_st
             $oldreview = $data->review;
 
             $data->reviewattempt =
-                    display_options::DURING |
+                    mod_quiz_display_options::DURING |
                     ($oldreview & QUIZ_OLD_IMMEDIATELY & QUIZ_OLD_RESPONSES ?
-                            display_options::IMMEDIATELY_AFTER : 0) |
+                            mod_quiz_display_options::IMMEDIATELY_AFTER : 0) |
                     ($oldreview & QUIZ_OLD_OPEN & QUIZ_OLD_RESPONSES ?
-                            display_options::LATER_WHILE_OPEN : 0) |
+                            mod_quiz_display_options::LATER_WHILE_OPEN : 0) |
                     ($oldreview & QUIZ_OLD_CLOSED & QUIZ_OLD_RESPONSES ?
-                            display_options::AFTER_CLOSE : 0);
+                            mod_quiz_display_options::AFTER_CLOSE : 0);
 
             $data->reviewcorrectness =
-                    display_options::DURING |
+                    mod_quiz_display_options::DURING |
                     ($oldreview & QUIZ_OLD_IMMEDIATELY & QUIZ_OLD_SCORES ?
-                            display_options::IMMEDIATELY_AFTER : 0) |
+                            mod_quiz_display_options::IMMEDIATELY_AFTER : 0) |
                     ($oldreview & QUIZ_OLD_OPEN & QUIZ_OLD_SCORES ?
-                            display_options::LATER_WHILE_OPEN : 0) |
+                            mod_quiz_display_options::LATER_WHILE_OPEN : 0) |
                     ($oldreview & QUIZ_OLD_CLOSED & QUIZ_OLD_SCORES ?
-                            display_options::AFTER_CLOSE : 0);
+                            mod_quiz_display_options::AFTER_CLOSE : 0);
 
             $data->reviewmarks =
-                    display_options::DURING |
+                    mod_quiz_display_options::DURING |
                     ($oldreview & QUIZ_OLD_IMMEDIATELY & QUIZ_OLD_SCORES ?
-                            display_options::IMMEDIATELY_AFTER : 0) |
+                            mod_quiz_display_options::IMMEDIATELY_AFTER : 0) |
                     ($oldreview & QUIZ_OLD_OPEN & QUIZ_OLD_SCORES ?
-                            display_options::LATER_WHILE_OPEN : 0) |
+                            mod_quiz_display_options::LATER_WHILE_OPEN : 0) |
                     ($oldreview & QUIZ_OLD_CLOSED & QUIZ_OLD_SCORES ?
-                            display_options::AFTER_CLOSE : 0);
+                            mod_quiz_display_options::AFTER_CLOSE : 0);
 
             $data->reviewspecificfeedback =
                     ($oldreview & QUIZ_OLD_IMMEDIATELY & QUIZ_OLD_FEEDBACK ?
-                            display_options::DURING : 0) |
+                            mod_quiz_display_options::DURING : 0) |
                     ($oldreview & QUIZ_OLD_IMMEDIATELY & QUIZ_OLD_FEEDBACK ?
-                            display_options::IMMEDIATELY_AFTER : 0) |
+                            mod_quiz_display_options::IMMEDIATELY_AFTER : 0) |
                     ($oldreview & QUIZ_OLD_OPEN & QUIZ_OLD_FEEDBACK ?
-                            display_options::LATER_WHILE_OPEN : 0) |
+                            mod_quiz_display_options::LATER_WHILE_OPEN : 0) |
                     ($oldreview & QUIZ_OLD_CLOSED & QUIZ_OLD_FEEDBACK ?
-                            display_options::AFTER_CLOSE : 0);
+                            mod_quiz_display_options::AFTER_CLOSE : 0);
 
             $data->reviewgeneralfeedback =
                     ($oldreview & QUIZ_OLD_IMMEDIATELY & QUIZ_OLD_GENERALFEEDBACK ?
-                            display_options::DURING : 0) |
+                            mod_quiz_display_options::DURING : 0) |
                     ($oldreview & QUIZ_OLD_IMMEDIATELY & QUIZ_OLD_GENERALFEEDBACK ?
-                            display_options::IMMEDIATELY_AFTER : 0) |
+                            mod_quiz_display_options::IMMEDIATELY_AFTER : 0) |
                     ($oldreview & QUIZ_OLD_OPEN & QUIZ_OLD_GENERALFEEDBACK ?
-                            display_options::LATER_WHILE_OPEN : 0) |
+                            mod_quiz_display_options::LATER_WHILE_OPEN : 0) |
                     ($oldreview & QUIZ_OLD_CLOSED & QUIZ_OLD_GENERALFEEDBACK ?
-                            display_options::AFTER_CLOSE : 0);
+                            mod_quiz_display_options::AFTER_CLOSE : 0);
 
             $data->reviewrightanswer =
                     ($oldreview & QUIZ_OLD_IMMEDIATELY & QUIZ_OLD_ANSWERS ?
-                            display_options::DURING : 0) |
+                            mod_quiz_display_options::DURING : 0) |
                     ($oldreview & QUIZ_OLD_IMMEDIATELY & QUIZ_OLD_ANSWERS ?
-                            display_options::IMMEDIATELY_AFTER : 0) |
+                            mod_quiz_display_options::IMMEDIATELY_AFTER : 0) |
                     ($oldreview & QUIZ_OLD_OPEN & QUIZ_OLD_ANSWERS ?
-                            display_options::LATER_WHILE_OPEN : 0) |
+                            mod_quiz_display_options::LATER_WHILE_OPEN : 0) |
                     ($oldreview & QUIZ_OLD_CLOSED & QUIZ_OLD_ANSWERS ?
-                            display_options::AFTER_CLOSE : 0);
+                            mod_quiz_display_options::AFTER_CLOSE : 0);
 
             $data->reviewoverallfeedback =
                     0 |
                     ($oldreview & QUIZ_OLD_IMMEDIATELY & QUIZ_OLD_OVERALLFEEDBACK ?
-                            display_options::IMMEDIATELY_AFTER : 0) |
+                            mod_quiz_display_options::IMMEDIATELY_AFTER : 0) |
                     ($oldreview & QUIZ_OLD_OPEN & QUIZ_OLD_OVERALLFEEDBACK ?
-                            display_options::LATER_WHILE_OPEN : 0) |
+                            mod_quiz_display_options::LATER_WHILE_OPEN : 0) |
                     ($oldreview & QUIZ_OLD_CLOSED & QUIZ_OLD_OVERALLFEEDBACK ?
-                            display_options::AFTER_CLOSE : 0);
-        }
-
-        // New setting in 4.3 needs to be set if not in the backup.
-        if (!isset($data->reviewmaxmarks)) {
-            $data->reviewmaxmarks =
-                    display_options::DURING |
-                    display_options::IMMEDIATELY_AFTER |
-                    display_options::LATER_WHILE_OPEN |
-                    display_options::AFTER_CLOSE;
+                            mod_quiz_display_options::AFTER_CLOSE : 0);
         }
 
         // The old popup column from from <= 2.1 need to be mapped to
@@ -316,71 +295,8 @@ class restore_quiz_activity_structure_step extends restore_questions_activity_st
 
             $DB->insert_record('quizaccess_seb_quizsettings', $sebsettings);
         }
-
-        // If we are dealing with a backup from < 4.0 then we need to move completionpass to core.
-        if (!empty($data->completionpass)) {
-            $params = ['id' => $this->task->get_moduleid()];
-            $DB->set_field('course_modules', 'completionpassgrade', $data->completionpass, $params);
-        }
     }
 
-    /**
-     * Process the data for pre 4.0 quiz data where the question_references and question_set_references table introduced.
-     *
-     * @param stdClass|array $data
-     */
-    protected function process_quiz_question_legacy_instance($data) {
-        global $DB;
-
-        $questionid = $this->get_mappingid('question', $data->questionid);
-        $sql = 'SELECT qbe.id as questionbankentryid,
-                       qc.contextid as questioncontextid,
-                       qc.id as category,
-                       qv.version,
-                       q.qtype,
-                       q.id as questionid
-                  FROM {question} q
-                  JOIN {question_versions} qv ON qv.questionid = q.id
-                  JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
-                  JOIN {question_categories} qc ON qc.id = qbe.questioncategoryid
-                 WHERE q.id = ?';
-        $question = $DB->get_record_sql($sql, [$questionid]);
-        $module = $DB->get_record('quiz', ['id' => $data->quizid]);
-
-        if ($question->qtype === 'random') {
-            // Set reference data.
-            $questionsetreference = new \stdClass();
-            $questionsetreference->usingcontextid = context_module::instance(get_coursemodule_from_instance(
-                "quiz", $module->id, $module->course)->id)->id;
-            $questionsetreference->component = 'mod_quiz';
-            $questionsetreference->questionarea = 'slot';
-            $questionsetreference->itemid = $data->id;
-            $questionsetreference->questionscontextid = $question->questioncontextid;
-            $filtercondition = new stdClass();
-            $filtercondition->questioncategoryid = $question->category;
-            $filtercondition->includingsubcategories = $data->includingsubcategories ?? false;
-            $questionsetreference->filtercondition = json_encode($filtercondition);
-            $DB->insert_record('question_set_references', $questionsetreference);
-            $this->oldquestionids[$question->questionid] = 1;
-        } else {
-            // Reference data.
-            $questionreference = new \stdClass();
-            $questionreference->usingcontextid = context_module::instance(get_coursemodule_from_instance(
-                "quiz", $module->id, $module->course)->id)->id;
-            $questionreference->component = 'mod_quiz';
-            $questionreference->questionarea = 'slot';
-            $questionreference->itemid = $data->id;
-            $questionreference->questionbankentryid = $question->questionbankentryid;
-            $questionreference->version = null; // Default to Always latest.
-            $DB->insert_record('question_references', $questionreference);
-        }
-    }
-
-    /**
-     * Process quiz slots.
-     *
-     * @param stdClass|array $data
-     */
     protected function process_quiz_question_instance($data) {
         global $CFG, $DB;
 
@@ -403,7 +319,7 @@ class restore_quiz_activity_structure_step extends restore_questions_activity_st
                     $page += 1;
                     continue;
                 }
-                if (isset($data->questionid) && $item == $data->questionid) {
+                if ($item == $data->questionid) {
                     $data->slot = $slot;
                     $data->page = $page;
                     break;
@@ -422,28 +338,33 @@ class restore_quiz_activity_structure_step extends restore_questions_activity_st
         }
 
         $data->quizid = $this->get_new_parentid('quiz');
+        $questionmapping = $this->get_mapping('question', $data->questionid);
+        $data->questionid = $questionmapping ? $questionmapping->newitemid : false;
+
+        if (isset($data->questioncategoryid)) {
+            $data->questioncategoryid = $this->get_mappingid('question_category', $data->questioncategoryid);
+        } else if ($questionmapping && $questionmapping->info->qtype == 'random') {
+            // Backward compatibility for backups created using Moodle 3.4 or earlier.
+            $data->questioncategoryid = $this->get_mappingid('question_category', $questionmapping->parentitemid);
+            $data->includingsubcategories = $questionmapping->info->questiontext ? 1 : 0;
+        }
 
         $newitemid = $DB->insert_record('quiz_slots', $data);
         // Add mapping, restore of slot tags (for random questions) need it.
         $this->set_mapping('quiz_question_instance', $oldid, $newitemid);
-
-        if ($this->task->get_old_moduleversion() < 2022020300) {
-            $data->id = $newitemid;
-            $this->process_quiz_question_legacy_instance($data);
-        }
     }
 
     /**
-     * Process a quiz_slot_tags to restore the tags to the new structure.
+     * Process a quiz_slot_tags restore
      *
      * @param stdClass|array $data The quiz_slot_tags data
      */
     protected function process_quiz_slot_tags($data) {
         global $DB;
 
-        $data = (object) $data;
-        $slotid = $this->get_new_parentid('quiz_question_instance');
+        $data = (object)$data;
 
+        $data->slotid = $this->get_new_parentid('quiz_question_instance');
         if ($this->task->is_samesite() && $tag = core_tag_tag::get($data->tagid, 'id, name')) {
             $data->tagname = $tag->name;
         } else if ($tag = core_tag_tag::get_by_name(0, $data->tagname, 'id, name')) {
@@ -453,13 +374,7 @@ class restore_quiz_activity_structure_step extends restore_questions_activity_st
             $data->tagname = $tag->name;
         }
 
-        $tagstring = "{$data->tagid},{$data->tagname}";
-        $setreferencedata = $DB->get_record('question_set_references',
-            ['itemid' => $slotid, 'component' => 'mod_quiz', 'questionarea' => 'slot']);
-        $filtercondition = json_decode($setreferencedata->filtercondition);
-        $filtercondition->tags[] = $tagstring;
-        $setreferencedata->filtercondition = json_encode($filtercondition);
-        $DB->update_record('question_set_references', $setreferencedata);
+        $DB->insert_record('quiz_slot_tags', $data);
     }
 
     protected function process_quiz_section($data) {
@@ -467,10 +382,8 @@ class restore_quiz_activity_structure_step extends restore_questions_activity_st
 
         $data = (object) $data;
         $data->quizid = $this->get_new_parentid('quiz');
-        $oldid = $data->id;
         $newitemid = $DB->insert_record('quiz_sections', $data);
         $this->sectioncreated = true;
-        $this->set_mapping('quiz_section', $oldid, $newitemid, true);
     }
 
     protected function process_quiz_feedback($data) {
@@ -560,12 +473,6 @@ class restore_quiz_activity_structure_step extends restore_questions_activity_st
             $data->timecheckstate = 0;
         }
 
-        if (!isset($data->gradednotificationsenttime)) {
-            // For attempts restored from old Moodle sites before this field
-            // existed, we never want to send emails.
-            $data->gradednotificationsenttime = $data->timefinish;
-        }
-
         // Deals with up-grading pre-2.3 back-ups to 2.3+.
         if (!isset($data->state)) {
             if ($data->timefinish > 0) {
@@ -584,7 +491,7 @@ class restore_quiz_activity_structure_step extends restore_questions_activity_st
 
         $this->process_quiz_attempt($data);
 
-        $quiz = $DB->get_record('quiz', ['id' => $this->get_new_parentid('quiz')]);
+        $quiz = $DB->get_record('quiz', array('id' => $this->get_new_parentid('quiz')));
         $quiz->oldquestions = $this->oldquizlayout;
         $this->process_legacy_quiz_attempt_data($data, $quiz);
     }
@@ -616,18 +523,10 @@ class restore_quiz_activity_structure_step extends restore_questions_activity_st
         $this->add_related_files('mod_quiz', 'feedback', 'quiz_feedback');
 
         if (!$this->sectioncreated) {
-            $DB->insert_record('quiz_sections', [
+            $DB->insert_record('quiz_sections', array(
                     'quizid' => $this->get_new_parentid('quiz'),
                     'firstslot' => 1, 'heading' => '',
-                    'shufflequestions' => $this->legacyshufflequestionsoption]);
-        }
-    }
-
-    protected function after_restore() {
-        parent::after_restore();
-        // Delete old random questions that have been converted to set references.
-        foreach (array_keys($this->oldquestionids) as $oldquestionid) {
-            question_delete_question($oldquestionid);
+                    'shufflequestions' => $this->legacyshufflequestionsoption));
         }
     }
 }

@@ -21,7 +21,7 @@ Feature: The visibility of fields control where they are displayed
 
   Scenario: Display course custom fields on homepage
     When I log in as "admin"
-    And I navigate to "Courses > Default settings > Course custom fields" in site administration
+    And I navigate to "Courses > Course custom fields" in site administration
     And I click on "Add a new custom field" "link"
     And I click on "Short text" "link"
     And I set the following fields to these values:
@@ -32,7 +32,7 @@ Feature: The visibility of fields control where they are displayed
     And I log out
     Then I log in as "teacher1"
     And I am on "Course 1" course homepage
-    And I navigate to "Settings" in current page administration
+    And I navigate to "Edit settings" in current page administration
     And I set the following fields to these values:
       | Test field | testcontent |
     And I press "Save and display"
@@ -41,7 +41,7 @@ Feature: The visibility of fields control where they are displayed
 
   Scenario: Do not display course custom fields on homepage
     When I log in as "admin"
-    And I navigate to "Courses > Default settings > Course custom fields" in site administration
+    And I navigate to "Courses > Course custom fields" in site administration
     And I click on "Add a new custom field" "link"
     And I click on "Short text" "link"
     And I set the following fields to these values:
@@ -52,7 +52,7 @@ Feature: The visibility of fields control where they are displayed
     And I log out
     When I log in as "teacher1"
     And I am on "Course 1" course homepage
-    And I navigate to "Settings" in current page administration
+    And I navigate to "Edit settings" in current page administration
     And I set the following fields to these values:
       | Test field | testcontent |
     And I press "Save and display"
@@ -61,7 +61,7 @@ Feature: The visibility of fields control where they are displayed
 
   Scenario: Display course custom fields on homepage only to course editors
     When I log in as "admin"
-    And I navigate to "Courses > Default settings > Course custom fields" in site administration
+    And I navigate to "Courses > Course custom fields" in site administration
     And I click on "Add a new custom field" "link"
     And I click on "Short text" "link"
     And I set the following fields to these values:
@@ -72,7 +72,7 @@ Feature: The visibility of fields control where they are displayed
     And I log out
     When I log in as "teacher1"
     And I am on "Course 1" course homepage
-    And I navigate to "Settings" in current page administration
+    And I navigate to "Edit settings" in current page administration
     And I set the following fields to these values:
       | Test field | testcontent |
     And I press "Save and display"

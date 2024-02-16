@@ -30,16 +30,16 @@ Feature: Custom profile fields in groups
 
   @javascript
   Scenario: Check the custom profile fields show up and can be searched on
-    When I am logged in as "admin"
-    And I am on the "Course 1" "groups" page
+    When I am on the "C1" "Course" page logged in as "admin"
+    And I navigate to "Users > Groups" in current page administration
 
     # Check the Overview page.
-    And I set the field "Participants tertiary navigation" to "Overview"
+    And I follow "Overview"
     And "Robin Hood (user1, fox)" "text" should exist in the "Canines" "table_row"
     And "Little John (user2, bear)" "text" should exist in the "No group" "table_row"
 
     # Check the groups page.
-    And I set the field "Participants tertiary navigation" to "Groups"
+    And I follow "Groups"
     And I set the field "groups" to "Canines"
     And I should see "Robin Hood (user1, fox)"
     And I should not see "Little John (user2, bear)"

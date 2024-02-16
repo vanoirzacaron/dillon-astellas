@@ -322,14 +322,12 @@ class capability {
     public function can_post_in_discussion(stdClass $user, discussion_entity $discussion) : bool {
         $forum = $this->get_forum();
         $forumrecord = $this->get_forum_record();
-
         $discussionrecord = $this->get_discussion_record($discussion);
         $context = $this->get_context();
         $coursemodule = $forum->get_course_module_record();
         $course = $forum->get_course_record();
 
         $status = forum_user_can_post($forumrecord, $discussionrecord, $user, $coursemodule, $course, $context);
-
         // If the user reaches the number of posts equal to warning/blocking setting then logically and canpost value with $status.
         if ($warningobj = forum_check_throttling($forumrecord, $coursemodule)) {
             return $status && $warningobj->canpost;
@@ -405,10 +403,6 @@ class capability {
      *
      */
     public function can_view_post_shell(stdClass $user, post_entity $post) : bool {
-        if ($post->is_owned_by_user($user)) {
-            return true;
-        }
-
         if (!$post->is_private_reply()) {
             return true;
         }
@@ -444,7 +438,6 @@ class capability {
         $context = $this->get_context();
         $ownpost = $post->is_owned_by_user($user);
         $ineditingtime = $post->get_age() < $CFG->maxeditingtime;
-        $mailnow = $post->should_mail_now();
 
         switch ($this->forum->get_type()) {
             case 'news':
@@ -458,7 +451,7 @@ class capability {
                 break;
         }
 
-        return ($ownpost && $ineditingtime && !$mailnow) || has_capability('mod/forum:editanypost', $context, $user);
+        return ($ownpost && $ineditingtime) || has_capability('mod/forum:editanypost', $context, $user);
     }
 
     /**
@@ -485,9 +478,8 @@ class capability {
         $context = $this->get_context();
         $ownpost = $post->is_owned_by_user($user);
         $ineditingtime = $post->get_age() < $CFG->maxeditingtime;
-        $mailnow = $post->should_mail_now();
 
-        if (!($ownpost && $ineditingtime && has_capability('mod/forum:deleteownpost', $context, $user) && !$mailnow ||
+        if (!($ownpost && $ineditingtime && has_capability('mod/forum:deleteownpost', $context, $user) ||
                 has_capability('mod/forum:deleteanypost', $context, $user))) {
 
             throw new moodle_exception('cannotdeletepost', 'forum');

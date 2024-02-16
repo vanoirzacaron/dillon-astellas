@@ -15,16 +15,15 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 //
 //
-// Adaptable core styles style sheet
+// Adaptable core override styles style sheet
 //
 // @package    theme_adaptable
 // @copyright  2020 G J Barnard - {@link http://moodle.org/user/profile.php?id=442195}
 // @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
 //
 
-#region-main,
-.block {
-    padding: .5rem;
+#region-main-box {
+    padding: 0;
 }
 
 // Calendar links on the page.
@@ -37,6 +36,10 @@ a.skip {
     .btn {
         border: none;
         box-shadow: none;
+    }
+
+    .btn-icon {
+        padding-top: 0 !important;
     }
 }
 

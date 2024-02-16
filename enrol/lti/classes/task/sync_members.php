@@ -81,8 +81,7 @@ class sync_members extends scheduled_task {
         $this->dataconnector = new data_connector();
 
         // Get all the enabled tools.
-        $tools = helper::get_lti_tools(array('status' => ENROL_INSTANCE_ENABLED, 'membersync' => 1,
-            'ltiversion' => 'LTI-1p0/LTI-2p0'));
+        $tools = helper::get_lti_tools(array('status' => ENROL_INSTANCE_ENABLED, 'membersync' => 1));
         foreach ($tools as $tool) {
             mtrace("Starting - Member sync for published tool '$tool->id' for course '$tool->courseid'.");
 

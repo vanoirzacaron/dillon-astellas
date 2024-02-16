@@ -605,7 +605,7 @@ class file_storage_test extends \advanced_testcase {
                 true,
             ],
             'Icon not included' => [
-                'greeting-card.h5p',
+                'greeting-card-887.h5p',
                 false,
             ],
         ];

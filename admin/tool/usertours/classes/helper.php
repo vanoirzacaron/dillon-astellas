@@ -24,7 +24,6 @@
 
 namespace tool_usertours;
 
-use core\output\inplace_editable;
 use tool_usertours\local\clientside_filter\clientside_filter;
 
 defined('MOODLE_INTERNAL') || die();
@@ -53,11 +52,6 @@ class helper {
     private static $bootstrapped = false;
 
     /**
-     * @var string Regex to check any matching lang string.
-     */
-    protected const LANG_STRING_REGEX = '|^([a-zA-Z][a-zA-Z0-9\.:/_-]*),([a-zA-Z][a-zA-Z0-9\.:/_-]*)$|';
-
-    /**
      * Get the link to edit the step.
      *
      * If no stepid is specified, then a link to create a new step is provided. The $targettype must be specified in this case.
@@ -66,7 +60,7 @@ class helper {
      * @param   int     $stepid     The step ID.
      * @param   int     $targettype The type of step.
      *
-     * @return \moodle_url
+     * @return moodle_url
      */
     public static function get_edit_step_link($tourid, $stepid = null, $targettype = null) {
         $link = new \moodle_url('/admin/tool/usertours/configure.php');
@@ -88,7 +82,7 @@ class helper {
      * @param   int     $tourid     The tour ID.
      * @param   int     $direction  The direction to move in
      *
-     * @return \moodle_url
+     * @return moodle_url
      */
     public static function get_move_tour_link($tourid, $direction = self::MOVE_DOWN) {
         $link = new \moodle_url('/admin/tool/usertours/configure.php');
@@ -107,7 +101,7 @@ class helper {
      * @param   int     $stepid     The step ID.
      * @param   int     $direction  The direction to move in
      *
-     * @return \moodle_url
+     * @return moodle_url
      */
     public static function get_move_step_link($stepid, $direction = self::MOVE_DOWN) {
         $link = new \moodle_url('/admin/tool/usertours/configure.php');
@@ -126,7 +120,7 @@ class helper {
      * @param   int         $tourid     The ID of the tour to attach this step to.
      * @param   int         $targettype The type of target.
      *
-     * @return  \moodle_url             The required URL.
+     * @return  moodle_url              The required URL.
      */
     public static function get_new_step_link($tourid, $targettype = null) {
         $link = new \moodle_url('/admin/tool/usertours/configure.php');
@@ -141,7 +135,7 @@ class helper {
      * Get the link used to view the tour.
      *
      * @param   int         $tourid     The ID of the tour to display.
-     * @return  \moodle_url             The URL.
+     * @return  moodle_url              The URL.
      */
     public static function get_view_tour_link($tourid) {
         return new \moodle_url('/admin/tool/usertours/configure.php', [
@@ -154,7 +148,7 @@ class helper {
      * Get the link used to reset the tour state for all users.
      *
      * @param   int         $tourid     The ID of the tour to display.
-     * @return  \moodle_url             The URL.
+     * @return  moodle_url              The URL.
      */
     public static function get_reset_tour_for_all_link($tourid) {
         return new \moodle_url('/admin/tool/usertours/configure.php', [
@@ -168,7 +162,7 @@ class helper {
      * Get the link used to edit the tour.
      *
      * @param   int         $tourid     The ID of the tour to edit.
-     * @return  \moodle_url             The URL.
+     * @return  moodle_url              The URL.
      */
     public static function get_edit_tour_link($tourid = null) {
         $link = new \moodle_url('/admin/tool/usertours/configure.php');
@@ -186,7 +180,7 @@ class helper {
     /**
      * Get the link used to import the tour.
      *
-     * @return  \moodle_url             The URL.
+     * @return  moodle_url              The URL.
      */
     public static function get_import_tour_link() {
         $link = new \moodle_url('/admin/tool/usertours/configure.php', [
@@ -200,7 +194,7 @@ class helper {
      * Get the link used to export the tour.
      *
      * @param   int         $tourid     The ID of the tour to export.
-     * @return  \moodle_url             The URL.
+     * @return  moodle_url              The URL.
      */
     public static function get_export_tour_link($tourid) {
         $link = new \moodle_url('/admin/tool/usertours/configure.php', [
@@ -215,7 +209,7 @@ class helper {
      * Get the link used to duplicate the tour.
      *
      * @param   int         $tourid     The ID of the tour to duplicate.
-     * @return  \moodle_url             The URL.
+     * @return  moodle_url              The URL.
      */
     public static function get_duplicate_tour_link($tourid) {
         $link = new \moodle_url('/admin/tool/usertours/configure.php', [
@@ -230,7 +224,7 @@ class helper {
      * Get the link used to delete the tour.
      *
      * @param   int         $tourid     The ID of the tour to delete.
-     * @return  \moodle_url             The URL.
+     * @return  moodle_url              The URL.
      */
     public static function get_delete_tour_link($tourid) {
         return new \moodle_url('/admin/tool/usertours/configure.php', [
@@ -243,7 +237,7 @@ class helper {
     /**
      * Get the link for listing tours.
      *
-     * @return  \moodle_url             The URL.
+     * @return  moodle_url              The URL.
      */
     public static function get_list_tour_link() {
         $link = new \moodle_url('/admin/tool/usertours/configure.php');
@@ -295,7 +289,7 @@ class helper {
      * Get the link for deleting steps.
      *
      * @param   int         $stepid     The ID of the step to display.
-     * @return  \moodle_url             The URL.
+     * @return  moodle_url              The URL.
      */
     public static function get_delete_step_link($stepid) {
         return new \moodle_url('/admin/tool/usertours/configure.php', [
@@ -308,19 +302,18 @@ class helper {
     /**
      * Render the inplace editable used to edit the tour name.
      *
-     * @param tour $tour The tour to edit.
-     * @return inplace_editable
+     * @param   tour        $tour       The tour to edit.
+     * @return  string
      */
-    public static function render_tourname_inplace_editable(tour $tour): inplace_editable {
-        $name = format_text(static::get_string_from_input($tour->get_name()), FORMAT_HTML);
-        return new inplace_editable(
+    public static function render_tourname_inplace_editable(tour $tour) {
+        return new \core\output\inplace_editable(
                 'tool_usertours',
                 'tourname',
                 $tour->get_id(),
                 true,
                 \html_writer::link(
                     $tour->get_view_link(),
-                    $name
+                    $tour->get_name()
                 ),
                 $tour->get_name()
             );
@@ -329,17 +322,16 @@ class helper {
     /**
      * Render the inplace editable used to edit the tour description.
      *
-     * @param tour $tour The tour to edit.
-     * @return inplace_editable
+     * @param   tour        $tour       The tour to edit.
+     * @return  string
      */
-    public static function render_tourdescription_inplace_editable(tour $tour): inplace_editable {
-        $description = format_text(static::get_string_from_input($tour->get_description()), FORMAT_HTML);
-        return new inplace_editable(
+    public static function render_tourdescription_inplace_editable(tour $tour) {
+        return new \core\output\inplace_editable(
                 'tool_usertours',
                 'tourdescription',
                 $tour->get_id(),
                 true,
-                $description,
+                $tour->get_description(),
                 $tour->get_description()
             );
     }
@@ -347,10 +339,10 @@ class helper {
     /**
      * Render the inplace editable used to edit the tour enable state.
      *
-     * @param tour $tour The tour to edit.
-     * @return inplace_editable
+     * @param   tour        $tour       The tour to edit.
+     * @return  string
      */
-    public static function render_tourenabled_inplace_editable(tour $tour): inplace_editable {
+    public static function render_tourenabled_inplace_editable(tour $tour) {
         global $OUTPUT;
 
         if ($tour->is_enabled()) {
@@ -363,7 +355,7 @@ class helper {
             $value = 0;
         }
 
-        $editable = new inplace_editable(
+        $editable = new \core\output\inplace_editable(
                 'tool_usertours',
                 'tourenabled',
                 $tour->get_id(),
@@ -381,13 +373,13 @@ class helper {
     /**
      * Render the inplace editable used to edit the step name.
      *
-     * @param step $step The step to edit.
-     * @return inplace_editable
+     * @param   step        $step       The step to edit.
+     * @return  string
      */
-    public static function render_stepname_inplace_editable(step $step): inplace_editable {
-        $title = format_text(static::get_string_from_input($step->get_title()), FORMAT_HTML);
+    public static function render_stepname_inplace_editable(step $step) {
+        $title = format_text(step::get_string_from_input($step->get_title()), FORMAT_HTML);
 
-        return new inplace_editable(
+        return new \core\output\inplace_editable(
                 'tool_usertours',
                 'stepname',
                 $step->get_id(),
@@ -420,7 +412,7 @@ class helper {
      * Get the specified tour.
      *
      * @param   int         $tourid     The tour that the step belongs to.
-     * @return  tour
+     * @return  stdClass
      */
     public static function get_tour($tourid) {
         return tour::instance($tourid);
@@ -476,7 +468,7 @@ class helper {
      * Get all of the steps in the tour.
      *
      * @param   int         $tourid     The tour that the step belongs to.
-     * @return  step[]
+     * @return  stdClass[]
      */
     public static function get_steps($tourid) {
         $steps = cache::get_stepdata($tourid);
@@ -592,38 +584,5 @@ class helper {
         });
 
         return $filters;
-    }
-
-    /**
-     * Attempt to fetch any matching langstring if the content is in the
-     * format identifier,component.
-     *
-     * @param string $content Step's content or Tour's name or Tour's description
-     * @return string Processed content, any langstring will be converted to translated text
-     */
-    public static function get_string_from_input(string $content): string {
-        $content = trim($content);
-
-        if (preg_match(static::LANG_STRING_REGEX, $content, $matches)) {
-            if ($matches[2] === 'moodle') {
-                $matches[2] = 'core';
-            }
-
-            if (get_string_manager()->string_exists($matches[1], $matches[2])) {
-                $content = get_string($matches[1], $matches[2]);
-            }
-        }
-
-        return $content;
-    }
-
-    /**
-     * Check if the given string contains any matching langstring.
-     *
-     * @param string $string
-     * @return bool
-     */
-    public static function is_language_string_from_input(string $string): bool {
-        return preg_match(static::LANG_STRING_REGEX, $string) == true;
     }
 }

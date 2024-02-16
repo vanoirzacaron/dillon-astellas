@@ -481,13 +481,29 @@ function is_early_init($backtrace) {
 }
 
 /**
- * Returns detailed information about specified exception.
+ * Abort execution by throwing of a general exception,
+ * default exception handler displays the error message in most cases.
  *
- * @param Throwable $ex any sort of exception or throwable.
- * @return stdClass standardised info to display. Fields are clear if you look at the end of this function.
+ * @param string $errorcode The name of the language string containing the error message.
+ *      Normally this should be in the error.php lang file.
+ * @param string $module The language file to get the error message from.
+ * @param string $link The url where the user will be prompted to continue.
+ *      If no url is provided the user will be directed to the site index page.
+ * @param object $a Extra words and phrases that might be required in the error string
+ * @param string $debuginfo optional debugging information
+ * @return void, always throws exception!
  */
-function get_exception_info($ex): stdClass {
-    global $CFG;
+function print_error($errorcode, $module = 'error', $link = '', $a = null, $debuginfo = null) {
+    throw new moodle_exception($errorcode, $module, $link, $a, $debuginfo);
+}
+
+/**
+ * Returns detailed information about specified exception.
+ * @param exception $ex
+ * @return object
+ */
+function get_exception_info($ex) {
+    global $CFG, $DB, $SESSION;
 
     if ($ex instanceof moodle_exception) {
         $errorcode = $ex->errorcode;
@@ -550,7 +566,7 @@ function get_exception_info($ex): stdClass {
     if (function_exists('clean_text')) {
         $message = clean_text($message);
     } else {
-        $message = htmlspecialchars($message, ENT_COMPAT);
+        $message = htmlspecialchars($message);
     }
 
     if (!empty($CFG->errordocroot)) {
@@ -597,12 +613,24 @@ function get_exception_info($ex): stdClass {
 }
 
 /**
+ * Generate a V4 UUID.
+ *
+ * Unique is hard. Very hard. Attempt to use the PECL UUID function if available, and if not then revert to
+ * constructing the uuid using mt_rand.
+ *
+ * It is important that this token is not solely based on time as this could lead
+ * to duplicates in a clustered environment (especially on VMs due to poor time precision).
+ *
+ * @see https://tools.ietf.org/html/rfc4122
+ *
  * @deprecated since Moodle 3.8 MDL-61038 - please do not use this function any more.
  * @see \core\uuid::generate()
+ *
+ * @return string The uuid.
  */
 function generate_uuid() {
-    throw new coding_exception('generate_uuid() cannot be used anymore. Please use ' .
-        '\core\uuid::generate() instead.');
+    debugging('generate_uuid() is deprecated. Please use \core\uuid::generate() instead.', DEBUG_DEVELOPER);
+    return \core\uuid::generate();
 }
 
 /**
@@ -630,11 +658,7 @@ function generate_uuid() {
  */
 function get_docs_url($path = null) {
     global $CFG;
-    if ($path === null) {
-        $path = '';
-    }
 
-    $path = $path ?? '';
     // Absolute URLs are used unmodified.
     if (substr($path, 0, 7) === 'http://' || substr($path, 0, 8) === 'https://') {
         return $path;
@@ -753,7 +777,7 @@ function setup_validate_php_configuration() {
    // this must be very fast - no slow checks here!!!
 
    if (ini_get_bool('session.auto_start')) {
-        throw new \moodle_exception('sessionautostartwarning', 'admin');
+       print_error('sessionautostartwarning', 'admin');
    }
 }
 
@@ -784,53 +808,6 @@ function initialise_cfg() {
 }
 
 /**
- * Cache any immutable config locally to avoid constant DB lookups.
- *
- * Only to be used only from lib/setup.php
- */
-function initialise_local_config_cache() {
-    global $CFG;
-
-    $bootstrapcachefile = $CFG->localcachedir . '/bootstrap.php';
-
-    if (!empty($CFG->siteidentifier) && !file_exists($bootstrapcachefile)) {
-        $contents = "<?php
-// ********** This file is generated DO NOT EDIT **********
-\$CFG->siteidentifier = " . var_export($CFG->siteidentifier, true) . ";
-\$CFG->bootstraphash = " . var_export(hash_local_config_cache(), true) . ";
-// Only if the file is not stale and has not been defined.
-if (\$CFG->bootstraphash === hash_local_config_cache() && !defined('SYSCONTEXTID')) {
-    define('SYSCONTEXTID', ".SYSCONTEXTID.");
-}
-";
-
-        $temp = $bootstrapcachefile . '.tmp' . uniqid();
-        file_put_contents($temp, $contents);
-        @chmod($temp, $CFG->filepermissions);
-        rename($temp, $bootstrapcachefile);
-    }
-}
-
-/**
- * Calculate a proper hash to be able to invalidate stale cached configs.
- *
- * Only to be used to verify bootstrap.php status.
- *
- * @return string md5 hash of all the sensible bits deciding if cached config is stale or no.
- */
-function hash_local_config_cache() {
-    global $CFG;
-
-    // This is pretty much {@see moodle_database::get_settings_hash()} that is used
-    // as identifier for the database meta information MUC cache. Should be enough to
-    // react against any of the normal changes (new prefix, change of DB type) while
-    // *incorrectly* keeping the old dataroot directory unmodified with stale data.
-    // This may need more stuff to be considered if it's discovered that there are
-    // more variables making the file stale.
-    return md5($CFG->dbtype . $CFG->dbhost . $CFG->dbuser . $CFG->dbname . $CFG->prefix);
-}
-
-/**
  * Initialises $FULLME and friends. Private function. Should only be called from
  * setup.php.
  */
@@ -839,7 +816,7 @@ function initialise_fullme() {
 
     // Detect common config error.
     if (substr($CFG->wwwroot, -1) == '/') {
-        throw new \moodle_exception('wwwrootslash', 'error');
+        print_error('wwwrootslash', 'error');
     }
 
     if (CLI_SCRIPT) {
@@ -888,7 +865,7 @@ function initialise_fullme() {
                 throw new moodle_exception('requirecorrectaccess', 'error', '', null,
                     'You called ' . $calledurl .', you should have called ' . $correcturl);
             }
-            redirect($CFG->wwwroot . $rurl['fullpath'], get_string('wwwrootmismatch', 'error', $CFG->wwwroot), 3);
+            redirect($CFG->wwwroot, get_string('wwwrootmismatch', 'error', $CFG->wwwroot), 3);
         }
     }
 
@@ -906,7 +883,7 @@ function initialise_fullme() {
     if (empty($CFG->sslproxy)) {
         if ($rurl['scheme'] === 'http' and $wwwroot['scheme'] === 'https') {
             if (defined('REQUIRE_CORRECT_ACCESS') && REQUIRE_CORRECT_ACCESS) {
-                throw new \moodle_exception('sslonlyaccess', 'error');
+                print_error('sslonlyaccess', 'error');
             } else {
                 redirect($CFG->wwwroot, get_string('wwwrootmismatch', 'error', $CFG->wwwroot), 3);
             }
@@ -920,18 +897,11 @@ function initialise_fullme() {
         $_SERVER['SERVER_PORT'] = 443; // Assume default ssl port for the proxy.
     }
 
-    // Using Moodle in "reverse proxy" mode, it's expected that the HTTP Host Moodle receives is different
-    // from the wwwroot configured host. Those URLs being identical could be the consequence of various
-    // issues, including:
-    // - Intentionally trying to set up moodle with 2 distinct addresses for intranet and Internet: this
-    //   configuration is unsupported and will lead to bigger problems down the road (the proper solution
-    //   for this is adjusting the network routes, and avoid relying on the application for network concerns).
-    // - Misconfiguration of the reverse proxy that would be forwarding the Host header: while it is
-    //   standard in many cases that the reverse proxy would do that, in our case, the reverse proxy
-    //   must leave the Host header pointing to the internal name of the server.
-    // Port forwarding is allowed, though.
+    // Hopefully this will stop all those "clever" admins trying to set up moodle
+    // with two different addresses in intranet and Internet.
+    // Port forwarding is still allowed!
     if (!empty($CFG->reverseproxy) && $rurl['host'] === $wwwroot['host'] && (empty($wwwroot['port']) || $rurl['port'] === $wwwroot['port'])) {
-        throw new \moodle_exception('reverseproxyabused', 'error');
+        print_error('reverseproxyabused', 'error');
     }
 
     $hostandport = $rurl['scheme'] . '://' . $wwwroot['host'];
@@ -1202,6 +1172,7 @@ function init_performance_info() {
     global $PERF, $CFG, $USER;
 
     $PERF = new stdClass();
+    $PERF->logwrites = 0;
     if (function_exists('microtime')) {
         $PERF->starttime = microtime();
     }
@@ -1422,7 +1393,7 @@ function disable_output_buffering() {
  */
 function is_major_upgrade_required() {
     global $CFG;
-    $lastmajordbchanges = 2022101400.03; // This should be the version where the breaking changes happen.
+    $lastmajordbchanges = 2019050100.01;
 
     $required = empty($CFG->version);
     $required = $required || (float)$CFG->version < $lastmajordbchanges;
@@ -1447,7 +1418,7 @@ function redirect_if_major_upgrade_required() {
         $url = $CFG->wwwroot . '/' . $CFG->admin . '/index.php';
         @header($_SERVER['SERVER_PROTOCOL'] . ' 303 See Other');
         @header('Location: ' . $url);
-        echo bootstrap_renderer::plain_redirect_message(htmlspecialchars($url, ENT_COMPAT));
+        echo bootstrap_renderer::plain_redirect_message(htmlspecialchars($url));
         exit;
     }
 }
@@ -1457,7 +1428,7 @@ function redirect_if_major_upgrade_required() {
  *
  * To be inserted in the core functions that can not be called by pluigns during upgrade.
  * Core upgrade should not use any API functions at all.
- * See {@link https://moodledev.io/docs/guides/upgrade#upgrade-code-restrictions}
+ * See {@link http://docs.moodle.org/dev/Upgrade_API#Upgrade_code_restrictions}
  *
  * @throws moodle_exception if executed from inside of upgrade script and $warningonly is false
  * @param bool $warningonly if true displays a warning instead of throwing an exception
@@ -1700,7 +1671,7 @@ function get_request_storage_directory($exceptiononerror = true, bool $forcecrea
  * @param   bool    $forcecreate Force creation of a new parent directory
  * @return  string  The full path to directory if successful, false if not; may throw exception
  */
-function make_request_directory(bool $exceptiononerror = true, bool $forcecreate = false) {
+function make_request_directory($exceptiononerror = true, bool $forcecreate = false) {
     $basedir = get_request_storage_directory($exceptiononerror, $forcecreate);
     return make_unique_writable_directory($basedir, $exceptiononerror);
 }
@@ -1887,7 +1858,7 @@ function set_access_log_user() {
                 apache_note('MOODLEUSER', $logname);
             }
 
-            if ($logmethod == 'header' && !headers_sent()) {
+            if ($logmethod == 'header') {
                 header("X-MOODLEUSER: $logname");
             }
         }
@@ -2170,45 +2141,4 @@ class bootstrap_renderer {
 
         return $html;
     }
-}
-
-/**
- * Add http stream instrumentation
- *
- * This detects which any reads or writes to a php stream which uses
- * the 'http' handler. Ideally 100% of traffic uses the Moodle curl
- * libraries which do not use php streams.
- *
- * @param array $code stream callback code
- */
-function proxy_log_callback($code) {
-    if ($code == STREAM_NOTIFY_CONNECT) {
-        $trace = debug_backtrace();
-        $function = $trace[count($trace) - 1];
-        $error = "Unsafe internet IO detected: {$function['function']} with arguments " . join(', ', $function['args']) . "\n";
-        error_log($error . format_backtrace($trace, true)); // phpcs:ignore
-    }
-}
-
-/**
- * A helper function for deprecated files to use to ensure that, when they are included for unit tests,
- * they are run in an isolated process.
- *
- * @throws \coding_exception The exception thrown when the process is not isolated.
- */
-function require_phpunit_isolation(): void {
-    if (!defined('PHPUNIT_TEST') || !PHPUNIT_TEST) {
-        // Not a test.
-        return;
-    }
-
-    if (defined('PHPUNIT_ISOLATED_TEST') && PHPUNIT_ISOLATED_TEST) {
-        // Already isolated.
-        return;
-    }
-
-    throw new \coding_exception(
-        'When including this file for a unit test, the test must be run in an isolated process. ' .
-            'See the PHPUnit @runInSeparateProcess and @runTestsInSeparateProcesses annotations.'
-    );
 }

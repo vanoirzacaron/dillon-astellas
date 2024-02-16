@@ -34,7 +34,7 @@ defined('MOODLE_INTERNAL') || die();
  */
 abstract class file_info {
 
-    /** @var context File context */
+    /** @var stdClass File context */
     protected $context;
 
     /** @var file_browser File browser instance */
@@ -100,8 +100,8 @@ abstract class file_info {
      */
     protected function build_search_files_sql($extensions, $prefix = null) {
         global $DB;
-        if ($prefix && strlen($prefix)) {
-            $prefix = $prefix . '.';
+        if (strlen($prefix)) {
+            $prefix = $prefix.'.';
         } else {
             $prefix = '';
         }

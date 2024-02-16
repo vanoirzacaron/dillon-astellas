@@ -36,7 +36,7 @@ $ADMIN->add('themes', new admin_category('theme_adaptable', get_string('configti
 // Adaptable theme settings page.
 $asettings = new theme_adaptable_admin_settingspage_tabs('themesettingadaptable',
     get_string('configtabtitle', 'theme_adaptable'),
-    401
+    311
 );
 if ($ADMIN->fulltree) {
     include(dirname(__FILE__) . '/settings/array_definitions.php');
@@ -49,7 +49,6 @@ if ($ADMIN->fulltree) {
     include(dirname(__FILE__) . '/settings/category_headers.php');
     include(dirname(__FILE__) . '/settings/colors.php');
     include(dirname(__FILE__) . '/settings/course_formats.php');
-    include(dirname(__FILE__) . '/settings/course_index.php');
     include(dirname(__FILE__) . '/settings/dash_block_regions.php');
     include(dirname(__FILE__) . '/settings/fonts.php');
     include(dirname(__FILE__) . '/settings/footer.php');

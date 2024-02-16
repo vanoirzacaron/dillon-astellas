@@ -16,7 +16,6 @@
 
 namespace mod_folder;
 
-use core_external\external_api;
 use externallib_advanced_testcase;
 use mod_folder_external;
 
@@ -78,7 +77,7 @@ class externallib_test extends externallib_advanced_testcase {
         $sink = $this->redirectEvents();
 
         $result = mod_folder_external::view_folder($folder->id);
-        $result = external_api::clean_returnvalue(mod_folder_external::view_folder_returns(), $result);
+        $result = \external_api::clean_returnvalue(mod_folder_external::view_folder_returns(), $result);
 
         $events = $sink->get_events();
         $this->assertCount(1, $events);
@@ -150,7 +149,7 @@ class externallib_test extends externallib_advanced_testcase {
         $returndescription = mod_folder_external::get_folders_by_courses_returns();
 
         // Create what we expect to be returned when querying the two courses.
-        $expectedfields = array('id', 'coursemodule', 'course', 'name', 'intro', 'introformat', 'introfiles', 'lang', 'revision',
+        $expectedfields = array('id', 'coursemodule', 'course', 'name', 'intro', 'introformat', 'introfiles', 'revision',
                                 'timemodified', 'display', 'showexpanded', 'showdownloadfolder', 'section', 'visible',
                                 'forcedownload', 'groupmode', 'groupingid');
 
@@ -162,7 +161,6 @@ class externallib_test extends externallib_advanced_testcase {
         $folder1->groupmode = 0;
         $folder1->groupingid = 0;
         $folder1->introfiles = [];
-        $folder1->lang = '';
 
         $folder2->coursemodule = $folder2->cmid;
         $folder2->introformat = 1;
@@ -171,7 +169,6 @@ class externallib_test extends externallib_advanced_testcase {
         $folder2->groupmode = 0;
         $folder2->groupingid = 0;
         $folder2->introfiles = [];
-        $folder2->lang = '';
 
         foreach ($expectedfields as $field) {
             $expected1[$field] = $folder1->{$field};
@@ -182,14 +179,14 @@ class externallib_test extends externallib_advanced_testcase {
 
         // Call the external function passing course ids.
         $result = mod_folder_external::get_folders_by_courses(array($course2->id, $course1->id));
-        $result = external_api::clean_returnvalue($returndescription, $result);
+        $result = \external_api::clean_returnvalue($returndescription, $result);
 
         $this->assertEquals($expectedfolders, $result['folders']);
         $this->assertCount(0, $result['warnings']);
 
         // Call the external function without passing course id.
         $result = mod_folder_external::get_folders_by_courses();
-        $result = external_api::clean_returnvalue($returndescription, $result);
+        $result = \external_api::clean_returnvalue($returndescription, $result);
 
         $this->assertEquals($expectedfolders, $result['folders']);
         $this->assertCount(0, $result['warnings']);
@@ -209,7 +206,7 @@ class externallib_test extends externallib_advanced_testcase {
         $fs->create_file_from_string($filerecordinline, 'image contents (not really)');
 
         $result = mod_folder_external::get_folders_by_courses(array($course2->id, $course1->id));
-        $result = external_api::clean_returnvalue($returndescription, $result);
+        $result = \external_api::clean_returnvalue($returndescription, $result);
 
         $this->assertCount(1, $result['folders'][0]['introfiles']);
         $this->assertEquals($fileintroname, $result['folders'][0]['introfiles'][0]['filename']);
@@ -220,7 +217,7 @@ class externallib_test extends externallib_advanced_testcase {
 
         // Call the external function without passing course id.
         $result = mod_folder_external::get_folders_by_courses();
-        $result = external_api::clean_returnvalue($returndescription, $result);
+        $result = \external_api::clean_returnvalue($returndescription, $result);
 
         $this->assertEquals($expectedfolders, $result['folders']);
 

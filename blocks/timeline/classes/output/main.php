@@ -116,7 +116,7 @@ class main implements renderable, templatable {
         if (in_array($this->filter, [BLOCK_TIMELINE_FILTER_BY_NONE, BLOCK_TIMELINE_FILTER_BY_OVERDUE])) {
             $offset = -14;
             if ($this->filter == BLOCK_TIMELINE_FILTER_BY_OVERDUE) {
-                $limit = 1;
+                $limit = 0;
             }
         } else {
             $offset = 0;
@@ -145,7 +145,7 @@ class main implements renderable, templatable {
      * Export this data so it can be used as the context for a mustache template.
      *
      * @param \renderer_base $output
-     * @return array
+     * @return stdClass
      */
     public function export_for_template(renderer_base $output) {
 
@@ -183,8 +183,7 @@ class main implements renderable, templatable {
             'hasdaysoffset' => true,
             'hasdayslimit' => $offsets['dayslimit'] !== '' ,
             'nodayslimit' => $offsets['dayslimit'] === '' ,
-            'limit' => $this->limit,
-            'hascourses' => !empty($formattedcourses),
+            'limit' => $this->limit
         ];
         return array_merge($contextvariables, $filters, $offsets);
     }

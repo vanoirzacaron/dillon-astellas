@@ -28,6 +28,8 @@
 
 namespace theme_adaptable\output\core_user\myprofile;
 
+defined('MOODLE_INTERNAL') || die;
+
 /**
  * myprofile editprofile.
  *
@@ -59,11 +61,11 @@ class editprofile {
         require_once($CFG->dirroot.'/lib/formslib.php');
         $usercontext = \context_user::instance($user->id);
         $editoroptions = array(
-            'maxfiles' => EDITOR_UNLIMITED_FILES,
-            'maxbytes' => $CFG->maxbytes,
-            'trusttext' => false,
+            'maxfiles'   => EDITOR_UNLIMITED_FILES,
+            'maxbytes'   => $CFG->maxbytes,
+            'trusttext'  => false,
             'forcehttps' => false,
-            'context' => $usercontext
+            'context'    => $usercontext
         );
         $user = file_prepare_standard_editor($user, 'description', $editoroptions, $usercontext, 'user', 'profile', 0);
 
@@ -71,9 +73,9 @@ class editprofile {
         $draftitemid = 0;
         $filemanagercontext = $editoroptions['context'];
         $filemanageroptions = array(
-            'maxbytes' => $CFG->maxbytes,
-            'subdirs' => 0,
-            'maxfiles' => 1,
+            'maxbytes'       => $CFG->maxbytes,
+            'subdirs'        => 0,
+            'maxfiles'       => 1,
             'accepted_types' => 'web_image');
         \file_prepare_draft_area($draftitemid, $filemanagercontext->id, 'user', 'newicon', 0, $filemanageroptions);
         $user->imagefile = $draftitemid;
@@ -155,7 +157,7 @@ class editprofile {
                 unset($usernew->createpassword);
                 $usernew = file_postupdate_standard_editor($usernew, 'description', $editoroptions, null, 'user', 'profile', null);
                 $usernew->mnethostid = $CFG->mnet_localhost_id; // Always local user.
-                $usernew->confirmed = 1;
+                $usernew->confirmed  = 1;
                 $usernew->timecreated = time();
                 if ($authplugin->is_internal()) {
                     if ($createpassword || empty($usernew->newpassword)) {

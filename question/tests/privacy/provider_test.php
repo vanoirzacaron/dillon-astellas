@@ -96,7 +96,6 @@ class provider_test extends \core_privacy\tests\provider_testcase {
         $options = new \question_display_options();
 
         provider::export_question_usage($testuser->id, $context, [], $quba->get_id(), $options, false);
-        /** @var \core_privacy\tests\request\content_writer $writer */
         $writer = writer::with_context($context);
 
         $this->assertFalse($writer->has_any_data_in_any_context());
@@ -138,7 +137,6 @@ class provider_test extends \core_privacy\tests\provider_testcase {
         // Export all questions for this attempt.
         $options = new \question_display_options();
         provider::export_question_usage($testuser->id, $context, [], $quba->get_id(), $options, true);
-        /** @var \core_privacy\tests\request\content_writer $writer */
         $writer = writer::with_context($context);
 
         $this->assertTrue($writer->has_any_data_in_any_context());
@@ -163,7 +161,6 @@ class provider_test extends \core_privacy\tests\provider_testcase {
         $options->marks = \question_display_options::HIDDEN;
 
         provider::export_question_usage($testuser->id, $context, [], $quba->get_id(), $options, true);
-        /** @var \core_privacy\tests\request\content_writer $writer */
         $writer = writer::with_context($context);
 
         $this->assertTrue($writer->has_any_data_in_any_context());
@@ -309,19 +306,17 @@ class provider_test extends \core_privacy\tests\provider_testcase {
         // Q4 - Created by the other user, Modified by the other user.
         // Q5 - Created by the UUT, Modified by the UUT, but in a different context.
         $this->setUser($user);
-        $q1 = $questiongenerator->create_question('shortanswer', null, ['category' => $cat->id]);
-        $q2 = $questiongenerator->create_question('shortanswer', null, ['category' => $cat->id]);
+        $q1 = $questiongenerator->create_question('shortanswer', null, array('category' => $cat->id));
+        $q2 = $questiongenerator->create_question('shortanswer', null, array('category' => $cat->id));
 
         $this->setUser($otheruser);
-        // When we update a question, a new question/version is created.
-        $q2updated = $questiongenerator->update_question($q2);
-        $q3 = $questiongenerator->create_question('shortanswer', null, ['category' => $cat->id]);
-        $q4 = $questiongenerator->create_question('shortanswer', null, ['category' => $cat->id]);
+        $questiongenerator->update_question($q2);
+        $q3 = $questiongenerator->create_question('shortanswer', null, array('category' => $cat->id));
+        $q4 = $questiongenerator->create_question('shortanswer', null, array('category' => $cat->id));
 
         $this->setUser($user);
-        // When we update a question, a new question/version is created.
-        $q3updated = $questiongenerator->update_question($q3);
-        $q5 = $questiongenerator->create_question('shortanswer', null, ['category' => $othercat->id]);
+        $questiongenerator->update_question($q3);
+        $q5 = $questiongenerator->create_question('shortanswer', null, array('category' => $othercat->id));
 
         $approvedcontextlist = new \core_privacy\tests\request\approved_contextlist(
             $user,
@@ -342,12 +337,12 @@ class provider_test extends \core_privacy\tests\provider_testcase {
         $this->assertEquals(0, $qrecord->createdby);
         $this->assertEquals(0, $qrecord->modifiedby);
 
-        $qrecord = $DB->get_record('question', ['id' => $q2updated->id]);
-        $this->assertEquals($otheruser->id, $qrecord->createdby);
+        $qrecord = $DB->get_record('question', ['id' => $q2->id]);
+        $this->assertEquals(0, $qrecord->createdby);
         $this->assertEquals($otheruser->id, $qrecord->modifiedby);
 
-        $qrecord = $DB->get_record('question', ['id' => $q3updated->id]);
-        $this->assertEquals(0, $qrecord->createdby);
+        $qrecord = $DB->get_record('question', ['id' => $q3->id]);
+        $this->assertEquals($otheruser->id, $qrecord->createdby);
         $this->assertEquals(0, $qrecord->modifiedby);
 
         $qrecord = $DB->get_record('question', ['id' => $q4->id]);
@@ -466,7 +461,9 @@ class provider_test extends \core_privacy\tests\provider_testcase {
 
         // User1 has created questions and user3 has edited them.
         $this->assertCount(2, $userlist);
-        $this->assertEqualsCanonicalizing([$user1->id, $user3->id], $userlist->get_userids());
+        $this->assertEqualsCanonicalizing(
+                [$user1->id, $user3->id],
+                $userlist->get_userids());
     }
 
     /**
@@ -513,24 +510,22 @@ class provider_test extends \core_privacy\tests\provider_testcase {
         provider::delete_data_for_users($approveduserlist);
 
         // Now, there should be no question related to user1 or user2 in course1.
-        $this->assertEquals(0,
+        $this->assertEquals(
+                0,
                 $DB->count_records_sql("SELECT COUNT(q.id)
                                           FROM {question} q
-                                          JOIN {question_versions} qv ON qv.questionid = q.id
-                                          JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
-                                          JOIN {question_categories} qc ON qc.id = qbe.questioncategoryid
+                                          JOIN {question_categories} qc ON q.category = qc.id
                                          WHERE qc.contextid = ?
-                                           AND (q.createdby = ? OR q.modifiedby = ? OR q.createdby = ? OR q.modifiedby = ?)",
+                                               AND (q.createdby = ? OR q.modifiedby = ? OR q.createdby = ? OR q.modifiedby = ?)",
                         [$course1context->id, $user1->id, $user1->id, $user2->id, $user2->id])
         );
 
         // User3 data in course1 should not change.
-        $this->assertEquals(2,
+        $this->assertEquals(
+                2,
                 $DB->count_records_sql("SELECT COUNT(q.id)
                                           FROM {question} q
-                                          JOIN {question_versions} qv ON qv.questionid = q.id
-                                          JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
-                                          JOIN {question_categories} qc ON qc.id = qbe.questioncategoryid
+                                          JOIN {question_categories} qc ON q.category = qc.id
                                          WHERE qc.contextid = ? AND (q.createdby = ? OR q.modifiedby = ?)",
                         [$course1context->id, $user3->id, $user3->id])
         );

@@ -24,6 +24,8 @@
 
 namespace qtype_gapselect\form;
 
+use question_edit_contexts;
+
 defined('MOODLE_INTERNAL') || die();
 global $CFG;
 
@@ -35,6 +37,7 @@ require_once($CFG->dirroot . '/question/type/gapselect/edit_gapselect_form.php')
 /**
  * Subclass of qtype_gapselect_edit_form_base that is easier to used in unit tests.
  *
+ * @package   qtype_gapselect
  * @copyright 2012 The Open University
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -60,7 +63,6 @@ class qtype_gapselect_edit_form_base_testable extends \qtype_gapselect_edit_form
 /**
  * Unit tests for select missing words question edit form.
  *
- * @package    qtype_gapselect
  * @copyright  2012 The Open University
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -96,7 +98,7 @@ class edit_form_test extends \advanced_testcase {
         $fakequestion->inputs = null;
 
         $form = new $classname(new \moodle_url('/'), $fakequestion, $category,
-                new \core_question\local\bank\question_edit_contexts($syscontext));
+                new question_edit_contexts($syscontext));
 
         return [$form, $category];
     }

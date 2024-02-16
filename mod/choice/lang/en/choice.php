@@ -32,7 +32,7 @@ $string['calendarstart'] = '{$a} opens';
 $string['cannotsubmit'] = 'Sorry, there was a problem submitting your choice. Please try again.';
 $string['closebeforeopen'] = 'You have specified a close date before the open date.';
 $string['completiondetail:submit'] = 'Make a choice';
-$string['completionsubmit'] = 'Make a choice';
+$string['completionsubmit'] = 'Show as complete when user makes a choice';
 $string['displayhorizontal'] = 'Display horizontally';
 $string['displaymode'] = 'Display mode for the options';
 $string['displayvertical'] = 'Display vertically';
@@ -159,3 +159,7 @@ $string['viewchoices'] = 'View choices';
 $string['withselected'] = 'With selected';
 $string['userchoosethisoption'] = 'Users who chose this option';
 $string['yourselection'] = 'Your selection';
+
+// Deprecated since Moodle 3.8.
+$string['choiceactivityname'] = 'Choice: {$a}';
+$string['choicecloseson'] = 'Choice closes on {$a}';

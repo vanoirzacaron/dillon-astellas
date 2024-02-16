@@ -37,7 +37,6 @@ use mod_forum\local\vaults\discussion_list as discussion_list_vault;
 use renderer_base;
 use stdClass;
 use core\output\notification;
-use mod_forum\local\data_mappers\legacy\forum;
 use mod_forum\local\factories\builder as builder_factory;
 
 require_once($CFG->dirroot . '/mod/forum/lib.php');
@@ -146,7 +145,6 @@ class discussion_list {
      * @param   int         $pageno The zero-indexed page number to use
      * @param   int         $pagesize The number of discussions to show on the page
      * @param   int         $displaymode The discussion display mode
-     * @param   bool        $enablediscussioncreation To show the discussion button.
      * @return  string      The rendered content for display
      */
     public function render(
@@ -156,8 +154,7 @@ class discussion_list {
         ?int $sortorder,
         ?int $pageno,
         ?int $pagesize,
-        int $displaymode = null,
-        bool $enablediscussioncreation = true
+        int $displaymode = null
     ) : string {
         global $PAGE;
 
@@ -213,8 +210,7 @@ class discussion_list {
             ],
             'totaldiscussioncount' => $alldiscussionscount,
             'userid' => $user->id,
-            'visiblediscussioncount' => count($discussions),
-            'enablediscussioncreation' => $enablediscussioncreation,
+            'visiblediscussioncount' => count($discussions)
         ];
 
         if ($forumview['forum']['capabilities']['create']) {
@@ -244,27 +240,6 @@ class discussion_list {
         $forumview['firstgradeduserid'] = $firstdiscussion->get_latest_post_author()->get_id();
 
         return $this->renderer->render_from_template($this->template, $forumview);
-    }
-
-    /**
-     * Add new discussion button to the action bar for tertiary nav.
-     *
-     * @param stdClass $user The user object.
-     * @param int|null $groupid The group id.
-     * @return string rendered HTML string
-     */
-    public function render_new_discussion(stdClass $user, ?int $groupid): string {
-        $forumexporter = $this->exporterfactory->get_forum_exporter(
-            $user,
-            $this->forum,
-            $groupid
-        );
-
-        $forumview = [
-            'forum' => (array) $forumexporter->export($this->renderer),
-        ];
-
-        return $this->renderer->render_from_template('mod_forum/forum_new_discussion_actionbar', $forumview);
     }
 
     /**
@@ -361,7 +336,7 @@ class discussion_list {
      * @param int|null $groupid The forum's group id
      * @return      array
      */
-    private function get_notifications(stdClass $user, ?int $groupid): array {
+    private function get_notifications(stdClass $user, ?int $groupid) : array {
         $notifications = $this->notifications;
         $forum = $this->forum;
         $capabilitymanager = $this->capabilitymanager;
@@ -408,7 +383,7 @@ class discussion_list {
             $notifications[] = (new notification(
                 get_string('qandanotify', 'forum'),
                 notification::NOTIFY_INFO
-            ))->set_show_closebutton()->set_extra_classes(['mt-3']);
+            ))->set_show_closebutton();
         }
 
         if ('eachuser' === $forum->get_type()) {

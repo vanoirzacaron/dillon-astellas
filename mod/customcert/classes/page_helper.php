@@ -24,6 +24,8 @@
 
 namespace mod_customcert;
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * Class helper.
  *

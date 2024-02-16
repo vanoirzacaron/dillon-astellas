@@ -30,6 +30,7 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 require_once($CFG->dirroot . '/backup/util/helper/backup_cron_helper.class.php');
+require_once($CFG->libdir.'/cronlib.php');
 require_once($CFG->libdir . '/completionlib.php');
 
 /**
@@ -123,7 +124,8 @@ class automated_backup_test extends \advanced_testcase {
         $method->setAccessible(true); // Allow accessing of private method.
         $emailpending = $method->invokeArgs($classobject, [$courses, $admin]);
 
-        $this->expectOutputRegex('/Skipping course id ' . $this->course->id . ': Not scheduled for backup until/');
+        $coursename = $this->course->fullname;
+        $this->expectOutputRegex("/Skipping $coursename \(Not scheduled for backup until/");
         $this->assertFalse($emailpending);
 
         $backupcourse = $DB->get_record('backup_courses', array('courseid' => $this->course->id));
@@ -165,7 +167,8 @@ class automated_backup_test extends \advanced_testcase {
         $emailpending = $method->invokeArgs($classobject, [$courses, $admin]);
         $this->assertTrue($emailpending);
 
-        $this->expectOutputRegex('/Putting backup of course id ' . $this->course->id. ' in adhoc task queue/');
+        $coursename = $this->course->fullname;
+        $this->expectOutputRegex("/Putting backup of $coursename in adhoc task queue/");
 
         $backupcourse = $DB->get_record('backup_courses', array('courseid' => $this->course->id));
         // Now this backup course status should be queued.
@@ -208,7 +211,7 @@ class automated_backup_test extends \advanced_testcase {
         $skipped = $method->invokeArgs($classobject, [$backupcourse, $course, $nextstarttime]);
 
         $this->assertTrue($skipped);
-        $this->expectOutputRegex('/Skipping course id ' . $this->course->id. ': Not visible/');
+        $this->expectOutputRegex("/Skipping $course->fullname \(Not visible\)/");
     }
 
     /**
@@ -243,7 +246,7 @@ class automated_backup_test extends \advanced_testcase {
         $skipped = $method->invokeArgs($classobject, [$backupcourse, $course, $nextstarttime]);
 
         $this->assertTrue($skipped);
-        $this->expectOutputRegex('/Skipping course id ' . $this->course->id . ': Not modified in the past 2 days/');
+        $this->expectOutputRegex("/Skipping $course->fullname \(Not modified in the past 2 days\)/");
     }
 
     /**
@@ -278,7 +281,7 @@ class automated_backup_test extends \advanced_testcase {
         $skipped = $method->invokeArgs($classobject, [$backupcourse, $course, $nextstarttime]);
 
         $this->assertTrue($skipped);
-        $this->expectOutputRegex('/Skipping course id ' . $this->course->id . ': Not modified since previous backup/');
+        $this->expectOutputRegex("/Skipping $course->fullname \(Not modified since previous backup\)/");
     }
 
     /**

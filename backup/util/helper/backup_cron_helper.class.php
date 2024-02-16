@@ -123,7 +123,7 @@ abstract class backup_cron_automated_helper {
             mtrace("Skipping deleted courses", '...');
             mtrace(sprintf("%d courses", self::remove_deleted_courses_from_schedule()));
             mtrace('Running required automated backups...');
-            \core\cron::trace_time_and_memory();
+            cron_trace_time_and_memory();
 
             mtrace("Getting admin info");
             $admin = get_admin();
@@ -137,11 +137,9 @@ abstract class backup_cron_automated_helper {
             $rs->close();
 
             // Send email to admin if necessary.
-            set_config(
-                'backup_auto_emailpending',
-                $emailpending ? 1 : 0,
-                'backup',
-            );
+            if ($emailpending) {
+                self::send_backup_status_to_admin($admin);
+            }
         } finally {
             // Everything is finished release lock.
             $lock->release();
@@ -190,7 +188,7 @@ abstract class backup_cron_automated_helper {
      * @param stdClass $admin
      * @return array
      */
-    public static function send_backup_status_to_admin($admin) {
+    private static function send_backup_status_to_admin($admin) {
         global $DB, $CFG;
 
         mtrace("Sending email to admin");
@@ -204,7 +202,7 @@ abstract class backup_cron_automated_helper {
         $message .= get_string('summary') . "\n";
         $message .= "==================================================\n";
         $message .= '  ' . get_string('courses') . ': ' . array_sum($count) . "\n";
-        $message .= '  ' . get_string('statusok') . ': ' . $count[self::BACKUP_STATUS_OK] . "\n";
+        $message .= '  ' . get_string('ok') . ': ' . $count[self::BACKUP_STATUS_OK] . "\n";
         $message .= '  ' . get_string('skipped') . ': ' . $count[self::BACKUP_STATUS_SKIPPED] . "\n";
         $message .= '  ' . get_string('error') . ': ' . $count[self::BACKUP_STATUS_ERROR] . "\n";
         $message .= '  ' . get_string('unfinished') . ': ' . $count[self::BACKUP_STATUS_UNFINISHED] . "\n";
@@ -293,20 +291,21 @@ abstract class backup_cron_automated_helper {
             if (!$shouldrunnow || $backupcourse->laststatus == self::BACKUP_STATUS_QUEUED) {
                 $backupcourse->nextstarttime = $nextstarttime;
                 $DB->update_record('backup_courses', $backupcourse);
-                mtrace('Skipping course id ' . $course->id . ': Not scheduled for backup until ' . $showtime);
+                mtrace('Skipping ' . $course->fullname . ' (Not scheduled for backup until ' . $showtime . ')');
             } else {
-                $skipped = self::should_skip_course_backup($backupcourse, $course, $nextstarttime);
+                    $skipped = self::should_skip_course_backup($backupcourse, $course, $nextstarttime);
                 if (!$skipped) { // If it should not be skipped.
 
                     // Only make the backup if laststatus isn't 2-UNFINISHED (uncontrolled error or being backed up).
                     if ($backupcourse->laststatus != self::BACKUP_STATUS_UNFINISHED) {
                         // Add every non-skipped courses to backup adhoc task queue.
-                        mtrace('Putting backup of course id ' . $course->id . ' in adhoc task queue');
+                        mtrace('Putting backup of ' . $course->fullname . ' in adhoc task queue ...');
 
                         // We have to send an email because we have included at least one backup.
                         $emailpending = true;
                         // Create adhoc task for backup.
                         self::push_course_backup_adhoc_task($backupcourse, $admin);
+                        mtrace("complete - next execution: $showtime");
                     }
                 }
             }
@@ -366,7 +365,8 @@ abstract class backup_cron_automated_helper {
             $backupcourse->laststatus = self::BACKUP_STATUS_SKIPPED;
             $backupcourse->nextstarttime = $nextstarttime;
             $DB->update_record('backup_courses', $backupcourse);
-            mtrace('Skipping course id ' . $course->id . ': ' . $skippedmessage);
+            mtrace('Skipping ' . $course->fullname . ' (' . $skippedmessage . ')');
+            mtrace('Backup of \'' . $course->fullname . '\' is scheduled on ' . date('r', $nextstarttime));
         }
 
         return $skipped;
@@ -388,22 +388,7 @@ abstract class backup_cron_automated_helper {
             'courseid' => $backupcourse->courseid,
             'adminid' => $admin->id
         ));
-        $taskid = \core\task\manager::queue_adhoc_task($asynctask);
-
-        // Get the queued tasks.
-        $queuedtasks = [];
-        if ($value = get_config('backup', 'backup_auto_adhoctasks')) {
-            $queuedtasks = explode(',', $value);
-        }
-        if ($taskid) {
-            $queuedtasks[] = (int) $taskid;
-        }
-        // Save the queued tasks.
-        set_config(
-            'backup_auto_adhoctasks',
-            implode(',', $queuedtasks),
-            'backup',
-        );
+        \core\task\manager::queue_adhoc_task($asynctask);
 
         $backupcourse->laststatus = self::BACKUP_STATUS_QUEUED;
         $DB->update_record('backup_courses', $backupcourse);
@@ -807,7 +792,7 @@ abstract class backup_cron_automated_helper {
                 $where .= " and target <> 'course_backup'";
             }
 
-            if ($reader->get_events_select_exists($where, $params)) {
+            if ($reader->get_events_select_count($where, $params)) {
                 return true;
             }
         }

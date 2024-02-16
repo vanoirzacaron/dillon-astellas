@@ -20,17 +20,7 @@
  * @copyright  2018 The Open University
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-define([
-    'jquery',
-    'core/dragdrop',
-    'core/key_codes',
-    'core_form/changechecker'
-], function(
-    $,
-    dragDrop,
-    keys,
-    FormChangeChecker
-) {
+define(['jquery', 'core/dragdrop', 'core/key_codes'], function($, dragDrop, keys) {
 
     "use strict";
 
@@ -1206,8 +1196,9 @@ define([
          * Handle when the form is dirty.
          */
         handleFormDirty: function() {
-            const responseForm = document.getElementById('responseform');
-            FormChangeChecker.markFormAsDirty(responseForm);
+            if (typeof M.core_formchangechecker !== 'undefined') {
+                M.core_formchangechecker.set_form_changed();
+            }
         }
     };
 

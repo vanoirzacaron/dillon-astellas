@@ -28,8 +28,9 @@
 
 namespace theme_adaptable\output\core_user\myprofile;
 
-defined('MOODLE_INTERNAL') || die;
-
+if (!defined('MOODLE_INTERNAL')) {
+    die('Direct access to this script is forbidden.');    // It must be included from a Moodle page.
+}
 require_once($CFG->dirroot.'/lib/formslib.php');
 require_once($CFG->dirroot.'/user/lib.php');
 require_once($CFG->dirroot.'/user/editlib.php');

@@ -21,8 +21,11 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 define(['jquery'], function($) {
-    const SELECTORS = {
-        STATE_INPUTS: '.preference-state input.notification_enabled'
+    var SELECTORS = {
+        STATE_NONE: '[data-state="none"]',
+        STATE_BOTH: '[data-state="both"]',
+        STATE_LOGGED_IN: '[data-state="loggedin"]',
+        STATE_LOGGED_OFF: '[data-state="loggedoff"]',
     };
 
     /**
@@ -31,7 +34,7 @@ define(['jquery'], function($) {
      * @class
      * @param {object} element jQuery object root element of the processor
      */
-    const NotificationProcessor = function(element) {
+    var NotificationProcessor = function(element) {
         this.root = $(element);
     };
 
@@ -51,10 +54,36 @@ define(['jquery'], function($) {
      * @method isLoggedInEnabled
      * @return {bool}
      */
-    NotificationProcessor.prototype.isEnabled = function() {
-        const enabled = this.root.find(SELECTORS.STATE_INPUTS);
+    NotificationProcessor.prototype.isLoggedInEnabled = function() {
+        var none = this.root.find(SELECTORS.STATE_NONE).find('input');
 
-        return enabled.prop('checked');
+        if (none.prop('checked')) {
+            return false;
+        }
+
+        var both = this.root.find(SELECTORS.STATE_BOTH).find('input');
+        var loggedIn = this.root.find(SELECTORS.STATE_LOGGED_IN).find('input');
+
+        return loggedIn.prop('checked') || both.prop('checked');
+    };
+
+    /**
+     * Check if the processor is enabled when the user is logged out.
+     *
+     * @method isLoggedOffEnabled
+     * @return {bool}
+     */
+    NotificationProcessor.prototype.isLoggedOffEnabled = function() {
+        var none = this.root.find(SELECTORS.STATE_NONE).find('input');
+
+        if (none.prop('checked')) {
+            return false;
+        }
+
+        var both = this.root.find(SELECTORS.STATE_BOTH).find('input');
+        var loggedOff = this.root.find(SELECTORS.STATE_LOGGED_OFF).find('input');
+
+        return loggedOff.prop('checked') || both.prop('checked');
     };
 
     return NotificationProcessor;

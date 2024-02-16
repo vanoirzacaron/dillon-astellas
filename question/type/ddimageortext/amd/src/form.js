@@ -55,24 +55,20 @@ define(['jquery', 'core/dragdrop'], function($, dragDrop) {
          */
         init: function() {
             dragDropToImageForm.fp = dragDropToImageForm.filePickers();
-            dragDropToImageForm.updateVisibilityOfFilePickers();
-            dragDropToImageForm.setOptionsForDragItemSelectors();
-            dragDropToImageForm.setupEventHandlers();
-            dragDropToImageForm.waitForFilePickerToInitialise();
-        },
 
-        /**
-         * Add html for the preview area.
-         */
-        setupPreviewArea: function() {
             $('#id_previewareaheader').append(
                 '<div class="ddarea que ddimageortext">' +
-                '  <div id="id_droparea" class="droparea">' +
+                '  <div class="droparea">' +
                 '    <img class="dropbackground" />' +
                 '    <div class="dropzones"></div>' +
                 '  </div>' +
                 '  <div class="dragitems"></div>' +
                 '</div>');
+
+            dragDropToImageForm.updateVisibilityOfFilePickers();
+            dragDropToImageForm.setOptionsForDragItemSelectors();
+            dragDropToImageForm.setupEventHandlers();
+            dragDropToImageForm.waitForFilePickerToInitialise();
         },
 
         /**
@@ -94,13 +90,8 @@ define(['jquery', 'core/dragdrop'], function($, dragDrop) {
                 M.util.js_pending('dragDropToImageForm');
                 dragDropToImageForm.loadPreviewImage();
             });
-            if ($('#id_droparea').length) {
-                dragDropToImageForm.loadPreviewImage();
-            } else {
-                // Setup preview area when the background image is uploaded the first time.
-                dragDropToImageForm.setupPreviewArea();
-                dragDropToImageForm.loadPreviewImage();
-            }
+
+            dragDropToImageForm.loadPreviewImage();
         },
 
         /**

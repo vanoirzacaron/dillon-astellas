@@ -1,1 +1,1 @@
-nextsession,mod_chat
+sessionstart,mod_chat

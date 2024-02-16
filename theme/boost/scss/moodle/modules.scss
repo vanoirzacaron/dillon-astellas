@@ -10,64 +10,11 @@ select {
 }
 
 .path-mod {
-    .activity-header:not(:empty) {
-        background-color: $gray-100;
-        margin-bottom: map-get($spacers, 3);
-        padding-left: map-get($spacers, 3);
-        padding-right: map-get($spacers, 3);
-
-        @include border-radius();
-
-        & > div:last-child > div:last-child {
-            border-bottom: 0;
-        }
-    }
-    .activity-information {
-
-        .activity-dates {
-            padding-top: map-get($spacers, 3);
-            padding-bottom: map-get($spacers, 3);
-            border-bottom: $border-width solid $border-color;
-        }
-        .completion-info {
-            padding-top: map-get($spacers, 3);
-            padding-bottom: map-get($spacers, 3);
-            border-bottom: $border-width solid $border-color;
-        }
-    }
-    .activity-description {
-        padding-top: map-get($spacers, 3);
+    div.activity-information {
+        border-bottom: $border-width solid $table-border-color;
+        padding-top: map-get($spacers, 2);
         padding-bottom: map-get($spacers, 3);
-        & > .box.py-3 {
-            padding-top: 0 !important; /* stylelint-disable-line declaration-no-important */
-            padding-bottom: 0 !important; /* stylelint-disable-line declaration-no-important */
-        }
-        & > .box.py-3:empty {
-            display: none;
-        }
-    }
-    .automatic-completion-conditions .badge {
-        font-size: 80%;
-        padding: map-get($spacers, 2);
-        margin-top: map-get($spacers, 1);
-        mix-blend-mode: multiply;
-        &.badge-light {
-            background-color: $gray-200 !important; /* stylelint-disable-line declaration-no-important */
-        }
-
-        .icon {
-            width: 0.7rem;
-            height: 0.7rem;
-            font-size: 0.7rem;
-        }
-
-        &:first-child {
-            margin-top: 0;
-        }
-    }
-    .activity-description .no-overflow p:last-child {
-        padding-bottom: 0;
-        margin-bottom: 0;
+        margin-bottom: map-get($spacers, 2);
     }
 }
 
@@ -83,6 +30,19 @@ select {
     .choices .option label {
         vertical-align: top;
     }
+}
+
+.path-mod-feedback .feedback_form .col-form-label {
+    display: block !important; /* stylelint-disable-line declaration-no-important */
+}
+
+// Feedback module
+.path-mod-feedback .itemactions {
+    float: right;
+}
+.path-mod-feedback .itemhandle {
+    position: absolute;
+    right: 1rem;
 }
 
 // Forum module
@@ -157,6 +117,17 @@ select {
             // Do not use the default bold style for the table headings.
             font-weight: inherit;
         }
+    }
+
+    // Style for the forum subscription mode node.
+    .subscriptionmode {
+        color: $body-color;
+    }
+
+    // Style for the currently selected subscription mode.
+    .activesetting {
+        color: $body-color;
+        font-weight: bold;
     }
 }
 
@@ -262,7 +233,7 @@ $author-image-margin-sm: 8px;
 /** Gently highlight the selected post by changing it's background to blue and then fading it out. */
 @keyframes background-highlight {
     from {
-        background-color: $modules-highlight-bg;
+        background-color: rgba(0, 123, 255, 0.5);
     }
     to {
         background-color: inherit;
@@ -300,14 +271,14 @@ $author-image-margin-sm: 8px;
     }
 
     .badge-light {
-        background-color: $modules-badge-bg;
-        color: $modules-badge-color;
+        background-color: #f6f6f6;
+        color: #5b5b5b;
     }
 
     /** Style the ratings like a badge. */
     .rating-aggregate-container {
-        background-color: $modules-rating-aggregate-bg;
-        color: $modules-rating-aggregate-color;
+        background-color: #f6f6f6;
+        color: #5b5b5b;
         padding: .25em .5em;
         line-height: 1;
         margin-right: .5rem;
@@ -343,7 +314,7 @@ $author-image-margin-sm: 8px;
     /** Fix muted text contrast ratios for accessibility. */
     .text-muted,
     .dimmed_text {
-        color: $modules-forum-muted-color !important; /* stylelint-disable-line declaration-no-important */
+        color: #707070 !important; /* stylelint-disable-line declaration-no-important */
     }
 
     .author-header {
@@ -369,7 +340,7 @@ $author-image-margin-sm: 8px;
     .forum-post-container {
         .replies-container {
             .forum-post-container {
-                border-top: 1px solid $modules-forum-post-border-color;
+                border-top: 1px solid #dee2e6;
                 padding-top: 1.5rem;
 
                 .replies-container .forum-post-container {
@@ -412,7 +383,7 @@ $author-image-margin-sm: 8px;
                 .author-image-container {
                     width: $author-image-width-sm;
                     margin-right: $author-image-margin-sm;
-                    padding-top: (36px - $author-image-width-sm) * 0.5;
+                    padding-top: (36px - $author-image-width-sm) / 2;
                 }
 
                 /**
@@ -471,6 +442,10 @@ $author-image-margin-sm: 8px;
 .filter-dates-popover {
     width: 100%;
     max-width: 41.5em;
+
+    .mform {
+        margin-left: -3em;
+    }
 }
 
 $grading-drawer-width: 430px !default;
@@ -486,7 +461,7 @@ $grading-content-show-content-button-padding-left: calc(#{map-get($spacers, 2) *
     from {
         height: $grading-icon-button-size;
         width: $grading-icon-button-size;
-        border-radius: $grading-icon-button-size * 0.5;
+        border-radius: $grading-icon-button-size / 2;
         background-color: $gray-200;
     }
     to {
@@ -521,7 +496,7 @@ $grading-content-show-content-button-padding-left: calc(#{map-get($spacers, 2) *
     to {
         height: $grading-icon-button-size;
         width: $grading-icon-button-size;
-        border-radius: $grading-icon-button-size * 0.5;
+        border-radius: $grading-icon-button-size / 2;
         background-color: $gray-200;
     }
 }
@@ -984,6 +959,10 @@ $grading-content-show-content-button-padding-left: calc(#{map-get($spacers, 2) *
     width: auto;
 }
 
+.path-mod-data form {
+    margin-top: 10px;
+}
+
 .template_heading {
     margin-top: 10px;
 }
@@ -1098,6 +1077,12 @@ div#dock {
 }
 
 // Usermenu
+.usermenu {
+    .login {
+        line-height: 2.25rem;
+    }
+}
+
 .userloggedinas,
 .userswitchedrole,
 .loginfailures {
@@ -1105,11 +1090,11 @@ div#dock {
         .usertext {
             float: left;
             text-align: right;
-            margin-right: $spacer * 0.5;
+            margin-right: $spacer / 2;
             height: 35px;
             .meta {
+                display: block;
                 font-size: $font-size-sm;
-                align-items: center;
             }
         }
         .avatar {
@@ -1136,13 +1121,6 @@ div#dock {
                 img {
                     vertical-align: baseline;
                 }
-                .userinitials.size-35 {
-                    width: 20px;
-                    height: 20px;
-                    border: $border-width solid $border-color;
-                    background-color: $white;
-                    font-size: $font-size-base * .6;
-                }
             }
             img {
                 width: inherit;
@@ -1157,45 +1135,6 @@ div#dock {
     }
 }
 
-.userinitials {
-    background-color: $gray-200;
-    vertical-align: middle;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    color: $gray-800;
-    font-weight: normal;
-    margin-right: $spacer * 0.25;
-    &.size-16,
-    &.size-30 {
-        font-size: 0.7rem;
-        width: 30px;
-        height: 30px;
-    }
-    &.size-35 {
-        width: 35px;
-        height: 35px;
-    }
-    &.size-50 {
-        width: 50px;
-        height: 50px;
-    }
-    &.size-64 {
-        width: 64px;
-        height: 64px;
-    }
-    &.size-100 {
-        width: 100px;
-        height: 100px;
-        font-size: $h2-font-size;
-    }
-}
-
-img.userpicture {
-    margin-right: $spacer * 0.25;
-}
-
 @include media-breakpoint-down(sm) {
     .usertext {
         display: none;
@@ -1203,6 +1142,11 @@ img.userpicture {
 }
 
 // Quiz module
+.path-mod-quiz .mod-quiz-edit-content {
+    // Force the quiz edit page to always be large enough to prevent scrolling when accessing the menu.
+    margin-bottom: 10rem;
+}
+
 #page-mod-quiz-mod #id_reviewoptionshdr .col-md-3,
 #page-mod-quiz-mod #id_reviewoptionshdr .col-md-9 {
     width: auto;
@@ -1247,8 +1191,7 @@ img.userpicture {
         width: 30px;
         border-radius: 3px;
         border: 0;
-        overflow: hidden;
-        white-space: nowrap;
+        overflow: visible;
         margin: 0 6px 6px 0;
     }
 
@@ -1332,8 +1275,8 @@ img.userpicture {
 }
 
 #page-mod-quiz-edit ul.slots li.section li.activity .instancemaxmarkcontainer {
-    padding: 0.5em 0 0.5em 0.1em;
-    margin: 2px;
+    padding: 0;
+    margin: 0 0.4em;
 }
 
 /* Countdown timer. */
@@ -1395,8 +1338,6 @@ $popout-header-height: 4rem;
 
 .path-mod-assign [data-region="grade-panel"] .mform .fitem.has-popout .felement {
     width: 100%;
-    overflow: auto;
-    height: calc(100% - 4rem);
 }
 
 .path-mod-assign [data-region="grade-panel"] .mform .fitem .felement {

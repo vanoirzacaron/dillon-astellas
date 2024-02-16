@@ -18,7 +18,7 @@ Feature: View activity completion information for the label
       | teacher1 | C1     | editingteacher |
     And I log in as "teacher1"
     And I am on "Course 1" course homepage
-    And I navigate to "Settings" in current page administration
+    And I navigate to "Edit settings" in current page administration
     And I expand all fieldsets
     And I set the following fields to these values:
       | Enable completion tracking | Yes |
@@ -35,7 +35,8 @@ Feature: View activity completion information for the label
   Scenario: The manual completion button will be shown on the course page if the Show activity completion conditions is set to No
     Given I am on "Course 1" course homepage
     # Teacher view.
-    And "Test label 1" should have the "Mark as done" completion condition
+    And the manual completion button for "Test label 1" should exist
+    And the manual completion button for "Test label 1" should be disabled
     And I log out
     # Student view.
     When I log in as "student1"
@@ -48,12 +49,13 @@ Feature: View activity completion information for the label
   @javascript
   Scenario: The manual completion button will be shown on the course page if the Show activity completion conditions is set to Yes
     Given I am on "Course 1" course homepage
-    And I navigate to "Settings" in current page administration
+    And I navigate to "Edit settings" in current page administration
     And I expand all fieldsets
     And I set the field "Show activity completion conditions" to "Yes"
     And I press "Save and display"
     # Teacher view.
-    And "Test label 1" should have the "Mark as done" completion condition
+    And the manual completion button for "Test label 1" should exist
+    And the manual completion button for "Test label 1" should be disabled
     And I log out
     # Student view.
     When I log in as "student1"

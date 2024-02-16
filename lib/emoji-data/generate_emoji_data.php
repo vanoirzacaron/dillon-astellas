@@ -47,7 +47,7 @@ foreach ($jsondata as $data) {
     $category = $data['category'];
     $unified = $data['unified'];
 
-    if ($category === 'Component') {
+    if ($category === 'Skin Tones') {
         continue;
     }
 

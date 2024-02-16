@@ -20,9 +20,6 @@ $usercount = count($users);
 
 $strnever = get_string('never');
 
-$PAGE->set_primary_active_tab('siteadminnode');
-$PAGE->set_secondary_active_tab('users');
-
 echo $OUTPUT->header();
 
 $countries = get_string_manager()->get_list_of_countries(true);

@@ -123,7 +123,6 @@ class element_test extends advanced_testcase {
      * Test get correct strings for recurring ranges.
      *
      * @dataProvider get_test_get_daterange_string_for_recurring_ranges_data_provider
-     * @covers \element::get_daterange_string
      *
      * @param string $date Date to test.
      * @param string $expected Expected result.
@@ -151,8 +150,6 @@ class element_test extends advanced_testcase {
 
     /**
      * Test that first found element matched.
-     *
-     * @covers \element::get_daterange_string
      */
     public function test_that_first_matched_range_applied_first() {
         $dateranges = [
@@ -177,8 +174,6 @@ class element_test extends advanced_testcase {
 
     /**
      * Test that placeholders correctly applied to matched range and fall back string.
-     *
-     * @covers \element::get_daterange_string
      */
     public function test_placeholders_and_fall_back_string() {
         $dateranges = [
@@ -204,8 +199,6 @@ class element_test extends advanced_testcase {
 
     /**
      * Test that nothing will be displayed if not matched and empty fall back string.
-     *
-     * @covers \element::get_daterange_string
      */
     public function test_nothing_will_be_displayed_if_empty_fallback_string() {
         $dateranges = [
@@ -226,8 +219,6 @@ class element_test extends advanced_testcase {
 
     /**
      * Test that display recurring_range_first_year and recurring_range_last_year placeholders.
-     *
-     * @covers \element::get_daterange_string
      */
     public function test_recurring_range_first_year_and_recurring_range_last_year_placeholders() {
         $datestring = '{{range_first_year}}-{{range_last_year}}-{{recurring_range_first_year}}-{{recurring_range_last_year}}';

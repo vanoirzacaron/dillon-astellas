@@ -45,13 +45,11 @@ class api_test extends messagelib_test {
         $this->send_fake_message($sender, $recipient);
         $this->send_fake_message($sender, $recipient);
 
-        $this->assertEquals(1, api::count_unread_conversations($recipient));
-
         api::mark_all_notifications_as_read($recipient->id);
         api::mark_all_messages_as_read($recipient->id);
 
-        // We've marked all of recipients conversation messages as read.
-        $this->assertEquals(0, api::count_unread_conversations($recipient));
+        $this->assertEquals(message_count_unread_messages($recipient), 0);
+        $this->assertDebuggingCalled();
     }
 
     public function test_mark_all_read_for_user_touser_with_fromuser() {
@@ -72,14 +70,32 @@ class api_test extends messagelib_test {
         $this->send_fake_message($sender2, $recipient);
         $this->send_fake_message($sender2, $recipient);
 
-        $this->assertEquals(2, api::count_unread_conversations($recipient));
-
         api::mark_all_notifications_as_read($recipient->id, $sender1->id);
         $conversationid = api::get_conversation_between_users([$recipient->id, $sender1->id]);
         api::mark_all_messages_as_read($recipient->id, $conversationid);
 
-        // We've marked only the conversation with sender1 messages as read.
-        $this->assertEquals(1, api::count_unread_conversations($recipient));
+        $this->assertEquals(message_count_unread_messages($recipient), 3);
+        $this->assertDebuggingCalled();
+    }
+
+    public function test_mark_all_read_for_user_touser_with_type() {
+        $sender = $this->getDataGenerator()->create_user(array('firstname' => 'Test1', 'lastname' => 'User1'));
+        $recipient = $this->getDataGenerator()->create_user(array('firstname' => 'Test2', 'lastname' => 'User2'));
+
+        $this->send_fake_message($sender, $recipient, 'Notification', 1);
+        $this->send_fake_message($sender, $recipient, 'Notification', 1);
+        $this->send_fake_message($sender, $recipient, 'Notification', 1);
+        $this->send_fake_message($sender, $recipient);
+        $this->send_fake_message($sender, $recipient);
+        $this->send_fake_message($sender, $recipient);
+
+        api::mark_all_notifications_as_read($recipient->id);
+        $this->assertEquals(message_count_unread_messages($recipient), 3);
+        $this->assertDebuggingCalled();
+
+        api::mark_all_messages_as_read($recipient->id);
+        $this->assertEquals(message_count_unread_messages($recipient), 0);
+        $this->assertDebuggingCalled();
     }
 
     /**
@@ -1760,7 +1776,7 @@ class api_test extends messagelib_test {
         // Consider first conversations is self-conversation.
         $this->assertEquals(2, $conversations[0]->membercount);
         $this->assertEquals($course1->shortname, $conversations[0]->subname);
-        $this->assertEquals('https://www.example.com/moodle/theme/image.php/boost/core/1/g/g1', $conversations[0]->imageurl);
+        $this->assertEquals('https://www.example.com/moodle/theme/image.php/_s/boost/core/1/g/g1', $conversations[0]->imageurl);
 
         // Now, disable the conversation linked to the group and verify it's no longer returned.
         $DB->set_field('message_conversations', 'enabled', 0, ['id' => $conversations[0]->id]);
@@ -2944,15 +2960,15 @@ class api_test extends messagelib_test {
         $this->setUser($user);
 
         // Set a couple of preferences to test.
-        set_user_preference('message_provider_mod_assign_assign_notification_enabled', 'popup', $user);
-        set_user_preference('message_provider_mod_feedback_submission_enabled', 'email', $user);
+        set_user_preference('message_provider_mod_assign_assign_notification_loggedin', 'popup', $user);
+        set_user_preference('message_provider_mod_assign_assign_notification_loggedoff', 'email', $user);
 
         $processors = get_message_processors();
         $providers = message_get_providers_for_user($user->id);
         $prefs = api::get_all_message_preferences($processors, $providers, $user);
 
-        $this->assertEquals(1, $prefs->mod_assign_assign_notification_enabled['popup']);
-        $this->assertEquals(1, $prefs->mod_feedback_submission_enabled['email']);
+        $this->assertEquals(1, $prefs->mod_assign_assign_notification_loggedin['popup']);
+        $this->assertEquals(1, $prefs->mod_assign_assign_notification_loggedoff['email']);
     }
 
     /**
@@ -3240,6 +3256,26 @@ class api_test extends messagelib_test {
 
         // Check that the second user can no longer send the first user a message.
         $this->assertTrue(api::can_send_message($student->id, $teacher->id, true));
+    }
+
+    /**
+     * Test that calling to can_post_message() now shows debugging. MDL-65093.
+     *
+     * @deprecated since 3.8
+     * @todo Final deprecation in MDL-66266
+     */
+    public function test_can_post_emits_debugging() {
+        // Create some users.
+        $user1 = self::getDataGenerator()->create_user();
+        $user2 = self::getDataGenerator()->create_user();
+
+        // Set as the first user.
+        $this->setUser($user1);
+
+        // With the default privacy setting, users can't message them.
+        $this->assertFalse(\core_message\api::can_post_message($user2));
+        $this->assertDebuggingCalled('\core_message\api::can_post_message is deprecated, please use ' .
+            '\core_message\api::can_send_message instead.', DEBUG_DEVELOPER);
     }
 
     /**
@@ -3788,6 +3824,229 @@ class api_test extends messagelib_test {
         // Test deleting users.
         delete_user($user1);
         $this->assertCount(1, api::get_blocked_users($USER->id));
+    }
+
+    /**
+     * Test returning contacts with unread message count.
+     * MDL-69643
+     */
+    public function test_get_contacts_with_unread_message_count() {
+        global $DB;
+
+        $user1 = self::getDataGenerator()->create_user();
+        $user2 = self::getDataGenerator()->create_user();
+        $user3 = self::getDataGenerator()->create_user();
+        $user4 = self::getDataGenerator()->create_user();
+
+        // Add the users to each of their contacts.
+        api::add_contact($user1->id, $user2->id);
+        api::add_contact($user2->id, $user3->id);
+
+        $this->send_fake_message($user1, $user2);
+        $this->send_fake_message($user1, $user2);
+        $this->send_fake_message($user1, $user2);
+        $message4id = $this->send_fake_message($user1, $user2);
+
+        $this->send_fake_message($user3, $user2);
+        $message6id = $this->send_fake_message($user3, $user2);
+        $this->send_fake_message($user3, $user2);
+        $this->send_fake_message($user3, $user2);
+        $this->send_fake_message($user3, $user2);
+
+        // Send a message that should never be included as the user is not a contact.
+        $this->send_fake_message($user4, $user2);
+
+        // Get the contacts and the unread message count.
+        $messages = api::get_contacts_with_unread_message_count($user2->id);
+        $this->assertDebuggingCalled();
+
+        // Confirm the size is correct.
+        $this->assertCount(2, $messages);
+        ksort($messages);
+
+        $messageinfo1 = array_shift($messages);
+        $messageinfo2 = array_shift($messages);
+
+        $this->assertEquals($user1->id, $messageinfo1->id);
+        $this->assertEquals(4, $messageinfo1->messagecount);
+        $this->assertEquals($user3->id, $messageinfo2->id);
+        $this->assertEquals(5, $messageinfo2->messagecount);
+
+        // Mark some of the messages as read.
+        $m4 = $DB->get_record('messages', ['id' => $message4id]);
+        $m6 = $DB->get_record('messages', ['id' => $message6id]);
+        api::mark_message_as_read($user2->id, $m4);
+        api::mark_message_as_read($user2->id, $m6);
+
+        // Get the contacts and the unread message count.
+        $messages = api::get_contacts_with_unread_message_count($user2->id);
+        $this->assertDebuggingCalled();
+
+        // Confirm the size is correct.
+        $this->assertCount(2, $messages);
+        ksort($messages);
+
+        // Confirm read messages are not included.
+        $messageinfo1 = array_shift($messages);
+        $messageinfo2 = array_shift($messages);
+        $this->assertEquals($user1->id, $messageinfo1->id);
+        $this->assertEquals(3, $messageinfo1->messagecount);
+        $this->assertEquals($user3->id, $messageinfo2->id);
+        $this->assertEquals(4, $messageinfo2->messagecount);
+
+        // Now, let's populate the database with messages from user2 to user 1.
+        $this->send_fake_message($user2, $user1);
+        $this->send_fake_message($user2, $user1);
+        $messageid = $this->send_fake_message($user2, $user1);
+
+        // Send a message that should never be included as the user is not a contact.
+        $this->send_fake_message($user4, $user1);
+
+        // Get the contacts and the unread message count.
+        $messages = api::get_contacts_with_unread_message_count($user1->id);
+        $this->assertDebuggingCalled();
+
+        // Confirm the size is correct.
+        $this->assertCount(1, $messages);
+        $messageinfo1 = array_shift($messages);
+        $this->assertEquals($user2->id, $messageinfo1->id);
+        $this->assertEquals(3, $messageinfo1->messagecount);
+
+        // Mark the last message as read.
+        $m = $DB->get_record('messages', ['id' => $messageid]);
+        api::mark_message_as_read($user1->id, $m);
+
+        $messages = api::get_contacts_with_unread_message_count($user1->id);
+        $this->assertDebuggingCalled();
+
+        // Confirm the size is correct.
+        $this->assertCount(1, $messages);
+
+        // Confirm read messages are not included.
+        $messageinfo1 = array_shift($messages);
+        $this->assertEquals($user2->id, $messageinfo1->id);
+        $this->assertEquals(2, $messageinfo1->messagecount);
+    }
+
+    /**
+     * Test returning contacts with unread message count when there are no messages.
+     */
+    public function test_get_contacts_with_unread_message_count_no_messages() {
+        $user1 = self::getDataGenerator()->create_user();
+        $user2 = self::getDataGenerator()->create_user();
+
+        // Add the users to each of their contacts.
+        api::add_contact($user2->id, $user1->id);
+
+        // Check we get the correct message count.
+        $messages = api::get_contacts_with_unread_message_count($user2->id);
+        $this->assertDebuggingCalled();
+
+        // Confirm the size is correct.
+        $this->assertCount(1, $messages);
+
+        $messageinfo = array_shift($messages);
+
+        $this->assertEquals($user1->id, $messageinfo->id);
+        $this->assertEquals(0, $messageinfo->messagecount);
+    }
+
+    /**
+     * Test returning non-contacts with unread message count.
+     * MDL-69643
+     */
+    public function test_get_non_contacts_with_unread_message_count() {
+        global $DB;
+
+        $user1 = self::getDataGenerator()->create_user();
+        $user2 = self::getDataGenerator()->create_user();
+        $user3 = self::getDataGenerator()->create_user();
+        $user4 = self::getDataGenerator()->create_user();
+
+        // Add a user to the contact list of the users we are testing this function with.
+        api::add_contact($user1->id, $user4->id);
+        api::add_contact($user2->id, $user4->id);
+
+        $this->send_fake_message($user1, $user2);
+        $this->send_fake_message($user1, $user2);
+        $this->send_fake_message($user1, $user2);
+        $message4id = $this->send_fake_message($user1, $user2);
+
+        $this->send_fake_message($user3, $user2);
+        $message6id = $this->send_fake_message($user3, $user2);
+        $this->send_fake_message($user3, $user2);
+        $this->send_fake_message($user3, $user2);
+        $this->send_fake_message($user3, $user2);
+
+        // Send a message that should never be included as the user is a contact.
+        $this->send_fake_message($user4, $user2);
+
+
+        // Get the non-contacts and the unread message count.
+        $messages = api::get_non_contacts_with_unread_message_count($user2->id);
+        $this->assertDebuggingCalled();
+
+        // Check we get the correct message count.
+        ksort($messages);
+        $this->assertCount(2, $messages);
+        $messageinfo1 = array_shift($messages);
+        $messageinfo2 = array_shift($messages);
+        $this->assertEquals($user1->id, $messageinfo1->id);
+        $this->assertEquals(4, $messageinfo1->messagecount);
+        $this->assertEquals($user3->id, $messageinfo2->id);
+        $this->assertEquals(5, $messageinfo2->messagecount);
+
+        // Mark some of the messages as read.
+        $m4 = $DB->get_record('messages', ['id' => $message4id]);
+        $m6 = $DB->get_record('messages', ['id' => $message6id]);
+        api::mark_message_as_read($user2->id, $m4);
+        api::mark_message_as_read($user2->id, $m6);
+
+        // Get the non-contacts and the unread message count.
+        $messages = api::get_non_contacts_with_unread_message_count($user2->id);
+        $this->assertDebuggingCalled();
+
+        // Check the marked message is not returned in the message count.
+        ksort($messages);
+        $this->assertCount(2, $messages);
+        $messageinfo1 = array_shift($messages);
+        $messageinfo2 = array_shift($messages);
+        $this->assertEquals($user1->id, $messageinfo1->id);
+        $this->assertEquals(3, $messageinfo1->messagecount);
+        $this->assertEquals($user3->id, $messageinfo2->id);
+        $this->assertEquals(4, $messageinfo2->messagecount);
+
+        // Now, let's populate the database with messages from user2 to user 1.
+        $this->send_fake_message($user2, $user1);
+        $this->send_fake_message($user2, $user1);
+        $messageid = $this->send_fake_message($user2, $user1);
+
+        // Send a message that should never be included as the user is a contact.
+        $this->send_fake_message($user4, $user1);
+
+        // Get the non-contacts and the unread message count.
+        $messages = api::get_non_contacts_with_unread_message_count($user1->id);
+        $this->assertDebuggingCalled();
+
+        // Confirm the size is correct.
+        $this->assertCount(1, $messages);
+        $messageinfo1 = array_shift($messages);
+        $this->assertEquals($user2->id, $messageinfo1->id);
+        $this->assertEquals(3, $messageinfo1->messagecount);
+
+        // Mark the last message as read.
+        $m = $DB->get_record('messages', ['id' => $messageid]);
+        api::mark_message_as_read($user1->id, $m);
+
+        // Get the non-contacts and the unread message count.
+        $messages = api::get_non_contacts_with_unread_message_count($user1->id);
+        $this->assertDebuggingCalled();
+
+        // Check the marked message is not returned in the message count.
+        $this->assertCount(1, $messages);
+        $messageinfo1 = array_shift($messages);
+        $this->assertEquals($user2->id, $messageinfo1->id);
+        $this->assertEquals(2, $messageinfo1->messagecount);
     }
 
     /**
@@ -4928,6 +5187,154 @@ class api_test extends messagelib_test {
         $this->assertEquals(
                 $newname,
                 $DB->get_field('message_conversations', 'name', ['id' => $conversation->id])
+        );
+    }
+
+
+    /**
+     * Test an empty array returned when no args given.
+     */
+    public function test_get_individual_conversations_between_users_no_user_sets() {
+        $this->assertEmpty(\core_message\api::get_individual_conversations_between_users([]));
+        $this->assertDebuggingCalled();
+    }
+
+    /**
+     * Test a conversation is not returned if there is none.
+     */
+    public function test_get_individual_conversations_between_users_no_conversation() {
+        $generator = $this->getDataGenerator();
+        $user1 = $generator->create_user();
+        $user2 = $generator->create_user();
+
+        $this->assertEquals(
+            [null],
+            \core_message\api::get_individual_conversations_between_users([[$user1->id, $user2->id]])
+        );
+        $this->assertDebuggingCalled();
+    }
+
+    /**
+     * Test the result set includes null if there is no conversation between users.
+     */
+    public function test_get_individual_conversations_between_users_partial_conversations() {
+        $generator = $this->getDataGenerator();
+        $user1 = $generator->create_user();
+        $user2 = $generator->create_user();
+        $user3 = $generator->create_user();
+        $type = \core_message\api::MESSAGE_CONVERSATION_TYPE_INDIVIDUAL;
+
+        $conversation1 = \core_message\api::create_conversation($type, [$user1->id, $user2->id]);
+        $conversation2 = \core_message\api::create_conversation($type, [$user1->id, $user3->id]);
+
+        $results = \core_message\api::get_individual_conversations_between_users([
+            [$user1->id, $user2->id],
+            [$user2->id, $user3->id],
+            [$user1->id, $user3->id]
+        ]);
+        $this->assertDebuggingCalled();
+
+        $result = array_map(function($result) {
+            if ($result) {
+                return $result->id;
+            } else {
+                return $result;
+            }
+        }, $results);
+
+        $this->assertEquals(
+            [$conversation1->id, null, $conversation2->id],
+            $result
+        );
+    }
+
+    /**
+     * Test all conversations are returned if each set has a conversation.
+     */
+    public function test_get_individual_conversations_between_users_all_conversations() {
+        $generator = $this->getDataGenerator();
+        $user1 = $generator->create_user();
+        $user2 = $generator->create_user();
+        $user3 = $generator->create_user();
+        $type = \core_message\api::MESSAGE_CONVERSATION_TYPE_INDIVIDUAL;
+
+        $conversation1 = \core_message\api::create_conversation($type, [$user1->id, $user2->id]);
+        $conversation2 = \core_message\api::create_conversation($type, [$user2->id, $user3->id]);
+        $conversation3 = \core_message\api::create_conversation($type, [$user1->id, $user3->id]);
+
+        $results = \core_message\api::get_individual_conversations_between_users([
+            [$user1->id, $user2->id],
+            [$user2->id, $user3->id],
+            [$user1->id, $user3->id]
+        ]);
+        $this->assertDebuggingCalled();
+
+        $result = array_map(function($result) {
+            if ($result) {
+                return $result->id;
+            } else {
+                return $result;
+            }
+        }, $results);
+
+        $this->assertEquals(
+            [$conversation1->id, $conversation2->id, $conversation3->id],
+            $result
+        );
+    }
+
+    /**
+     * Test that the results are ordered to match the order of the parameters.
+     */
+    public function test_get_individual_conversations_between_users_ordering() {
+        $generator = $this->getDataGenerator();
+        $user1 = $generator->create_user();
+        $user2 = $generator->create_user();
+        $user3 = $generator->create_user();
+        $type = \core_message\api::MESSAGE_CONVERSATION_TYPE_INDIVIDUAL;
+
+        $conversation1 = \core_message\api::create_conversation($type, [$user1->id, $user2->id]);
+        $conversation2 = \core_message\api::create_conversation($type, [$user2->id, $user3->id]);
+        $conversation3 = \core_message\api::create_conversation($type, [$user1->id, $user3->id]);
+
+        $results = \core_message\api::get_individual_conversations_between_users([
+            [$user1->id, $user2->id],
+            [$user2->id, $user3->id],
+            [$user1->id, $user3->id]
+        ]);
+        $this->assertDebuggingCalled();
+
+        $result = array_map(function($result) {
+            if ($result) {
+                return $result->id;
+            } else {
+                return $result;
+            }
+        }, $results);
+
+        $this->assertEquals(
+            [$conversation1->id, $conversation2->id, $conversation3->id],
+            $result
+        );
+
+        $results = \core_message\api::get_individual_conversations_between_users([
+            [$user2->id, $user3->id],
+            [$user1->id, $user2->id],
+            [$user1->id, $user3->id]
+        ]);
+        $this->assertDebuggingCalled();
+
+        $result = array_map(function($result) {
+            if ($result) {
+                return $result->id;
+            } else {
+                return $result;
+            }
+        }, $results);
+
+        $this->assertEquals(
+            [$conversation2->id, $conversation1->id, $conversation3->id],
+            $result
         );
     }
 

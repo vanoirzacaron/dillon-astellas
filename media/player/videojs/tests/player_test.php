@@ -22,12 +22,7 @@
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace media_videojs;
-
-use core_media_manager;
-use html_writer;
-use media_videojs_plugin;
-use moodle_url;
+defined('MOODLE_INTERNAL') || die();
 
 /**
  * Test script for media embedding.
@@ -36,7 +31,7 @@ use moodle_url;
  * @copyright 2016 Marina Glancy
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class player_test extends \advanced_testcase {
+class media_videojs_player_testcase extends advanced_testcase {
 
     /**
      * Pre-test setup. Preserves $CFG.
@@ -51,7 +46,7 @@ class player_test extends \advanced_testcase {
         \core\plugininfo\media::set_enabled_plugins('videojs');
 
         // Pretend to be using Firefox browser (must support ogg for tests to work).
-        \core_useragent::instance(true, 'Mozilla/5.0 (X11; Linux x86_64; rv:46.0) Gecko/20100101 Firefox/46.0 ');
+        core_useragent::instance(true, 'Mozilla/5.0 (X11; Linux x86_64; rv:46.0) Gecko/20100101 Firefox/46.0 ');
     }
 
     /**
@@ -69,6 +64,8 @@ class player_test extends \advanced_testcase {
         $supportedextensions = array_merge(file_get_typegroup('extension', 'html_video'),
             file_get_typegroup('extension', 'html_audio'), file_get_typegroup('extension', 'media_source'));
 
+        set_config('useflash', 0, 'media_videojs');
+
         // Make sure that the list of extensions from the setting is filtered to HTML5 natively supported extensions.
         $player = new media_videojs_plugin();
         $this->assertTrue(in_array('.mp3', $player->get_supported_extensions()));
@@ -82,11 +79,18 @@ class player_test extends \advanced_testcase {
         $this->assertFalse(in_array('.ra', $player->get_supported_extensions()));
         $this->assertEmpty(array_diff($player->get_supported_extensions(), $supportedextensions));
 
-        // Check flash extensions are not returned as supported.
+        // Try to use flash extensions and make sure they are not returned as supported.
         set_config('videoextensions', '.flv,.f4v', 'media_videojs');
         $player = new media_videojs_plugin();
         $this->assertFalse(in_array('.flv', $player->get_supported_extensions()));
         $this->assertFalse(in_array('.f4v', $player->get_supported_extensions()));
+
+        // Enable flash and test if flash extenstions are supported.
+        set_config('useflash', 1, 'media_videojs');
+        set_config('videoextensions', '.flv,.f4v', 'media_videojs');
+        $player = new media_videojs_plugin();
+        $this->assertTrue(in_array('.flv', $player->get_supported_extensions()));
+        $this->assertTrue(in_array('.f4v', $player->get_supported_extensions()));
     }
 
     /**
@@ -255,6 +259,7 @@ class player_test extends \advanced_testcase {
      */
     public function test_youtube() {
         set_config('youtube', 1, 'media_videojs');
+        set_config('useflash', 0, 'media_videojs');
 
         $manager = core_media_manager::instance();
 
@@ -311,6 +316,7 @@ class player_test extends \advanced_testcase {
      */
     public function test_youtube_start_time(string $url, int $expectedstart) {
         set_config('youtube', 1, 'media_videojs');
+        set_config('useflash', 0, 'media_videojs');
 
         $embedcode = core_media_manager::instance()->embed_url(new moodle_url($url));
 
@@ -329,11 +335,23 @@ class player_test extends \advanced_testcase {
     }
 
     /**
-     * Test that VideoJS can not embed flash videos.
+     * Test that VideoJS can embed flash videos.
      */
-    public function test_flash_behaviour() {
+    public function test_flash() {
         $manager = core_media_manager::instance();
 
+        // Flash enabled.
+        set_config('useflash', 1, 'media_videojs');
+        $url = new moodle_url('http://example.org/some_filename.flv');
+        $t = $manager->embed_url($url);
+        $this->flash_plugin_engaged($t);
+        $this->assertMatchesRegularExpression('~</video>~', $t);
+        $this->assertMatchesRegularExpression('~<source src="http://example.org/some_filename.flv"~', $t);
+        $this->assertMatchesRegularExpression(
+            '~<a class="mediafallbacklink" href="http://example.org/some_filename.flv">some_filename.flv</a>~', $t);
+
+        // Flash disabled.
+        set_config('useflash', 0, 'media_videojs');
         $url = new moodle_url('http://example.org/some_filename.flv');
         $t = $manager->embed_url($url);
         $this->assertStringNotContainsString('mediaplugin_videojs', $t);
@@ -342,15 +360,51 @@ class player_test extends \advanced_testcase {
     }
 
     /**
-     * Test that VideoJS can not embed RTMP streams.
+     * Test that VideoJS can embed RTMP streams.
      */
-    public function test_rtmp_behaviour() {
+    public function test_rtmp() {
         $manager = core_media_manager::instance();
 
+        // RTMP disabled, flash disabled.
+        set_config('useflash', 0, 'media_videojs');
+        set_config('rtmp', 0, 'media_videojs');
         $url = new moodle_url('rtmp://example.com/fms&mp4:path/to/file.mp4');
         $t = $manager->embed_url($url);
         $this->assertStringNotContainsString('mediaplugin_videojs', $t);
         $this->assertMatchesRegularExpression(
             '~<a class="mediafallbacklink" href="rtmp://example.com/fms&mp4:path/to/file.mp4">file.mp4</a>~', $t);
+
+        // RTMP enabled, flash disabled.
+        set_config('useflash', 0, 'media_videojs');
+        set_config('rtmp', 1, 'media_videojs');
+        $url = new moodle_url('rtmp://example.com/fms&mp4:path/to/file.mp4');
+        $t = $manager->embed_url($url);
+        $this->assertStringNotContainsString('mediaplugin_videojs', $t);
+        $this->assertMatchesRegularExpression(
+            '~<a class="mediafallbacklink" href="rtmp://example.com/fms&mp4:path/to/file.mp4">file.mp4</a>~', $t);
+
+        // RTMP enabled, flash enabled, rtmp/mp4 type expected.
+        set_config('useflash', 1, 'media_videojs');
+        set_config('rtmp', 1, 'media_videojs');
+        $url = new moodle_url('rtmp://example.com/fms&mp4:path/to/file.mp4');
+        $t = $manager->embed_url($url);
+        $this->flash_plugin_engaged($t);
+        $this->assertMatchesRegularExpression('~</video>~', $t);
+        $this->assertMatchesRegularExpression(
+            '~<source src="rtmp://example.com/fms&mp4:path/to/file.mp4" type="rtmp/mp4"~', $t);
+        $this->assertMatchesRegularExpression(
+            '~<a class="mediafallbacklink" href="rtmp://example.com/fms&mp4:path/to/file.mp4">file.mp4</a>~', $t);
+
+        // RTMP enabled, flash enabled, rtmp/flv type expected.
+        set_config('useflash', 1, 'media_videojs');
+        set_config('rtmp', 1, 'media_videojs');
+        $url = new moodle_url('rtmp://example.com/fms&flv:path/to/file.flv');
+        $t = $manager->embed_url($url);
+        $this->flash_plugin_engaged($t);
+        $this->assertMatchesRegularExpression('~</video>~', $t);
+        $this->assertMatchesRegularExpression(
+            '~<source src="rtmp://example.com/fms&flv:path/to/file.flv" type="rtmp/flv"~', $t);
+        $this->assertMatchesRegularExpression(
+            '~<a class="mediafallbacklink" href="rtmp://example.com/fms&flv:path/to/file.flv">file.flv</a>~', $t);
     }
 }

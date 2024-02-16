@@ -39,29 +39,6 @@ define('THEME_ADAPTABLE_DEFAULT_NEWSTICKERCOUNT', '1');
 define('THEME_ADAPTABLE_DEFAULT_SLIDERCOUNT', '3');
 
 /**
- * Gets the pre SCSS for the theme.
- *
- * @param theme_config $theme The theme configuration object.
- * @return string SCSS.
- */
-function theme_adaptable_pre_scss($theme) {
-    $prescss = '$courseindex-link-color: '.
-        \theme_adaptable\toolbox::get_config_setting('courseindexitemcolor', '#495057', $theme->name).';';
-    $prescss .= '$courseindex-link-hover-color: '.
-        \theme_adaptable\toolbox::get_config_setting('courseindexitemhovercolor', '#e6e6e6', $theme->name).';';
-    $prescss .= '$courseindex-link-color-selected: '.
-        \theme_adaptable\toolbox::get_config_setting('courseindexpageitemcolor', '#ffffff', $theme->name).';';
-    $prescss .= '$courseindex-item-page-bg: '.
-        \theme_adaptable\toolbox::get_config_setting('courseindexpageitembgcolor', '#0f6cbf', $theme->name).';';
-    $prescss .= '$drawer-bg-color: #fff;';  // Currently no setting for 'block region' background.
-    $prescss .= '$input-btn-focus-color: rgba('.
-        \theme_adaptable\toolbox::get_config_setting('buttonfocuscolor', '#0f6cc0', $theme->name).', '.
-        \theme_adaptable\toolbox::get_config_setting('buttonfocuscoloropacity', '0.75', $theme->name).');';
-
-    return $prescss;
-}
-
-/**
  * Returns the main SCSS content.
  *
  * @param theme_config $theme The theme config object.
@@ -74,17 +51,12 @@ function theme_adaptable_get_main_scss_content($theme) {
     if (empty($boosttheme)) {
         $boosttheme = theme_config::load('boost'); // Needs to be the Boost theme so that we get its settings.
     }
+    $scss = theme_boost_get_main_scss_content($boosttheme);
 
-    $scss = '$enable-rounded: false !default;'; // TODO: A setting?
-
-    $scss .= theme_boost_get_main_scss_content($boosttheme);
-
-    $basedir = (!empty($CFG->themedir)) ? $CFG->themedir : $CFG->dirroot.'/theme';
-    $scss .= file_get_contents($basedir.'/adaptable/scss/main.scss');
+    $scss .= file_get_contents($CFG->dirroot.'/theme/adaptable/scss/main.scss');
 
     $settingssheets = array(
         'adaptable',
-        'admin',
         'blocks',
         'button',
         'course',
@@ -100,7 +72,7 @@ function theme_adaptable_get_main_scss_content($theme) {
 
     $settingsscss = '';
     foreach ($settingssheets as $settingsheet) {
-        $settingsscss .= file_get_contents($basedir.'/adaptable/scss/settings/'.$settingsheet.'.scss');
+        $settingsscss .= file_get_contents($CFG->dirroot.'/theme/adaptable/scss/settings/'.$settingsheet.'.scss');
     }
 
     $scss .= theme_adaptable_process_scss($settingsscss, $theme);
@@ -255,6 +227,8 @@ function theme_adaptable_process_scss($scss, $theme) {
         '[[setting:menuhovercolor]]' => '#00B3A1',
         '[[setting:menubordercolor]]' => '#00B3A1',
         '[[setting:mobilemenubkcolor]]' => '#F9F9F9',
+        '[[setting:mobileslidebartabbkcolor]]' => '#F9F9F9',
+        '[[setting:mobileslidebartabiconcolor]]' => '#000000',
         '[[setting:navbardropdownborderradius]]' => '0',
         '[[setting:navbardropdownhovercolor]]' => '#EEE',
         '[[setting:navbardropdowntextcolor]]' => '#007',
@@ -339,6 +313,7 @@ function theme_adaptable_process_scss($scss, $theme) {
         '[[setting:forumheaderbackgroundcolor]]' => '#ffffff',
         '[[setting:forumbodybackgroundcolor]]' => '#ffffff',
         '[[setting:introboxbackgroundcolor]]' => '#ffffff',
+        '[[setting:showyourprogress]]' => 'none',
         '[[setting:tabbedlayoutdashboardcolorselected]]' => '#06c',
         '[[setting:tabbedlayoutdashboardcolorunselected]]' => '#eee',
         '[[setting:tabbedlayoutcoursepagetabcolorselected]]' => '#06c',
@@ -668,10 +643,8 @@ function theme_adaptable_get_setting($setting, $format = false) {
         return $theme->settings->$setting;
     } else if ($format === 'format_text') {
         return format_text($theme->settings->$setting, FORMAT_PLAIN);
-    } else if ($format === 'format_moodle') {
-        return format_text($theme->settings->$setting, FORMAT_MOODLE);
     } else if ($format === 'format_html') {
-        return format_text($theme->settings->$setting, FORMAT_HTML);
+        return format_text($theme->settings->$setting, FORMAT_HTML, array('trusted' => true));
     } else {
         return format_string($theme->settings->$setting);
     }
@@ -701,6 +674,8 @@ function theme_adaptable_pluginfile($course, $cm, $context, $filearea, $args, $f
         }
         if ($filearea === 'logo') {
             return $theme->setting_file_serve('logo', $args, $forcedownload, $options);
+        } else if ($filearea === 'favicon') {
+            return $theme->setting_file_serve('favicon', $args, $forcedownload, $options);
         } else if ($filearea === 'homebk') {
             return $theme->setting_file_serve('homebk', $args, $forcedownload, $options);
         } else if ($filearea === 'pagebackground') {
@@ -743,7 +718,7 @@ function theme_adaptable_get_course_activities() {
 
     foreach ($modinfo->cms as $cm) {
         // Exclude activities which are not visible or have no link (=label).
-        if (!$cm->uservisible or !$cm->has_view()) {
+        if (!$cm->uservisible || !$cm->has_view()) {
             continue;
         }
         if (array_key_exists($cm->modname, $modfullnames)) {
@@ -798,6 +773,32 @@ function theme_adaptable_remove_site_fullname($heading) {
     $header = preg_replace("/^".$SITE->fullname."/", "", $heading);
 
     return $header;
+}
+
+/**
+ * Generate theme grid.
+ * @param bool $left
+ * @param bool $hassidepost
+ */
+function theme_adaptable_grid($left, $hassidepost) {
+    if ($hassidepost) {
+        if ('rtl' === get_string('thisdirection', 'langconfig')) {
+            $left = !$left; // Invert.
+        }
+        $regions = array('content' => 'col-9');
+        $regions['blocks'] = 'col-3';
+        if ($left) {
+            $regions['direction'] = ' flex-row-reverse';
+        } else {
+            $regions['direction'] = ' flex-row';
+        }
+    } else {
+        $regions = array('content' => 'col-12');
+        $regions['direction'] = '';
+        return $regions;
+    }
+
+    return $regions;
 }
 
 /**

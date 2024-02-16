@@ -37,7 +37,6 @@ define(['jquery', 'core/ajax', 'core/templates'], function($, Ajax, Templates) {
         transport: function(selector, query, success, failure) {
             var promise;
             var courseid = $(selector).attr('courseid');
-            var contextid = $(selector).attr('data-contextid');
 
             promise = Ajax.call([{
                 methodname: 'core_enrol_search_users',
@@ -46,8 +45,7 @@ define(['jquery', 'core/ajax', 'core/templates'], function($, Ajax, Templates) {
                     search: query,
                     searchanywhere: true,
                     page: 0,
-                    perpage: 30,
-                    contextid: contextid,
+                    perpage: 30
                 }
             }]);
 

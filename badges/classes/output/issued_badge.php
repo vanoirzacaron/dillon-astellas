@@ -30,7 +30,6 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/badgeslib.php');
 
-use context_course;
 use context_system;
 use stdClass;
 use renderable;
@@ -118,12 +117,12 @@ class issued_badge implements renderable {
         $data = new stdClass();
         $badge = new badge($this->badgeid);
         if ($badge->type == BADGE_TYPE_COURSE && isset($badge->courseid)) {
-            $context = context_course::instance($badge->courseid);
-            $data->coursefullname = format_string($DB->get_field('course', 'fullname', ['id' => $badge->courseid]),
-                true, ['context' => $context]);
+            $coursename = $DB->get_field('course', 'fullname', ['id' => $badge->courseid]);
+            $data->coursefullname = $coursename;
+            $context = \context_course::instance($badge->courseid);
         } else {
-            $context = context_system::instance();
-            $data->sitefullname = format_string($SITE->fullname, true, ['context' => $context]);
+            $data->sitefullname = $SITE->fullname;
+            $context = \context_system::instance();
         }
 
         // Field: Image.
@@ -159,9 +158,9 @@ class issued_badge implements renderable {
         $data->criteria = $output->print_badge_criteria($badge);
 
         // Field: Issuer.
-        $data->issuedby = format_string($badge->issuername, true, ['context' => $context]);
+        $data->issuedby = $badge->issuername;
         if (isset($badge->issuercontact) && !empty($badge->issuercontact)) {
-            $data->issuedbyemailobfuscated = obfuscate_mailto($badge->issuercontact, $data->issuedby);
+            $data->issuedbyemailobfuscated = obfuscate_mailto($badge->issuercontact, $badge->issuername);
         }
 
         // Fields: Other details, such as language or version.
@@ -241,11 +240,6 @@ class issued_badge implements renderable {
                 $data->addtobackpackurl = $addtobackpackurl->out(false);
             }
         }
-
-        // Field: Tags.
-        $tags = \core_tag_tag::get_item_tags('core_badges', 'badge', $this->badgeid);
-        $taglist = new \core_tag\output\taglist($tags);
-        $data->badgetag = $taglist->export_for_template($output);
 
         return $data;
     }

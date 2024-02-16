@@ -118,9 +118,7 @@ if (!$model->get_target()->link_insights_report()) {
 }
 
 $insightinfo = new stdClass();
-// Don't show prefix for course-level context.
-$withprefix = $context->contextlevel <> CONTEXT_COURSE;
-$insightinfo->contextname = $context->get_context_name($withprefix);
+$insightinfo->contextname = $context->get_context_name();
 $insightinfo->insightname = $model->get_target()->get_name();
 
 if (!$model->is_enabled()) {
@@ -160,6 +158,7 @@ if ($model->get_analyser()::one_sample_per_analysable()) {
 echo $OUTPUT->header();
 
 if ($course) {
+    report_helper::save_selected_report($course->id, $url);
     // Print selected drop down.
     $pluginname = get_string('pluginname', 'report_insights');
     report_helper::print_report_selector($pluginname);

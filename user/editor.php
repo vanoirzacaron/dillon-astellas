@@ -61,7 +61,6 @@ $userfullname     = fullname($user, true);
 
 $PAGE->navbar->includesettingsbase = true;
 
-$PAGE->add_body_class('limitedwidth');
 $PAGE->set_title("$course->shortname: $streditmyeditor");
 $PAGE->set_heading($userfullname);
 
@@ -73,3 +72,4 @@ $editorform->display();
 
 // And proper footer.
 echo $OUTPUT->footer();
+

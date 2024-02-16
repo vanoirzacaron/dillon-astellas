@@ -21,7 +21,7 @@ Feature: Fields locked control who is able to edit it
 
   Scenario: Editing locked and not locked custom fields
     When I log in as "admin"
-    And I navigate to "Courses > Default settings > Course custom fields" in site administration
+    And I navigate to "Courses > Course custom fields" in site administration
     And I click on "Add a new custom field" "link"
     And I click on "Short text" "link"
     And I set the following fields to these values:
@@ -37,7 +37,7 @@ Feature: Fields locked control who is able to edit it
       | Locked     | Yes         |
     And I click on "Save changes" "button" in the "Adding a new Short text" "dialogue"
     And I am on "Course 1" course homepage
-    And I navigate to "Settings" in current page administration
+    And I navigate to "Edit settings" in current page administration
     And I set the following fields to these values:
       | Test field1 | testcontent1 |
       | Test field2 | testcontent2 |
@@ -48,7 +48,7 @@ Feature: Fields locked control who is able to edit it
     And I log out
     And I log in as "teacher1"
     And I am on "Course 1" course homepage
-    And I navigate to "Settings" in current page administration
+    And I navigate to "Edit settings" in current page administration
     And I expand all fieldsets
     And the field "Test field1" matches value "testcontent1"
     And I should not see "Test field2"

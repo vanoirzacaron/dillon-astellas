@@ -17,11 +17,8 @@ if (empty($SESSION->bulk_users)) {
 }
 
 if (empty($CFG->messaging)) {
-    throw new \moodle_exception('messagingdisable', 'error');
+    print_error('messagingdisable', 'error');
 }
-
-$PAGE->set_primary_active_tab('siteadminnode');
-$PAGE->set_secondary_active_tab('users');
 
 //TODO: add support for large number of users
 

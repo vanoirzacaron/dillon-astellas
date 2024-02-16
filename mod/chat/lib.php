@@ -121,8 +121,7 @@ function padding($n) {
  * @return int
  */
 function chat_add_instance($chat) {
-    global $DB, $CFG;
-    require_once($CFG->dirroot . '/course/lib.php');
+    global $DB;
 
     $chat->timemodified = time();
     $chat->chattime = chat_calculate_next_chat_time($chat->schedule, $chat->chattime);
@@ -707,13 +706,10 @@ function chat_update_chat_times($chatid=0) {
         $chat->chattime = chat_calculate_next_chat_time($chat->schedule, $chat->chattime);
         if ($originalchattime != $chat->chattime) {
             $courseids[] = $chat->course;
-            $DB->update_record("chat", $chat);
-
-            $cm = get_coursemodule_from_instance('chat', $chat->id, $chat->course);
-            \course_modinfo::purge_course_module_cache($cm->course, $cm->id);
         }
-
+        $DB->update_record("chat", $chat);
         $event = new stdClass(); // Update calendar too.
+
         $cond = "modulename='chat' AND eventtype = :eventtype AND instance = :chatid AND timestart <> :chattime";
         $params = ['chattime' => $chat->chattime, 'eventtype' => CHAT_EVENT_TYPE_CHATTIME, 'chatid' => $chat->id];
 
@@ -727,7 +723,7 @@ function chat_update_chat_times($chatid=0) {
 
     $courseids = array_unique($courseids);
     foreach ($courseids as $courseid) {
-        rebuild_course_cache($courseid, true, true);
+        rebuild_course_cache($courseid, true);
     }
 }
 
@@ -1191,7 +1187,7 @@ function chat_print_overview() {
  * Implementation of the function for printing the form elements that control
  * whether the course reset functionality affects the chat.
  *
- * @param MoodleQuickForm $mform form passed by reference
+ * @param object $mform form passed by reference
  */
 function chat_reset_course_form_definition(&$mform) {
     $mform->addElement('header', 'chatheader', get_string('modulenameplural', 'chat'));
@@ -1248,7 +1244,7 @@ function chat_reset_userdata($data) {
 
 /**
  * @param string $feature FEATURE_xx constant for requested feature
- * @return mixed True if module supports feature, false if not, null if doesn't know or string for the module purpose.
+ * @return mixed True if module supports feature, null if doesn't know
  */
 function chat_supports($feature) {
     switch($feature) {
@@ -1268,8 +1264,6 @@ function chat_supports($feature) {
             return true;
         case FEATURE_SHOW_DESCRIPTION:
             return true;
-        case FEATURE_MOD_PURPOSE:
-            return MOD_PURPOSE_COMMUNICATION;
         default:
             return null;
     }
@@ -1325,21 +1319,26 @@ function chat_extend_navigation($navigation, $course, $module, $cm) {
  * @param navigation_node $chatnode The node to add module settings to
  */
 function chat_extend_settings_navigation(settings_navigation $settings, navigation_node $chatnode) {
-    global $DB;
-    $chat = $DB->get_record("chat", array("id" => $settings->get_page()->cm->instance));
+    global $DB, $PAGE, $USER;
+    $chat = $DB->get_record("chat", array("id" => $PAGE->cm->instance));
 
-    $currentgroup = groups_get_activity_group($settings->get_page()->cm, true);
+    if ($chat->chattime && $chat->schedule) {
+        $nextsessionnode = $chatnode->add(get_string('nextsession', 'chat').
+                                          ': '.userdate($chat->chattime).
+                                          ' ('.usertimezone($USER->timezone).')');
+        $nextsessionnode->add_class('note');
+    }
+
+    $currentgroup = groups_get_activity_group($PAGE->cm, true);
     if ($currentgroup) {
         $groupselect = " AND groupid = '$currentgroup'";
     } else {
         $groupselect = '';
     }
 
-    if ($chat->studentlogs || has_capability('mod/chat:readlog', $settings->get_page()->cm->context)) {
+    if ($chat->studentlogs || has_capability('mod/chat:readlog', $PAGE->cm->context)) {
         if ($DB->get_records_select('chat_messages', "chatid = ? $groupselect", array($chat->id))) {
-            $chatnode->add(get_string('pastsessions', 'chat'),
-                new moodle_url('/mod/chat/report.php', array('id' => $settings->get_page()->cm->id)),
-                navigation_node::TYPE_SETTING, null, 'pastsessions');
+            $chatnode->add(get_string('viewreport', 'chat'), new moodle_url('/mod/chat/report.php', array('id' => $PAGE->cm->id)));
         }
     }
 }

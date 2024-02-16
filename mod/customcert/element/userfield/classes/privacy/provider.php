@@ -24,6 +24,8 @@
 
 namespace customcertelement_userfield\privacy;
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * Privacy Subsystem for customcertelement_userfield implementing null_provider.
  *

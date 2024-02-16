@@ -68,9 +68,6 @@ class question_test extends \advanced_testcase {
         $essay->responserequired = $responserequired;
         $essay->attachmentsrequired = $attachmentsrequired;
 
-        // The space before the number of bytes from display_size is actually a non-breaking space.
-        $expected = str_replace(' bytes', "\xc2\xa0bytes", $expected);
-
         $this->assertEquals($expected, $essay->summarise_response(
             ['answer' => $answertext, 'answerformat' => FORMAT_HTML,  'attachments' => $attachments[$attachmentuploaded]]));
     }
@@ -96,7 +93,7 @@ class question_test extends \advanced_testcase {
                 'I have attached 5 files.Attachments: 0 (1 bytes), 1 (1 bytes), 2 (1 bytes), 3 (1 bytes), 4 (1 bytes)'],
             'Text input is optional, unlimited attachments required, ten uploaded'  =>
                 [0, -1, '', 10, 'Attachments: 0 (1 bytes), 1 (1 bytes), 2 (1 bytes), 3 (1 bytes), 4 (1 bytes), ' .
-                    '5 (1 bytes), 6 (1 bytes), 7 (1 bytes), 8 (1 bytes), 9 (1 bytes)']
+                                            '5 (1 bytes), 6 (1 bytes), 7 (1 bytes), 8 (1 bytes), 9 (1 bytes)']
         ];
     }
 
@@ -280,9 +277,9 @@ class question_test extends \advanced_testcase {
 
         // Test the case in which we're in "no inline response" mode,
         // in which the response is not required (as it's not provided).
-        $essay->responserequired = 0;
+        $essay->reponserequired = 0;
         $essay->responseformat = 'noinline';
-        $essay->attachmentsrequired = 1;
+        $essay->attachmensrequired = 1;
 
         $this->assertFalse($essay->is_complete_response(
                 array()));
@@ -294,7 +291,7 @@ class question_test extends \advanced_testcase {
                 array('attachments' => $attachments[1])));
 
         // Ensure that responserequired is ignored when we're in inline response mode.
-        $essay->responserequired = 1;
+        $essay->reponserequired = 1;
         $this->assertTrue($essay->is_complete_response(
                 array('attachments' => $attachments[1])));
     }

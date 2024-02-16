@@ -87,8 +87,7 @@ class behat_completion extends behat_base {
         $reportsnode = get_string('reports');
 
         $this->execute("behat_navigation::i_navigate_to_in_current_page_administration",
-                $reportsnode);
-        $this->execute("behat_general::i_click_on_in_the", [$completionnode, "link", "region-main", "region"]);
+                $reportsnode . ' > ' . $completionnode);
     }
 
     /**
@@ -102,7 +101,7 @@ class behat_completion extends behat_base {
         $toggle = strtolower($completionstatus) == 'enabled' ? get_string('yes') : get_string('no');
 
         // Go to course editing.
-        $this->execute("behat_general::click_link", get_string('settings'));
+        $this->execute("behat_general::click_link", get_string('editsettings'));
 
         // Expand all the form fields.
         $this->execute("behat_forms::i_expand_all_fieldsets");
@@ -157,7 +156,7 @@ class behat_completion extends behat_base {
     /**
      * Checks if the activity with specified name is maked as complete.
      *
-     * @When the :conditionname completion condition of :activityname is displayed as :completionstatus
+     * @Given /^the "(?P<conditionname>(?:[^"]|\\")*)" completion condition of "(?P<activityname>(?:[^"]|\\")*)" is displayed as "(?P<completionstatus>(?:[^"]|\\")*)"$/
      * @param string $conditionname The completion condition text.
      * @param string $activityname The activity name.
      * @param string $completionstatus The completion status. Must be either of the following: 'todo', 'done', 'failed'.
@@ -169,30 +168,18 @@ class behat_completion extends behat_base {
             throw new coding_exception('Invalid completion status. It must be of type "todo", "done", or "failed".');
         }
 
-        $text = get_string("completion_automatic:$completionstatus", 'core_course');
+        $text = get_string("completion_automatic:$completionstatus", 'core_course') . ' ' . $conditionname;
 
         $conditionslistlabel = get_string('completionrequirements', 'core_course', $activityname);
         $selector = "div[aria-label='$conditionslistlabel']";
 
-        try {
-            // If there is a dropdown, open it.
-            $dropdownnode = $this->find('css', $selector . ' .dropdown-menu');
-            if (!$dropdownnode->hasClass('show')) {
-                $params = ["button.dropdown-toggle", "css_element", $selector, "css_element"];
-                $this->execute("behat_general::i_click_on_in_the", $params);
-            }
-        } catch (ElementNotFoundException $e) {
-            // If the dropdown does not exist, we are in the activity page, all good.
-        }
-
-        $xpath = "//div[@aria-label='$conditionslistlabel']//span[text()='$conditionname']/..";
-        $this->execute("behat_general::assert_element_contains_text", [$text, $xpath, "xpath_element"]);
+        $this->execute("behat_general::assert_element_contains_text", [$text, $selector, "css_element"]);
     }
 
     /**
      * Checks if the activity with specified name is maked as complete.
      *
-     * @When the :conditionname completion condition of :activityname overridden by :username is displayed as :completionstatus
+     * @Given /^the "(?P<conditionname>(?:[^"]|\\")*)" completion condition of "(?P<activityname>(?:[^"]|\\")*)" overridden by "(?P<username>(?:[^"]|\\")*)" is displayed as "(?P<completionstatus>(?:[^"]|\\")*)"$/
      * @param string $conditionname The completion condition text.
      * @param string $activityname The activity name.
      * @param string $username The full name of the user overriding the student's activity completion.
@@ -208,7 +195,7 @@ class behat_completion extends behat_base {
             'condition' => $conditionname,
             'setby' => $username,
         ]);
-        $conditionbadge = "div[aria-label='$conditionlabel']";
+        $conditionbadge = "span[aria-label='$conditionlabel']";
 
         $conditionslistlabel = get_string('completionrequirements', 'core_course', $activityname);
         $completionconditions = "div[aria-label='$conditionslistlabel']";
@@ -302,7 +289,7 @@ class behat_completion extends behat_base {
      * @param string $activityname The activity name.
      */
     public function the_manual_completion_button_for_activity_should_be_disabled(string $activityname): void {
-        $selector = "div[data-region='activity-information'][data-activityname='$activityname'] button";
+        $selector = "div[data-activityname='$activityname'] button";
 
         $params = [$selector, "css_element"];
         $this->execute("behat_general::the_element_should_be_disabled", $params);
@@ -315,7 +302,7 @@ class behat_completion extends behat_base {
      * @param string $activityname The activity name.
      */
     public function the_manual_completion_button_for_activity_should_not_exist(string $activityname): void {
-        $selector = "div[data-region=activity-information][data-activityname='$activityname'] button";
+        $selector = "div[data-activityname='$activityname'] button";
 
         $params = [$selector, "css_element"];
         $this->execute('behat_general::should_not_exist', $params);
@@ -328,7 +315,7 @@ class behat_completion extends behat_base {
      * @param string $activityname The activity name.
      */
     public function the_manual_completion_button_for_activity_should_exist(string $activityname): void {
-        $selector = "div[data-region=activity-information][data-activityname='$activityname'] button";
+        $selector = "div[data-activityname='$activityname'] button";
 
         $params = [$selector, "css_element"];
         $this->execute('behat_general::should_exist', $params);
@@ -337,23 +324,12 @@ class behat_completion extends behat_base {
     /**
      * Check that the activity has the given automatic completion condition.
      *
-     * @When :activityname should have the :conditionname completion condition
+     * @Given /^"(?P<activityname>(?:[^"]|\\")*)" should have the "(?P<conditionname>(?:[^"]|\\")*)" completion condition$/
      * @param string $activityname The activity name.
      * @param string $conditionname The automatic condition name.
      */
     public function activity_should_have_the_completion_condition(string $activityname, string $conditionname): void {
         $containerselector = "div[data-region=activity-information][data-activityname='$activityname']";
-
-        try {
-            // If there is a dropdown, open it.
-            $dropdownnode = $this->find('css', $containerselector . ' .dropdown-menu');
-            if (!$dropdownnode->hasClass('show')) {
-                $params = ["button.dropdown-toggle", "css_element", $containerselector, "css_element"];
-                $this->execute("behat_general::i_click_on_in_the", $params);
-            }
-        } catch (ElementNotFoundException $e) {
-            // If the dropdown does not exist, we are in the activity page, all good.
-        }
 
         $params = [$conditionname, $containerselector, 'css_element'];
         $this->execute("behat_general::assert_element_contains_text", $params);

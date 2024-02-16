@@ -9,7 +9,7 @@ Feature: Managers can manage course custom fields checkbox
       | name              | component   | area   | itemid |
       | Category for test | core_course | course | 0      |
     And I log in as "admin"
-    And I navigate to "Courses > Default settings > Course custom fields" in site administration
+    And I navigate to "Courses > Course custom fields" in site administration
 
   Scenario: Create a custom course checkbox field
     When I click on "Add a new custom field" "link"
@@ -69,7 +69,7 @@ Feature: Managers can manage course custom fields checkbox
     And I am on site homepage
     Then I should see "Test field: Yes"
     When I am on "Course 1" course homepage
-    And I navigate to "Settings" in current page administration
+    And I navigate to "Edit settings" in current page administration
     And I expand all fieldsets
     And I set the field "Test field" to ""
     And I press "Save and display"

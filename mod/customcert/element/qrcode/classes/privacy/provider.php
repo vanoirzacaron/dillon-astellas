@@ -24,6 +24,8 @@
 
 namespace customcertelement_qrcode\privacy;
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * Privacy Subsystem for customcertelement_qrcode implementing null_provider.
  *

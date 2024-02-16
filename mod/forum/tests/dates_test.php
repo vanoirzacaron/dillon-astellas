@@ -54,12 +54,12 @@ class dates_test extends advanced_testcase {
             ],
             'future due date' => [
                 $after, [
-                    ['label' => 'Due:', 'timestamp' => $after, 'dataid' => 'duedate'],
+                    ['label' => 'Due:', 'timestamp' => $after],
                 ]
             ],
             'due date is past' => [
                 $before, [
-                    ['label' => 'Due:', 'timestamp' => $before, 'dataid' => 'duedate'],
+                    ['label' => 'Due:', 'timestamp' => $before],
                 ]
             ],
         ];

@@ -105,13 +105,9 @@ class behat_config_manager {
 
         // Gets all the components with steps definitions.
         $stepsdefinitions = $behatconfigutil->get_components_contexts($component);
+        // We don't want the deprecated steps definitions here.
         if (!$testsrunner) {
-            // Exclude deprecated steps definitions from the available steps list.
-            foreach (array_keys($stepsdefinitions) as $key) {
-                if (preg_match('/_deprecated$/', $key)) {
-                    unset($stepsdefinitions[$key]);
-                }
-            }
+            unset($stepsdefinitions['behat_deprecated']);
         }
 
         // Get current run.
@@ -133,6 +129,22 @@ class behat_config_manager {
             behat_error(BEHAT_EXITCODE_PERMISSIONS, 'File ' . $configfilepath . ' can not be created');
         }
 
+    }
+
+    /**
+     * @deprecated since 3.2 - please use behat_config_util.php
+     */
+    public static function get_features_with_tags() {
+        throw new coding_exception('get_features_with_tags() can not be used anymore. ' .
+            'Please use behat_config_util instead.');
+    }
+
+    /**
+     * @deprecated since 3.2 - please use behat_config_util.php
+     */
+    public static function get_components_steps_definitions() {
+        throw new coding_exception('get_components_steps_definitions() can not be used anymore. ' .
+            'Please use behat_config_util instead.');
     }
 
     /**
@@ -289,4 +301,61 @@ class behat_config_manager {
         }
         return true;
     }
+
+    /**
+     * @deprecated since 3.2 - please use behat_config_util.php
+     */
+    protected static function get_config_file_contents() {
+        throw new coding_exception('get_config_file_contents() can not be used anymore. ' .
+            'Please use behat_config_util instead.');
+    }
+
+    /**
+     * @deprecated since 3.2 - please use behat_config_util.php
+     */
+    protected static function merge_behat_config() {
+        throw new coding_exception('merge_behat_config() can not be used anymore. ' .
+            'Please use behat_config_util instead.');
+    }
+
+    /**
+     * @deprecated since 3.2 - please use behat_config_util.php
+     */
+    protected static function get_behat_profile() {
+        throw new coding_exception('get_behat_profile() can not be used anymore. ' .
+            'Please use behat_config_util instead.');
+    }
+
+    /**
+     * @deprecated since 3.2 - please use behat_config_util.php
+     */
+    protected static function profile_guided_allocate() {
+        throw new coding_exception('profile_guided_allocate() can not be used anymore. ' .
+            'Please use behat_config_util instead.');
+    }
+
+    /**
+     * @deprecated since 3.2 - please use behat_config_util.php
+     */
+    protected static function merge_config() {
+        throw new coding_exception('merge_config() can not be used anymore. ' .
+            'Please use behat_config_util instead.');
+    }
+
+    /**
+     * @deprecated since 3.2 - please use behat_config_util.php
+     */
+    protected final static function clean_path() {
+        throw new coding_exception('clean_path() can not be used anymore. ' .
+            'Please use behat_config_util instead.');
+    }
+
+    /**
+     * @deprecated since 3.2 - please use behat_config_util.php
+     */
+    protected final static function get_behat_tests_path() {
+        throw new coding_exception('get_behat_tests_path() can not be used anymore. ' .
+            'Please use behat_config_util instead.');
+    }
+
 }

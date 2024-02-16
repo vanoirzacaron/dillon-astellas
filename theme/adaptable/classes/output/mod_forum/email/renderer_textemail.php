@@ -24,6 +24,8 @@
 
 namespace theme_adaptable\output\mod_forum\email;
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * Forum post renderable.
  *

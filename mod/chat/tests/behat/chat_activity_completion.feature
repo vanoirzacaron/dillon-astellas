@@ -18,7 +18,7 @@ Feature: View activity completion information in the chat activity
       | teacher1 | C1 | editingteacher |
     And I log in as "teacher1"
     And I am on "Course 1" course homepage
-    And I navigate to "Settings" in current page administration
+    And I navigate to "Edit settings" in current page administration
     And I expand all fieldsets
     And I set the following fields to these values:
       | Enable completion tracking | Yes |
@@ -31,17 +31,20 @@ Feature: View activity completion information in the chat activity
     And the following "activity" exists:
       | activity       | chat          |
       | course         | C1            |
+      | idnumber       | mh1           |
       | name           | Music history |
       | section        | 1             |
       | completion     | 2             |
       | completionview | 1             |
     And I am on "Course 1" course homepage
     # Teacher view.
-    And I am on the "Music history" Activity page
+    And I follow "Music history"
     And "Music history" should have the "View" completion condition
     And I log out
     # Student view.
-    And I am on the "Music history" Activity page logged in as student1
+    When I log in as "student1"
+    And I am on "Course 1" course homepage
+    And I follow "Music history"
     Then the "View" completion condition of "Music history" is displayed as "done"
 
   @javascript
@@ -50,15 +53,18 @@ Feature: View activity completion information in the chat activity
     And the following "activity" exists:
       | activity       | chat          |
       | course         | C1            |
+      | idnumber       | mh1           |
       | name           | Music history |
       | section        | 1             |
       | completion     | 1             |
     And I am on "Course 1" course homepage
     # Teacher view.
-    And "Music history" should have the "Mark as done" completion condition
+    And the manual completion button for "Music history" should be disabled
     And I log out
     # Student view.
-    And I am on the "Music history" Activity page logged in as student1
+    When I log in as "student1"
+    And I am on "Course 1" course homepage
+    And I follow "Music history"
     Then the manual completion button of "Music history" is displayed as "Mark as done"
     And I toggle the manual completion state of "Music history"
     And the manual completion button of "Music history" is displayed as "Done"

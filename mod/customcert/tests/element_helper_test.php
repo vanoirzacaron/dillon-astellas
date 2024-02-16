@@ -31,6 +31,10 @@ use context_module;
 use context_system;
 use advanced_testcase;
 
+defined('MOODLE_INTERNAL') || die();
+
+global $CFG;
+
 /**
  * Unit tests for the element helper class.
  *
@@ -50,8 +54,6 @@ class element_helper_test extends advanced_testcase {
 
     /**
      * Tests we are returning the correct course id for an element in a course customcert activity.
-     *
-     * @covers \element_helper::get_courseid
      */
     public function test_get_courseid_element_in_course_certificate() {
         global $DB;
@@ -60,10 +62,10 @@ class element_helper_test extends advanced_testcase {
         $course = $this->getDataGenerator()->create_course();
 
         // Create a custom certificate in the course.
-        $customcert = $this->getDataGenerator()->create_module('customcert', ['course' => $course->id]);
+        $customcert = $this->getDataGenerator()->create_module('customcert', array('course' => $course->id));
 
         // Get the template to add elements to.
-        $template = $DB->get_record('customcert_templates', ['contextid' => context_module::instance($customcert->cmid)->id]);
+        $template = $DB->get_record('customcert_templates', array('contextid' => context_module::instance($customcert->cmid)->id));
         $template = new template($template);
 
         // Add a page to the template.
@@ -84,8 +86,6 @@ class element_helper_test extends advanced_testcase {
 
     /**
      * Tests we are returning the correct course id for an element in a site template.
-     *
-     * @covers \element_helper::get_courseid
      */
     public function test_get_courseid_element_in_site_template() {
         global $DB, $SITE;
@@ -111,8 +111,6 @@ class element_helper_test extends advanced_testcase {
 
     /**
      * Tests we are returning the correct course module id for an element in a course customcert activity.
-     *
-     * @covers \element_helper::get_context
      */
     public function test_get_context_element_in_course_certificate() {
         global $DB;
@@ -121,10 +119,10 @@ class element_helper_test extends advanced_testcase {
         $course = $this->getDataGenerator()->create_course();
 
         // Create a custom certificate in the course.
-        $customcert = $this->getDataGenerator()->create_module('customcert', ['course' => $course->id]);
+        $customcert = $this->getDataGenerator()->create_module('customcert', array('course' => $course->id));
 
         // Get the template to add elements to.
-        $template = $DB->get_record('customcert_templates', ['contextid' => context_module::instance($customcert->cmid)->id]);
+        $template = $DB->get_record('customcert_templates', array('contextid' => context_module::instance($customcert->cmid)->id));
         $template = new template($template);
 
         // Add a page to the template.
@@ -146,8 +144,6 @@ class element_helper_test extends advanced_testcase {
 
     /**
      * Tests we are returning the correct course module id for an element in a site template.
-     *
-     * @covers \element_helper::get_context
      */
     public function test_get_context_element_in_site_template() {
         global $DB;
@@ -173,8 +169,6 @@ class element_helper_test extends advanced_testcase {
 
     /**
      * Test we return the correct grade items in a course.
-     *
-     * @covers \element_helper::get_grade_items
      */
     public function test_get_grade_items() {
         global $DB;
@@ -183,9 +177,9 @@ class element_helper_test extends advanced_testcase {
         $course = $this->getDataGenerator()->create_course();
 
         // Create a few gradeable items.
-        $assign1 = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
-        $assign2 = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
-        $assign3 = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
+        $assign1 = $this->getDataGenerator()->create_module('assign', array('course' => $course->id));
+        $assign2 = $this->getDataGenerator()->create_module('assign', array('course' => $course->id));
+        $assign3 = $this->getDataGenerator()->create_module('assign', array('course' => $course->id));
 
         // Create a manual grade item.
         $gi = $this->getDataGenerator()->create_grade_item(['courseid' => $course->id]);
@@ -216,8 +210,6 @@ class element_helper_test extends advanced_testcase {
 
     /**
      * Test we return the correct grade information for an activity.
-     *
-     * @covers \element_helper::get_mod_grade_info
      */
     public function test_get_mod_grade_info() {
         // Create a course.
@@ -235,7 +227,7 @@ class element_helper_test extends advanced_testcase {
         $this->getDataGenerator()->enrol_user($student2->id, $course->id);
 
         // Create a gradeable item.
-        $assign = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
+        $assign = $this->getDataGenerator()->create_module('assign', array('course' => $course->id));
 
         // Give a grade to the student.
         $gi = grade_item::fetch(
@@ -287,8 +279,6 @@ class element_helper_test extends advanced_testcase {
 
     /**
      * Test we return the correct grade information for a course.
-     *
-     * @covers \element_helper::get_course_grade_info
      */
     public function test_get_course_grade_info() {
         // Create a course.
@@ -349,8 +339,6 @@ class element_helper_test extends advanced_testcase {
 
     /**
      * Test we return the correct grade information for a grade item.
-     *
-     * @covers \element_helper::get_grade_item_info
      */
     public function test_get_grade_item_info() {
         // Create a course.

@@ -9,7 +9,7 @@ Feature: Managers can manage course custom fields date
       | name              | component   | area   | itemid |
       | Category for test | core_course | course | 0      |
     And I log in as "admin"
-    And I navigate to "Courses > Default settings > Course custom fields" in site administration
+    And I navigate to "Courses > Course custom fields" in site administration
 
   Scenario: Create a custom course date field
     When I click on "Add a new custom field" "link"
@@ -68,7 +68,7 @@ Feature: Managers can manage course custom fields date
     Then I log in as "teacher1"
     When I am on site homepage
     When I am on "Course 1" course homepage
-    And I navigate to "Settings" in current page administration
+    And I navigate to "Edit settings" in current page administration
     And I expand all fieldsets
     Then "#id_customfield_testfield_hour" "css_element" should be visible
     Then "#id_customfield_testfield_minute" "css_element" should be visible
@@ -95,7 +95,7 @@ Feature: Managers can manage course custom fields date
     Then I log in as "teacher1"
     When I am on site homepage
     When I am on "Course 1" course homepage
-    And I navigate to "Settings" in current page administration
+    And I navigate to "Edit settings" in current page administration
     And I expand all fieldsets
     Then "#id_customfield_testfield_hour" "css_element" should not be visible
     Then "#id_customfield_testfield_minute" "css_element" should not be visible

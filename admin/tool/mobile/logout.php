@@ -27,7 +27,7 @@ require_once($CFG->dirroot . '/admin/tool/mobile/lib.php');
 require_once($CFG->dirroot . '/webservice/lib.php');
 
 if (!$CFG->enablemobilewebservice) {
-    throw new \moodle_exception('enablewsdescription', 'webservice');
+    print_error('enablewsdescription', 'webservice');
 }
 
 require_login(null, false);
@@ -56,7 +56,7 @@ $context = context_system::instance();
 $PAGE->set_url(new \moodle_url('/'.$CFG->admin.'/tool/mobile/logout.php'));
 $PAGE->navbar->add($title);
 $PAGE->set_context($context);
-$PAGE->set_title($title);
+$PAGE->set_title($SITE->fullname. ': ' . $title);
 
 // Display the page.
 echo $OUTPUT->header();

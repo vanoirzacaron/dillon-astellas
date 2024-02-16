@@ -14,6 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * Test for content bank contenttype class.
+ *
+ * @package    core_contentbank
+ * @category   test
+ * @copyright  2020 Amaia Anabitarte <amaia@moodle.com>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 namespace core_contentbank;
 
 use stdClass;
@@ -95,8 +104,6 @@ class contenttype_test extends \advanced_testcase {
      * @covers ::get_icon
      */
     public function test_get_icon() {
-        global $CFG;
-
         $this->resetAfterTest();
 
         $systemcontext = \context_system::instance();
@@ -104,10 +111,8 @@ class contenttype_test extends \advanced_testcase {
         $record = new stdClass();
         $record->name = 'New content';
         $content = $testable->create_content($record);
-        $this->assertEquals(
-            "{$CFG->wwwroot}/theme/image.php/boost/core/1/f/unknown",
-            $testable->get_icon($content),
-        );
+        $icon = $testable->get_icon($content);
+        $this->assertStringContainsString('archive', $icon);
     }
 
     /**
@@ -652,18 +657,5 @@ class contenttype_test extends \advanced_testcase {
         $content = $contenttype->create_content($record);
         $url = $contenttype->get_download_url($content);
         $this->assertEmpty($url);
-    }
-
-    /**
-     * Tests pluginfile result.
-     *
-     * @covers ::pluginfile
-     */
-    public function test_pluginfile() {
-        $this->resetAfterTest();
-        $this->setAdminUser();
-        $systemcontext = context_system::instance();
-        $contenttype = new contenttype($systemcontext);
-        $this->assertIsCallable([$contenttype, 'pluginfile']);
     }
 }

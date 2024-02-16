@@ -274,7 +274,7 @@ class course_enrolment_manager {
         // Search condition.
         // TODO Does not support custom user profile fields (MDL-70456).
         $extrafields = fields::get_identity_fields($this->get_context(), false);
-        list($sql, $params) = users_search_sql($this->searchfilter, 'u', USER_SEARCH_CONTAINS, $extrafields);
+        list($sql, $params) = users_search_sql($this->searchfilter, 'u', true, $extrafields);
 
         // Role condition.
         if ($this->rolefilter) {
@@ -563,40 +563,26 @@ class course_enrolment_manager {
      * @param int $page Starting at 0.
      * @param int $perpage Number of users returned per page.
      * @param bool $returnexactcount Return the exact total users using count_record or not.
-     * @param ?int $contextid Context ID we are in - we might use search on activity level and its group mode can be different from course group mode.
      * @return array with two or three elements:
      *      int totalusers Number users matching the search. (This element only exist if $returnexactcount was set to true)
      *      array users List of user objects returned by the query.
      *      boolean moreusers True if there are still more users, otherwise is False.
      */
     public function search_users(string $search = '', bool $searchanywhere = false, int $page = 0, int $perpage = 25,
-            bool $returnexactcount = false, ?int $contextid = null) {
+            bool $returnexactcount = false) {
         global $USER;
 
         [$ufields, $joins, $params, $wherecondition] = $this->get_basic_search_conditions($search, $searchanywhere);
 
-        if (isset($contextid)) {
-            // If contextid is set, we need to determine the group mode that should be used (module or course).
-            [$context, $course, $cm] = get_context_info_array($contextid);
-            // If cm instance is returned, then use the group mode from the module, otherwise get the course group mode.
-            $groupmode = $cm ? groups_get_activity_groupmode($cm, $course) : groups_get_course_groupmode($this->course);
-        } else {
-            // Otherwise, default to the group mode of the course.
-            $context = $this->context;
-            $groupmode = groups_get_course_groupmode($this->course);
-        }
-
-        if ($groupmode == SEPARATEGROUPS && !has_capability('moodle/site:accessallgroups', $context)) {
+        $groupmode = groups_get_course_groupmode($this->course);
+        if ($groupmode == SEPARATEGROUPS && !has_capability('moodle/site:accessallgroups', $this->context)) {
             $groups = groups_get_all_groups($this->course->id, $USER->id, 0, 'g.id');
             $groupids = array_column($groups, 'id');
-            if (!$groupids) {
-                return ['totalusers' => 0, 'users' => [], 'moreusers' => false];
-            }
         } else {
             $groupids = [];
         }
 
-        [$enrolledsql, $enrolledparams] = get_enrolled_sql($context, '', $groupids);
+        [$enrolledsql, $enrolledparams] = get_enrolled_sql($this->context, '', $groupids);
 
         $fields      = 'SELECT ' . $ufields;
         $countfields = 'SELECT COUNT(u.id)';
@@ -615,7 +601,7 @@ class course_enrolment_manager {
      * that SQL, and the filter that was used in constructing the sql.
      *
      * @global moodle_database $DB
-     * @return array
+     * @return string
      */
     protected function get_instance_sql() {
         global $DB;

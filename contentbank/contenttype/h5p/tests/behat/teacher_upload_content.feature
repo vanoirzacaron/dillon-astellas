@@ -19,26 +19,19 @@ Feature: H5P file upload to content bank for non admins
       | user     | course | role           |
       | teacher1 | C1     | editingteacher |
       | teacher2 | C1     | editingteacher |
-    And the following "blocks" exist:
-      | blockname     | contextlevel | reference | pagetypepattern | defaultregion |
-      | private_files | System       | 1         | my-index        | side-post     |
     And I log in as "teacher1"
     And I follow "Manage private files..."
     And I upload "h5p/tests/fixtures/filltheblanks.h5p" file to "Files" filemanager
     And I click on "Save changes" "button"
 
   Scenario: Teachers can not access system level content bank
-    Given I turn editing mode on
-    And the following config values are set as admin:
-      | unaddableblocks | | theme_boost|
+    Given I press "Customise this page"
     And I add the "Navigation" block if not present
     When I expand "Site pages" node
     Then I should not see "Content bank"
 
   Scenario: Teachers can access course level content bank
     Given I am on "Course 1" course homepage with editing mode on
-    And the following config values are set as admin:
-      | unaddableblocks | | theme_boost|
     And I add the "Navigation" block if not present
     When I expand "Site pages" node
     Then I should see "Content bank"
@@ -52,8 +45,6 @@ Feature: H5P file upload to content bank for non admins
     And I log out
     And I log in as "teacher1"
     And I am on "Course 1" course homepage with editing mode on
-    And the following config values are set as admin:
-      | unaddableblocks | | theme_boost|
     And I add the "Navigation" block if not present
     When I expand "Site pages" node
     And I click on "Content bank" "link"
@@ -76,8 +67,6 @@ Feature: H5P file upload to content bank for non admins
     And I log out
     And I log in as "teacher1"
     And I am on "Course 1" course homepage with editing mode on
-    And the following config values are set as admin:
-      | unaddableblocks | | theme_boost|
     And I add the "Navigation" block if not present
     When I expand "Site pages" node
     And I click on "Content bank" "link"
@@ -92,8 +81,6 @@ Feature: H5P file upload to content bank for non admins
     And I log out
     When I log in as "teacher2"
     And I am on "Course 1" course homepage with editing mode on
-    And the following config values are set as admin:
-      | unaddableblocks | | theme_boost|
     And I add the "Navigation" block if not present
     And I expand "Site pages" node
     And I click on "Content bank" "link"
@@ -107,8 +94,6 @@ Feature: H5P file upload to content bank for non admins
     And I log out
     And I log in as "teacher1"
     And I am on "Course 1" course homepage with editing mode on
-    And the following config values are set as admin:
-      | unaddableblocks | | theme_boost|
     And I add the "Navigation" block if not present
     And I expand "Site pages" node
     And I click on "Content bank" "link"
@@ -118,7 +103,7 @@ Feature: H5P file upload to content bank for non admins
     And I click on "filltheblanks.h5p" "link"
     And I click on "Select this file" "button"
     And I click on "Save changes" "button"
-    Then I should see "Missing required library"
+    Then I should see "Sorry, this file is not valid."
     And I should not see "filltheblanks.h5p"
     And I log out
     And I log in as "admin"
@@ -142,8 +127,6 @@ Feature: H5P file upload to content bank for non admins
     And I log out
     And I log in as "teacher1"
     Given I am on "Course 1" course homepage with editing mode on
-    And the following config values are set as admin:
-      | unaddableblocks | | theme_boost|
     And I add the "Navigation" block if not present
     When I expand "Site pages" node
     And I click on "Content bank" "link"
@@ -156,7 +139,7 @@ Feature: H5P file upload to content bank for non admins
     And I switch to "h5p-player" class iframe
     And I switch to "h5p-iframe" class iframe
     Then I should see "Of which countries"
-    Then I should not see "missing-main-library"
+    Then I should not see "missing-required-library"
     And I switch to the main frame
     Given I log out
     And I log in as "admin"
@@ -178,4 +161,4 @@ Feature: H5P file upload to content bank for non admins
     And I should see "filltheblanks.h5p"
     And I click on "filltheblanks.h5p" "link"
     And I switch to "h5p-player" class iframe
-    And I should see "missing-main-library"
+    And I should see "missing-required-library"

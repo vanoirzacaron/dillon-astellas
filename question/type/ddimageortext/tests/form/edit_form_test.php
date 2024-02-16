@@ -17,6 +17,7 @@
 namespace qtype_ddimageortext\form;
 
 use qtype_ddimageortext_edit_form;
+use question_edit_contexts;
 
 defined('MOODLE_INTERNAL') || die();
 global $CFG;
@@ -60,7 +61,7 @@ class edit_form_test extends \advanced_testcase {
         $fakequestion->inputs = null;
 
         $form = new qtype_ddimageortext_edit_form(new \moodle_url('/'), $fakequestion, $category,
-                new \core_question\local\bank\question_edit_contexts($syscontext));
+                new question_edit_contexts($syscontext));
 
         return [$form, $category];
     }
@@ -83,13 +84,6 @@ class edit_form_test extends \advanced_testcase {
                 ['dragitemtype' => 'word'],
                 ['dragitemtype' => 'word'],
             ],
-            'dragitem' => [
-                0,
-                0,
-                0,
-                0,
-                0,
-            ],
             'draglabel' => [
                 'frog',
                 '<b>toad</b>',
@@ -101,12 +95,12 @@ class edit_form_test extends \advanced_testcase {
 
         $errors = $form->validation($submitteddata, []);
 
-        $this->assertArrayNotHasKey('draglabel[0]', $errors);
+        $this->assertArrayNotHasKey('drags[0]', $errors);
         $this->assertEquals('HTML tags are not allowed in this text which is the alt text for a draggable image.',
-                $errors['draglabel[1]']);
-        $this->assertArrayNotHasKey('draglabel[2]', $errors);
-        $this->assertArrayNotHasKey('draglabel[3]', $errors);
+                $errors['drags[1]']);
+        $this->assertArrayNotHasKey('drags[2]', $errors);
+        $this->assertArrayNotHasKey('drags[3]', $errors);
         $this->assertEquals('Only "&lt;br&gt;&lt;sub&gt;&lt;sup&gt;&lt;b&gt;&lt;i&gt;&lt;strong&gt;&lt;em&gt;&lt;span&gt;" ' .
-                'tags are allowed in this draggable text.', $errors['draglabel[4]']);
+                'tags are allowed in this draggable text.', $errors['drags[4]']);
     }
 }

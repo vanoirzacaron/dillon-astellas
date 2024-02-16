@@ -22,6 +22,8 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+defined('MOODLE_INTERNAL') || die;
+
 /**
  * Customcert image element upgrade code.
  *
@@ -41,7 +43,7 @@ function xmldb_customcertelement_image_upgrade($oldversion) {
                 // Get the current data we have stored for this element.
                 $elementinfo = json_decode($image->data);
                 if ($file = $fs->get_file_by_hash($elementinfo->pathnamehash)) {
-                    $arrtostore = [
+                    $arrtostore = array(
                         'contextid' => $file->get_contextid(),
                         'filearea' => $file->get_filearea(),
                         'itemid' => $file->get_itemid(),
@@ -49,9 +51,9 @@ function xmldb_customcertelement_image_upgrade($oldversion) {
                         'filename' => $file->get_filename(),
                         'width' => (int) $elementinfo->width,
                         'height' => (int) $elementinfo->height
-                    ];
+                    );
                     $arrtostore = json_encode($arrtostore);
-                    $DB->set_field('customcert_elements', 'data', $arrtostore,  ['id' => $image->id]);
+                    $DB->set_field('customcert_elements', 'data', $arrtostore,  array('id' => $image->id));
                 }
             }
         }

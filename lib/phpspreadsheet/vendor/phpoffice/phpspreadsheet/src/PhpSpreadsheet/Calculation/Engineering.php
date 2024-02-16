@@ -3,22 +3,66 @@
 namespace PhpOffice\PhpSpreadsheet\Calculation;
 
 use Complex\Complex;
-use PhpOffice\PhpSpreadsheet\Calculation\Engineering\ComplexFunctions;
-use PhpOffice\PhpSpreadsheet\Calculation\Engineering\ComplexOperations;
+use Complex\Exception as ComplexException;
+use PhpOffice\PhpSpreadsheet\Calculation\Engineering\ConvertUOM;
 
-/**
- * @deprecated 1.18.0
- */
 class Engineering
 {
     /**
      * EULER.
-     *
-     * @deprecated 1.18.0
-     *      Use Engineering\Constants::EULER instead
-     * @see Engineering\Constants::EULER
      */
-    public const EULER = 2.71828182845904523536;
+    const EULER = 2.71828182845904523536;
+
+    /**
+     * parseComplex.
+     *
+     * Parses a complex number into its real and imaginary parts, and an I or J suffix
+     *
+     * @deprecated 2.0.0 No longer used by internal code. Please use the Complex\Complex class instead
+     *
+     * @param string $complexNumber The complex number
+     *
+     * @return mixed[] Indexed on "real", "imaginary" and "suffix"
+     */
+    public static function parseComplex($complexNumber)
+    {
+        $complex = new Complex($complexNumber);
+
+        return [
+            'real' => $complex->getReal(),
+            'imaginary' => $complex->getImaginary(),
+            'suffix' => $complex->getSuffix(),
+        ];
+    }
+
+    /**
+     * Formats a number base string value with leading zeroes.
+     *
+     * @param string $xVal The "number" to pad
+     * @param int $places The length that we want to pad this value
+     *
+     * @return string The padded "number"
+     */
+    private static function nbrConversionFormat($xVal, $places)
+    {
+        if ($places !== null) {
+            if (is_numeric($places)) {
+                $places = (int) $places;
+            } else {
+                return Functions::VALUE();
+            }
+            if ($places < 0) {
+                return Functions::NAN();
+            }
+            if (strlen($xVal) <= $places) {
+                return substr(str_pad($xVal, $places, '0', STR_PAD_LEFT), -10);
+            }
+
+            return Functions::NAN();
+        }
+
+        return substr($xVal, -10);
+    }
 
     /**
      * BESSELI.
@@ -29,10 +73,6 @@ class Engineering
      *    Excel Function:
      *        BESSELI(x,ord)
      *
-     * @deprecated 1.17.0
-     *      Use the BESSELI() method in the Engineering\BesselI class instead
-     * @see Engineering\BesselI::BESSELI()
-     *
      * @param float $x The value at which to evaluate the function.
      *                                If x is nonnumeric, BESSELI returns the #VALUE! error value.
      * @param int $ord The order of the Bessel function.
@@ -40,11 +80,42 @@ class Engineering
      *                                If $ord is nonnumeric, BESSELI returns the #VALUE! error value.
      *                                If $ord < 0, BESSELI returns the #NUM! error value.
      *
-     * @return array|float|string Result, or a string containing an error
+     * @return float|string Result, or a string containing an error
      */
     public static function BESSELI($x, $ord)
     {
-        return Engineering\BesselI::BESSELI($x, $ord);
+        $x = ($x === null) ? 0.0 : Functions::flattenSingleValue($x);
+        $ord = ($ord === null) ? 0.0 : Functions::flattenSingleValue($ord);
+
+        if ((is_numeric($x)) && (is_numeric($ord))) {
+            $ord = floor($ord);
+            if ($ord < 0) {
+                return Functions::NAN();
+            }
+
+            if (abs($x) <= 30) {
+                $fResult = $fTerm = ($x / 2) ** $ord / MathTrig::FACT($ord);
+                $ordK = 1;
+                $fSqrX = ($x * $x) / 4;
+                do {
+                    $fTerm *= $fSqrX;
+                    $fTerm /= ($ordK * ($ordK + $ord));
+                    $fResult += $fTerm;
+                } while ((abs($fTerm) > 1e-12) && (++$ordK < 100));
+            } else {
+                $f_2_PI = 2 * M_PI;
+
+                $fXAbs = abs($x);
+                $fResult = exp($fXAbs) / sqrt($f_2_PI * $fXAbs);
+                if (($ord & 1) && ($x < 0)) {
+                    $fResult = -$fResult;
+                }
+            }
+
+            return (is_nan($fResult)) ? Functions::NAN() : $fResult;
+        }
+
+        return Functions::VALUE();
     }
 
     /**
@@ -55,21 +126,86 @@ class Engineering
      *    Excel Function:
      *        BESSELJ(x,ord)
      *
-     * @deprecated 1.17.0
-     *      Use the BESSELJ() method in the Engineering\BesselJ class instead
-     * @see Engineering\BesselJ::BESSELJ()
-     *
      * @param float $x The value at which to evaluate the function.
      *                                If x is nonnumeric, BESSELJ returns the #VALUE! error value.
      * @param int $ord The order of the Bessel function. If n is not an integer, it is truncated.
      *                                If $ord is nonnumeric, BESSELJ returns the #VALUE! error value.
      *                                If $ord < 0, BESSELJ returns the #NUM! error value.
      *
-     * @return array|float|string Result, or a string containing an error
+     * @return float|string Result, or a string containing an error
      */
     public static function BESSELJ($x, $ord)
     {
-        return Engineering\BesselJ::BESSELJ($x, $ord);
+        $x = ($x === null) ? 0.0 : Functions::flattenSingleValue($x);
+        $ord = ($ord === null) ? 0.0 : Functions::flattenSingleValue($ord);
+
+        if ((is_numeric($x)) && (is_numeric($ord))) {
+            $ord = floor($ord);
+            if ($ord < 0) {
+                return Functions::NAN();
+            }
+
+            $fResult = 0;
+            if (abs($x) <= 30) {
+                $fResult = $fTerm = ($x / 2) ** $ord / MathTrig::FACT($ord);
+                $ordK = 1;
+                $fSqrX = ($x * $x) / -4;
+                do {
+                    $fTerm *= $fSqrX;
+                    $fTerm /= ($ordK * ($ordK + $ord));
+                    $fResult += $fTerm;
+                } while ((abs($fTerm) > 1e-12) && (++$ordK < 100));
+            } else {
+                $f_PI_DIV_2 = M_PI / 2;
+                $f_PI_DIV_4 = M_PI / 4;
+
+                $fXAbs = abs($x);
+                $fResult = sqrt(Functions::M_2DIVPI / $fXAbs) * cos($fXAbs - $ord * $f_PI_DIV_2 - $f_PI_DIV_4);
+                if (($ord & 1) && ($x < 0)) {
+                    $fResult = -$fResult;
+                }
+            }
+
+            return (is_nan($fResult)) ? Functions::NAN() : $fResult;
+        }
+
+        return Functions::VALUE();
+    }
+
+    private static function besselK0($fNum)
+    {
+        if ($fNum <= 2) {
+            $fNum2 = $fNum * 0.5;
+            $y = ($fNum2 * $fNum2);
+            $fRet = -log($fNum2) * self::BESSELI($fNum, 0) +
+                (-0.57721566 + $y * (0.42278420 + $y * (0.23069756 + $y * (0.3488590e-1 + $y * (0.262698e-2 + $y *
+                                    (0.10750e-3 + $y * 0.74e-5))))));
+        } else {
+            $y = 2 / $fNum;
+            $fRet = exp(-$fNum) / sqrt($fNum) *
+                (1.25331414 + $y * (-0.7832358e-1 + $y * (0.2189568e-1 + $y * (-0.1062446e-1 + $y *
+                                (0.587872e-2 + $y * (-0.251540e-2 + $y * 0.53208e-3))))));
+        }
+
+        return $fRet;
+    }
+
+    private static function besselK1($fNum)
+    {
+        if ($fNum <= 2) {
+            $fNum2 = $fNum * 0.5;
+            $y = ($fNum2 * $fNum2);
+            $fRet = log($fNum2) * self::BESSELI($fNum, 1) +
+                (1 + $y * (0.15443144 + $y * (-0.67278579 + $y * (-0.18156897 + $y * (-0.1919402e-1 + $y *
+                                    (-0.110404e-2 + $y * (-0.4686e-4))))))) / $fNum;
+        } else {
+            $y = 2 / $fNum;
+            $fRet = exp(-$fNum) / sqrt($fNum) *
+                (1.25331414 + $y * (0.23498619 + $y * (-0.3655620e-1 + $y * (0.1504268e-1 + $y * (-0.780353e-2 + $y *
+                                    (0.325614e-2 + $y * (-0.68245e-3)))))));
+        }
+
+        return $fRet;
     }
 
     /**
@@ -81,21 +217,83 @@ class Engineering
      *    Excel Function:
      *        BESSELK(x,ord)
      *
-     * @deprecated 1.17.0
-     *      Use the BESSELK() method in the Engineering\BesselK class instead
-     * @see Engineering\BesselK::BESSELK()
-     *
      * @param float $x The value at which to evaluate the function.
      *                                If x is nonnumeric, BESSELK returns the #VALUE! error value.
      * @param int $ord The order of the Bessel function. If n is not an integer, it is truncated.
      *                                If $ord is nonnumeric, BESSELK returns the #VALUE! error value.
      *                                If $ord < 0, BESSELK returns the #NUM! error value.
      *
-     * @return array|float|string Result, or a string containing an error
+     * @return float|string Result, or a string containing an error
      */
     public static function BESSELK($x, $ord)
     {
-        return Engineering\BesselK::BESSELK($x, $ord);
+        $x = ($x === null) ? 0.0 : Functions::flattenSingleValue($x);
+        $ord = ($ord === null) ? 0.0 : Functions::flattenSingleValue($ord);
+
+        if ((is_numeric($x)) && (is_numeric($ord))) {
+            if (($ord < 0) || ($x == 0.0)) {
+                return Functions::NAN();
+            }
+
+            switch (floor($ord)) {
+                case 0:
+                    $fBk = self::besselK0($x);
+
+                    break;
+                case 1:
+                    $fBk = self::besselK1($x);
+
+                    break;
+                default:
+                    $fTox = 2 / $x;
+                    $fBkm = self::besselK0($x);
+                    $fBk = self::besselK1($x);
+                    for ($n = 1; $n < $ord; ++$n) {
+                        $fBkp = $fBkm + $n * $fTox * $fBk;
+                        $fBkm = $fBk;
+                        $fBk = $fBkp;
+                    }
+            }
+
+            return (is_nan($fBk)) ? Functions::NAN() : $fBk;
+        }
+
+        return Functions::VALUE();
+    }
+
+    private static function besselY0($fNum)
+    {
+        if ($fNum < 8.0) {
+            $y = ($fNum * $fNum);
+            $f1 = -2957821389.0 + $y * (7062834065.0 + $y * (-512359803.6 + $y * (10879881.29 + $y * (-86327.92757 + $y * 228.4622733))));
+            $f2 = 40076544269.0 + $y * (745249964.8 + $y * (7189466.438 + $y * (47447.26470 + $y * (226.1030244 + $y))));
+            $fRet = $f1 / $f2 + 0.636619772 * self::BESSELJ($fNum, 0) * log($fNum);
+        } else {
+            $z = 8.0 / $fNum;
+            $y = ($z * $z);
+            $xx = $fNum - 0.785398164;
+            $f1 = 1 + $y * (-0.1098628627e-2 + $y * (0.2734510407e-4 + $y * (-0.2073370639e-5 + $y * 0.2093887211e-6)));
+            $f2 = -0.1562499995e-1 + $y * (0.1430488765e-3 + $y * (-0.6911147651e-5 + $y * (0.7621095161e-6 + $y * (-0.934945152e-7))));
+            $fRet = sqrt(0.636619772 / $fNum) * (sin($xx) * $f1 + $z * cos($xx) * $f2);
+        }
+
+        return $fRet;
+    }
+
+    private static function besselY1($fNum)
+    {
+        if ($fNum < 8.0) {
+            $y = ($fNum * $fNum);
+            $f1 = $fNum * (-0.4900604943e13 + $y * (0.1275274390e13 + $y * (-0.5153438139e11 + $y * (0.7349264551e9 + $y *
+                                (-0.4237922726e7 + $y * 0.8511937935e4)))));
+            $f2 = 0.2499580570e14 + $y * (0.4244419664e12 + $y * (0.3733650367e10 + $y * (0.2245904002e8 + $y *
+                            (0.1020426050e6 + $y * (0.3549632885e3 + $y)))));
+            $fRet = $f1 / $f2 + 0.636619772 * (self::BESSELJ($fNum, 1) * log($fNum) - 1 / $fNum);
+        } else {
+            $fRet = sqrt(0.636619772 / $fNum) * sin($fNum - 2.356194491);
+        }
+
+        return $fRet;
     }
 
     /**
@@ -106,21 +304,48 @@ class Engineering
      *    Excel Function:
      *        BESSELY(x,ord)
      *
-     * @deprecated 1.17.0
-     *      Use the BESSELY() method in the Engineering\BesselY class instead
-     * @see Engineering\BesselY::BESSELY()
-     *
      * @param float $x The value at which to evaluate the function.
-     *                                If x is nonnumeric, BESSELY returns the #VALUE! error value.
+     *                                If x is nonnumeric, BESSELK returns the #VALUE! error value.
      * @param int $ord The order of the Bessel function. If n is not an integer, it is truncated.
-     *                                If $ord is nonnumeric, BESSELY returns the #VALUE! error value.
-     *                                If $ord < 0, BESSELY returns the #NUM! error value.
+     *                                If $ord is nonnumeric, BESSELK returns the #VALUE! error value.
+     *                                If $ord < 0, BESSELK returns the #NUM! error value.
      *
-     * @return array|float|string Result, or a string containing an error
+     * @return float|string Result, or a string containing an error
      */
     public static function BESSELY($x, $ord)
     {
-        return Engineering\BesselY::BESSELY($x, $ord);
+        $x = ($x === null) ? 0.0 : Functions::flattenSingleValue($x);
+        $ord = ($ord === null) ? 0.0 : Functions::flattenSingleValue($ord);
+
+        if ((is_numeric($x)) && (is_numeric($ord))) {
+            if (($ord < 0) || ($x == 0.0)) {
+                return Functions::NAN();
+            }
+
+            switch (floor($ord)) {
+                case 0:
+                    $fBy = self::besselY0($x);
+
+                    break;
+                case 1:
+                    $fBy = self::besselY1($x);
+
+                    break;
+                default:
+                    $fTox = 2 / $x;
+                    $fBym = self::besselY0($x);
+                    $fBy = self::besselY1($x);
+                    for ($n = 1; $n < $ord; ++$n) {
+                        $fByp = $n * $fTox * $fBy - $fBym;
+                        $fBym = $fBy;
+                        $fBy = $fByp;
+                    }
+            }
+
+            return (is_nan($fBy)) ? Functions::NAN() : $fBy;
+        }
+
+        return Functions::VALUE();
     }
 
     /**
@@ -131,22 +356,43 @@ class Engineering
      * Excel Function:
      *        BIN2DEC(x)
      *
-     * @deprecated 1.17.0
-     *      Use the toDecimal() method in the Engineering\ConvertBinary class instead
-     * @see Engineering\ConvertBinary::toDecimal()
-     *
-     * @param mixed $x The binary number (as a string) that you want to convert. The number
+     * @param string $x The binary number (as a string) that you want to convert. The number
      *                                cannot contain more than 10 characters (10 bits). The most significant
      *                                bit of number is the sign bit. The remaining 9 bits are magnitude bits.
      *                                Negative numbers are represented using two's-complement notation.
      *                                If number is not a valid binary number, or if number contains more than
      *                                10 characters (10 bits), BIN2DEC returns the #NUM! error value.
      *
-     * @return array|string
+     * @return string
      */
     public static function BINTODEC($x)
     {
-        return Engineering\ConvertBinary::toDecimal($x);
+        $x = Functions::flattenSingleValue($x);
+
+        if (is_bool($x)) {
+            if (Functions::getCompatibilityMode() == Functions::COMPATIBILITY_OPENOFFICE) {
+                $x = (int) $x;
+            } else {
+                return Functions::VALUE();
+            }
+        }
+        if (Functions::getCompatibilityMode() == Functions::COMPATIBILITY_GNUMERIC) {
+            $x = floor($x);
+        }
+        $x = (string) $x;
+        if (strlen($x) > preg_match_all('/[01]/', $x, $out)) {
+            return Functions::NAN();
+        }
+        if (strlen($x) > 10) {
+            return Functions::NAN();
+        } elseif (strlen($x) == 10) {
+            //    Two's Complement
+            $x = substr($x, -9);
+
+            return '-' . (512 - bindec($x));
+        }
+
+        return bindec($x);
     }
 
     /**
@@ -157,28 +403,50 @@ class Engineering
      * Excel Function:
      *        BIN2HEX(x[,places])
      *
-     * @deprecated 1.17.0
-     *      Use the toHex() method in the Engineering\ConvertBinary class instead
-     * @see Engineering\ConvertBinary::toHex()
-     *
-     * @param mixed $x The binary number (as a string) that you want to convert. The number
+     * @param string $x The binary number (as a string) that you want to convert. The number
      *                                cannot contain more than 10 characters (10 bits). The most significant
      *                                bit of number is the sign bit. The remaining 9 bits are magnitude bits.
      *                                Negative numbers are represented using two's-complement notation.
      *                                If number is not a valid binary number, or if number contains more than
      *                                10 characters (10 bits), BIN2HEX returns the #NUM! error value.
-     * @param mixed $places The number of characters to use. If places is omitted, BIN2HEX uses the
+     * @param int $places The number of characters to use. If places is omitted, BIN2HEX uses the
      *                                minimum number of characters necessary. Places is useful for padding the
      *                                return value with leading 0s (zeros).
      *                                If places is not an integer, it is truncated.
      *                                If places is nonnumeric, BIN2HEX returns the #VALUE! error value.
      *                                If places is negative, BIN2HEX returns the #NUM! error value.
      *
-     * @return array|string
+     * @return string
      */
     public static function BINTOHEX($x, $places = null)
     {
-        return Engineering\ConvertBinary::toHex($x, $places);
+        $x = Functions::flattenSingleValue($x);
+        $places = Functions::flattenSingleValue($places);
+
+        // Argument X
+        if (is_bool($x)) {
+            if (Functions::getCompatibilityMode() == Functions::COMPATIBILITY_OPENOFFICE) {
+                $x = (int) $x;
+            } else {
+                return Functions::VALUE();
+            }
+        }
+        if (Functions::getCompatibilityMode() == Functions::COMPATIBILITY_GNUMERIC) {
+            $x = floor($x);
+        }
+        $x = (string) $x;
+        if (strlen($x) > preg_match_all('/[01]/', $x, $out)) {
+            return Functions::NAN();
+        }
+        if (strlen($x) > 10) {
+            return Functions::NAN();
+        } elseif (strlen($x) == 10) {
+            //    Two's Complement
+            return str_repeat('F', 8) . substr(strtoupper(dechex(bindec(substr($x, -9)))), -2);
+        }
+        $hexVal = (string) strtoupper(dechex(bindec($x)));
+
+        return self::nbrConversionFormat($hexVal, $places);
     }
 
     /**
@@ -189,28 +457,49 @@ class Engineering
      * Excel Function:
      *        BIN2OCT(x[,places])
      *
-     * @deprecated 1.17.0
-     *      Use the toOctal() method in the Engineering\ConvertBinary class instead
-     * @see Engineering\ConvertBinary::toOctal()
-     *
-     * @param mixed $x The binary number (as a string) that you want to convert. The number
+     * @param string $x The binary number (as a string) that you want to convert. The number
      *                                cannot contain more than 10 characters (10 bits). The most significant
      *                                bit of number is the sign bit. The remaining 9 bits are magnitude bits.
      *                                Negative numbers are represented using two's-complement notation.
      *                                If number is not a valid binary number, or if number contains more than
      *                                10 characters (10 bits), BIN2OCT returns the #NUM! error value.
-     * @param mixed $places The number of characters to use. If places is omitted, BIN2OCT uses the
+     * @param int $places The number of characters to use. If places is omitted, BIN2OCT uses the
      *                                minimum number of characters necessary. Places is useful for padding the
      *                                return value with leading 0s (zeros).
      *                                If places is not an integer, it is truncated.
      *                                If places is nonnumeric, BIN2OCT returns the #VALUE! error value.
      *                                If places is negative, BIN2OCT returns the #NUM! error value.
      *
-     * @return array|string
+     * @return string
      */
     public static function BINTOOCT($x, $places = null)
     {
-        return Engineering\ConvertBinary::toOctal($x, $places);
+        $x = Functions::flattenSingleValue($x);
+        $places = Functions::flattenSingleValue($places);
+
+        if (is_bool($x)) {
+            if (Functions::getCompatibilityMode() == Functions::COMPATIBILITY_OPENOFFICE) {
+                $x = (int) $x;
+            } else {
+                return Functions::VALUE();
+            }
+        }
+        if (Functions::getCompatibilityMode() == Functions::COMPATIBILITY_GNUMERIC) {
+            $x = floor($x);
+        }
+        $x = (string) $x;
+        if (strlen($x) > preg_match_all('/[01]/', $x, $out)) {
+            return Functions::NAN();
+        }
+        if (strlen($x) > 10) {
+            return Functions::NAN();
+        } elseif (strlen($x) == 10) {
+            //    Two's Complement
+            return str_repeat('7', 7) . substr(strtoupper(decoct(bindec(substr($x, -9)))), -3);
+        }
+        $octVal = (string) decoct(bindec($x));
+
+        return self::nbrConversionFormat($octVal, $places);
     }
 
     /**
@@ -221,11 +510,7 @@ class Engineering
      * Excel Function:
      *        DEC2BIN(x[,places])
      *
-     * @deprecated 1.17.0
-     *      Use the toBinary() method in the Engineering\ConvertDecimal class instead
-     * @see Engineering\ConvertDecimal::toBinary()
-     *
-     * @param mixed $x The decimal integer you want to convert. If number is negative,
+     * @param string $x The decimal integer you want to convert. If number is negative,
      *                                valid place values are ignored and DEC2BIN returns a 10-character
      *                                (10-bit) binary number in which the most significant bit is the sign
      *                                bit. The remaining 9 bits are magnitude bits. Negative numbers are
@@ -235,18 +520,45 @@ class Engineering
      *                                If number is nonnumeric, DEC2BIN returns the #VALUE! error value.
      *                                If DEC2BIN requires more than places characters, it returns the #NUM!
      *                                error value.
-     * @param mixed $places The number of characters to use. If places is omitted, DEC2BIN uses
+     * @param int $places The number of characters to use. If places is omitted, DEC2BIN uses
      *                                the minimum number of characters necessary. Places is useful for
      *                                padding the return value with leading 0s (zeros).
      *                                If places is not an integer, it is truncated.
      *                                If places is nonnumeric, DEC2BIN returns the #VALUE! error value.
      *                                If places is zero or negative, DEC2BIN returns the #NUM! error value.
      *
-     * @return array|string
+     * @return string
      */
     public static function DECTOBIN($x, $places = null)
     {
-        return Engineering\ConvertDecimal::toBinary($x, $places);
+        $x = Functions::flattenSingleValue($x);
+        $places = Functions::flattenSingleValue($places);
+
+        if (is_bool($x)) {
+            if (Functions::getCompatibilityMode() == Functions::COMPATIBILITY_OPENOFFICE) {
+                $x = (int) $x;
+            } else {
+                return Functions::VALUE();
+            }
+        }
+        $x = (string) $x;
+        if (strlen($x) > preg_match_all('/[-0123456789.]/', $x, $out)) {
+            return Functions::VALUE();
+        }
+
+        $x = (string) floor($x);
+        if ($x < -512 || $x > 511) {
+            return Functions::NAN();
+        }
+
+        $r = decbin($x);
+        // Two's Complement
+        $r = substr($r, -10);
+        if (strlen($r) >= 11) {
+            return Functions::NAN();
+        }
+
+        return self::nbrConversionFormat($r, $places);
     }
 
     /**
@@ -257,11 +569,7 @@ class Engineering
      * Excel Function:
      *        DEC2HEX(x[,places])
      *
-     * @deprecated 1.17.0
-     *      Use the toHex() method in the Engineering\ConvertDecimal class instead
-     * @see Engineering\ConvertDecimal::toHex()
-     *
-     * @param mixed $x The decimal integer you want to convert. If number is negative,
+     * @param string $x The decimal integer you want to convert. If number is negative,
      *                                places is ignored and DEC2HEX returns a 10-character (40-bit)
      *                                hexadecimal number in which the most significant bit is the sign
      *                                bit. The remaining 39 bits are magnitude bits. Negative numbers
@@ -271,18 +579,39 @@ class Engineering
      *                                If number is nonnumeric, DEC2HEX returns the #VALUE! error value.
      *                                If DEC2HEX requires more than places characters, it returns the
      *                                #NUM! error value.
-     * @param mixed $places The number of characters to use. If places is omitted, DEC2HEX uses
+     * @param int $places The number of characters to use. If places is omitted, DEC2HEX uses
      *                                the minimum number of characters necessary. Places is useful for
      *                                padding the return value with leading 0s (zeros).
      *                                If places is not an integer, it is truncated.
      *                                If places is nonnumeric, DEC2HEX returns the #VALUE! error value.
      *                                If places is zero or negative, DEC2HEX returns the #NUM! error value.
      *
-     * @return array|string
+     * @return string
      */
     public static function DECTOHEX($x, $places = null)
     {
-        return Engineering\ConvertDecimal::toHex($x, $places);
+        $x = Functions::flattenSingleValue($x);
+        $places = Functions::flattenSingleValue($places);
+
+        if (is_bool($x)) {
+            if (Functions::getCompatibilityMode() == Functions::COMPATIBILITY_OPENOFFICE) {
+                $x = (int) $x;
+            } else {
+                return Functions::VALUE();
+            }
+        }
+        $x = (string) $x;
+        if (strlen($x) > preg_match_all('/[-0123456789.]/', $x, $out)) {
+            return Functions::VALUE();
+        }
+        $x = (string) floor($x);
+        $r = strtoupper(dechex($x));
+        if (strlen($r) == 8) {
+            //    Two's Complement
+            $r = 'FF' . $r;
+        }
+
+        return self::nbrConversionFormat($r, $places);
     }
 
     /**
@@ -293,11 +622,7 @@ class Engineering
      * Excel Function:
      *        DEC2OCT(x[,places])
      *
-     * @deprecated 1.17.0
-     *      Use the toOctal() method in the Engineering\ConvertDecimal class instead
-     * @see Engineering\ConvertDecimal::toOctal()
-     *
-     * @param mixed $x The decimal integer you want to convert. If number is negative,
+     * @param string $x The decimal integer you want to convert. If number is negative,
      *                                places is ignored and DEC2OCT returns a 10-character (30-bit)
      *                                octal number in which the most significant bit is the sign bit.
      *                                The remaining 29 bits are magnitude bits. Negative numbers are
@@ -307,18 +632,40 @@ class Engineering
      *                                If number is nonnumeric, DEC2OCT returns the #VALUE! error value.
      *                                If DEC2OCT requires more than places characters, it returns the
      *                                #NUM! error value.
-     * @param mixed $places The number of characters to use. If places is omitted, DEC2OCT uses
+     * @param int $places The number of characters to use. If places is omitted, DEC2OCT uses
      *                                the minimum number of characters necessary. Places is useful for
      *                                padding the return value with leading 0s (zeros).
      *                                If places is not an integer, it is truncated.
      *                                If places is nonnumeric, DEC2OCT returns the #VALUE! error value.
      *                                If places is zero or negative, DEC2OCT returns the #NUM! error value.
      *
-     * @return array|string
+     * @return string
      */
     public static function DECTOOCT($x, $places = null)
     {
-        return Engineering\ConvertDecimal::toOctal($x, $places);
+        $xorig = $x;
+        $x = Functions::flattenSingleValue($x);
+        $places = Functions::flattenSingleValue($places);
+
+        if (is_bool($x)) {
+            if (Functions::getCompatibilityMode() == Functions::COMPATIBILITY_OPENOFFICE) {
+                $x = (int) $x;
+            } else {
+                return Functions::VALUE();
+            }
+        }
+        $x = (string) $x;
+        if (strlen($x) > preg_match_all('/[-0123456789.]/', $x, $out)) {
+            return Functions::VALUE();
+        }
+        $x = (string) floor($x);
+        $r = decoct($x);
+        if (strlen($r) == 11) {
+            //    Two's Complement
+            $r = substr($r, -10);
+        }
+
+        return self::nbrConversionFormat($r, $places);
     }
 
     /**
@@ -329,11 +676,7 @@ class Engineering
      * Excel Function:
      *        HEX2BIN(x[,places])
      *
-     * @deprecated 1.17.0
-     *      Use the toBinary() method in the Engineering\ConvertHex class instead
-     * @see Engineering\ConvertHex::toBinary()
-     *
-     * @param mixed $x the hexadecimal number (as a string) that you want to convert.
+     * @param string $x the hexadecimal number you want to convert.
      *                  Number cannot contain more than 10 characters.
      *                  The most significant bit of number is the sign bit (40th bit from the right).
      *                  The remaining 9 bits are magnitude bits.
@@ -343,18 +686,29 @@ class Engineering
      *                      and if number is positive, it cannot be greater than 1FF.
      *                  If number is not a valid hexadecimal number, HEX2BIN returns the #NUM! error value.
      *                  If HEX2BIN requires more than places characters, it returns the #NUM! error value.
-     * @param mixed $places The number of characters to use. If places is omitted,
+     * @param int $places The number of characters to use. If places is omitted,
      *                                    HEX2BIN uses the minimum number of characters necessary. Places
      *                                    is useful for padding the return value with leading 0s (zeros).
      *                                    If places is not an integer, it is truncated.
      *                                    If places is nonnumeric, HEX2BIN returns the #VALUE! error value.
      *                                    If places is negative, HEX2BIN returns the #NUM! error value.
      *
-     * @return array|string
+     * @return string
      */
     public static function HEXTOBIN($x, $places = null)
     {
-        return Engineering\ConvertHex::toBinary($x, $places);
+        $x = Functions::flattenSingleValue($x);
+        $places = Functions::flattenSingleValue($places);
+
+        if (is_bool($x)) {
+            return Functions::VALUE();
+        }
+        $x = (string) $x;
+        if (strlen($x) > preg_match_all('/[0123456789ABCDEF]/', strtoupper($x), $out)) {
+            return Functions::NAN();
+        }
+
+        return self::DECTOBIN(self::HEXTODEC($x), $places);
     }
 
     /**
@@ -365,11 +719,7 @@ class Engineering
      * Excel Function:
      *        HEX2DEC(x)
      *
-     * @deprecated 1.17.0
-     *      Use the toDecimal() method in the Engineering\ConvertHex class instead
-     * @see Engineering\ConvertHex::toDecimal()
-     *
-     * @param mixed $x The hexadecimal number (as a string) that you want to convert. This number cannot
+     * @param string $x The hexadecimal number you want to convert. This number cannot
      *                                contain more than 10 characters (40 bits). The most significant
      *                                bit of number is the sign bit. The remaining 39 bits are magnitude
      *                                bits. Negative numbers are represented using two's-complement
@@ -377,11 +727,37 @@ class Engineering
      *                                If number is not a valid hexadecimal number, HEX2DEC returns the
      *                                #NUM! error value.
      *
-     * @return array|string
+     * @return string
      */
     public static function HEXTODEC($x)
     {
-        return Engineering\ConvertHex::toDecimal($x);
+        $x = Functions::flattenSingleValue($x);
+
+        if (is_bool($x)) {
+            return Functions::VALUE();
+        }
+        $x = (string) $x;
+        if (strlen($x) > preg_match_all('/[0123456789ABCDEF]/', strtoupper($x), $out)) {
+            return Functions::NAN();
+        }
+
+        if (strlen($x) > 10) {
+            return Functions::NAN();
+        }
+
+        $binX = '';
+        foreach (str_split($x) as $char) {
+            $binX .= str_pad(base_convert($char, 16, 2), 4, '0', STR_PAD_LEFT);
+        }
+        if (strlen($binX) == 40 && $binX[0] == '1') {
+            for ($i = 0; $i < 40; ++$i) {
+                $binX[$i] = ($binX[$i] == '1' ? '0' : '1');
+            }
+
+            return (bindec($binX) + 1) * -1;
+        }
+
+        return bindec($binX);
     }
 
     /**
@@ -392,11 +768,7 @@ class Engineering
      * Excel Function:
      *        HEX2OCT(x[,places])
      *
-     * @deprecated 1.17.0
-     *      Use the toOctal() method in the Engineering\ConvertHex class instead
-     * @see Engineering\ConvertHex::toOctal()
-     *
-     * @param mixed $x The hexadecimal number (as a string) that you want to convert. Number cannot
+     * @param string $x The hexadecimal number you want to convert. Number cannot
      *                                    contain more than 10 characters. The most significant bit of
      *                                    number is the sign bit. The remaining 39 bits are magnitude
      *                                    bits. Negative numbers are represented using two's-complement
@@ -409,7 +781,7 @@ class Engineering
      *                                    the #NUM! error value.
      *                                    If HEX2OCT requires more than places characters, it returns
      *                                    the #NUM! error value.
-     * @param mixed $places The number of characters to use. If places is omitted, HEX2OCT
+     * @param int $places The number of characters to use. If places is omitted, HEX2OCT
      *                                    uses the minimum number of characters necessary. Places is
      *                                    useful for padding the return value with leading 0s (zeros).
      *                                    If places is not an integer, it is truncated.
@@ -417,11 +789,27 @@ class Engineering
      *                                    value.
      *                                    If places is negative, HEX2OCT returns the #NUM! error value.
      *
-     * @return array|string
+     * @return string
      */
     public static function HEXTOOCT($x, $places = null)
     {
-        return Engineering\ConvertHex::toOctal($x, $places);
+        $x = Functions::flattenSingleValue($x);
+        $places = Functions::flattenSingleValue($places);
+
+        if (is_bool($x)) {
+            return Functions::VALUE();
+        }
+        $x = (string) $x;
+        if (strlen($x) > preg_match_all('/[0123456789ABCDEF]/', strtoupper($x), $out)) {
+            return Functions::NAN();
+        }
+
+        $decimal = self::HEXTODEC($x);
+        if ($decimal < -536870912 || $decimal > 536870911) {
+            return Functions::NAN();
+        }
+
+        return self::DECTOOCT($decimal, $places);
     }
 
     /**
@@ -432,11 +820,7 @@ class Engineering
      * Excel Function:
      *        OCT2BIN(x[,places])
      *
-     * @deprecated 1.17.0
-     *      Use the toBinary() method in the Engineering\ConvertOctal class instead
-     * @see Engineering\ConvertOctal::toBinary()
-     *
-     * @param mixed $x The octal number you want to convert. Number may not
+     * @param string $x The octal number you want to convert. Number may not
      *                                    contain more than 10 characters. The most significant
      *                                    bit of number is the sign bit. The remaining 29 bits
      *                                    are magnitude bits. Negative numbers are represented
@@ -449,7 +833,7 @@ class Engineering
      *                                    the #NUM! error value.
      *                                    If OCT2BIN requires more than places characters, it
      *                                    returns the #NUM! error value.
-     * @param mixed $places The number of characters to use. If places is omitted,
+     * @param int $places The number of characters to use. If places is omitted,
      *                                    OCT2BIN uses the minimum number of characters necessary.
      *                                    Places is useful for padding the return value with
      *                                    leading 0s (zeros).
@@ -459,11 +843,22 @@ class Engineering
      *                                    If places is negative, OCT2BIN returns the #NUM! error
      *                                    value.
      *
-     * @return array|string
+     * @return string
      */
     public static function OCTTOBIN($x, $places = null)
     {
-        return Engineering\ConvertOctal::toBinary($x, $places);
+        $x = Functions::flattenSingleValue($x);
+        $places = Functions::flattenSingleValue($places);
+
+        if (is_bool($x)) {
+            return Functions::VALUE();
+        }
+        $x = (string) $x;
+        if (preg_match_all('/[01234567]/', $x, $out) != strlen($x)) {
+            return Functions::NAN();
+        }
+
+        return self::DECTOBIN(self::OCTTODEC($x), $places);
     }
 
     /**
@@ -474,11 +869,7 @@ class Engineering
      * Excel Function:
      *        OCT2DEC(x)
      *
-     * @deprecated 1.17.0
-     *      Use the toDecimal() method in the Engineering\ConvertOctal class instead
-     * @see Engineering\ConvertOctal::toDecimal()
-     *
-     * @param mixed $x The octal number you want to convert. Number may not contain
+     * @param string $x The octal number you want to convert. Number may not contain
      *                                more than 10 octal characters (30 bits). The most significant
      *                                bit of number is the sign bit. The remaining 29 bits are
      *                                magnitude bits. Negative numbers are represented using
@@ -486,11 +877,32 @@ class Engineering
      *                                If number is not a valid octal number, OCT2DEC returns the
      *                                #NUM! error value.
      *
-     * @return array|string
+     * @return string
      */
     public static function OCTTODEC($x)
     {
-        return Engineering\ConvertOctal::toDecimal($x);
+        $x = Functions::flattenSingleValue($x);
+
+        if (is_bool($x)) {
+            return Functions::VALUE();
+        }
+        $x = (string) $x;
+        if (preg_match_all('/[01234567]/', $x, $out) != strlen($x)) {
+            return Functions::NAN();
+        }
+        $binX = '';
+        foreach (str_split($x) as $char) {
+            $binX .= str_pad(decbin((int) $char), 3, '0', STR_PAD_LEFT);
+        }
+        if (strlen($binX) == 30 && $binX[0] == '1') {
+            for ($i = 0; $i < 30; ++$i) {
+                $binX[$i] = ($binX[$i] == '1' ? '0' : '1');
+            }
+
+            return (bindec($binX) + 1) * -1;
+        }
+
+        return bindec($binX);
     }
 
     /**
@@ -501,11 +913,7 @@ class Engineering
      * Excel Function:
      *        OCT2HEX(x[,places])
      *
-     * @deprecated 1.17.0
-     *      Use the toHex() method in the Engineering\ConvertOctal class instead
-     * @see Engineering\ConvertOctal::toHex()
-     *
-     * @param mixed $x The octal number you want to convert. Number may not contain
+     * @param string $x The octal number you want to convert. Number may not contain
      *                                    more than 10 octal characters (30 bits). The most significant
      *                                    bit of number is the sign bit. The remaining 29 bits are
      *                                    magnitude bits. Negative numbers are represented using
@@ -516,18 +924,30 @@ class Engineering
      *                                    #NUM! error value.
      *                                    If OCT2HEX requires more than places characters, it returns
      *                                    the #NUM! error value.
-     * @param mixed $places The number of characters to use. If places is omitted, OCT2HEX
+     * @param int $places The number of characters to use. If places is omitted, OCT2HEX
      *                                    uses the minimum number of characters necessary. Places is useful
      *                                    for padding the return value with leading 0s (zeros).
      *                                    If places is not an integer, it is truncated.
      *                                    If places is nonnumeric, OCT2HEX returns the #VALUE! error value.
      *                                    If places is negative, OCT2HEX returns the #NUM! error value.
      *
-     * @return array|string
+     * @return string
      */
     public static function OCTTOHEX($x, $places = null)
     {
-        return Engineering\ConvertOctal::toHex($x, $places);
+        $x = Functions::flattenSingleValue($x);
+        $places = Functions::flattenSingleValue($places);
+
+        if (is_bool($x)) {
+            return Functions::VALUE();
+        }
+        $x = (string) $x;
+        if (preg_match_all('/[01234567]/', $x, $out) != strlen($x)) {
+            return Functions::NAN();
+        }
+        $hexVal = strtoupper(dechex(self::OCTTODEC($x)));
+
+        return self::nbrConversionFormat($hexVal, $places);
     }
 
     /**
@@ -538,20 +958,29 @@ class Engineering
      * Excel Function:
      *        COMPLEX(realNumber,imaginary[,suffix])
      *
-     * @deprecated 1.18.0
-     *      Use the COMPLEX() method in the Engineering\Complex class instead
-     * @see Engineering\Complex::COMPLEX()
-     *
-     * @param array|float $realNumber the real coefficient of the complex number
-     * @param array|float $imaginary the imaginary coefficient of the complex number
-     * @param array|string $suffix The suffix for the imaginary component of the complex number.
+     * @param float $realNumber the real coefficient of the complex number
+     * @param float $imaginary the imaginary coefficient of the complex number
+     * @param string $suffix The suffix for the imaginary component of the complex number.
      *                                        If omitted, the suffix is assumed to be "i".
      *
-     * @return array|string
+     * @return string
      */
     public static function COMPLEX($realNumber = 0.0, $imaginary = 0.0, $suffix = 'i')
     {
-        return Engineering\Complex::COMPLEX($realNumber, $imaginary, $suffix);
+        $realNumber = ($realNumber === null) ? 0.0 : Functions::flattenSingleValue($realNumber);
+        $imaginary = ($imaginary === null) ? 0.0 : Functions::flattenSingleValue($imaginary);
+        $suffix = ($suffix === null) ? 'i' : Functions::flattenSingleValue($suffix);
+
+        if (
+            ((is_numeric($realNumber)) && (is_numeric($imaginary))) &&
+            (($suffix == 'i') || ($suffix == 'j') || ($suffix == ''))
+        ) {
+            $complex = new Complex($realNumber, $imaginary, $suffix);
+
+            return (string) $complex;
+        }
+
+        return Functions::VALUE();
     }
 
     /**
@@ -562,18 +991,16 @@ class Engineering
      * Excel Function:
      *        IMAGINARY(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMAGINARY() method in the Engineering\Complex class instead
-     * @see Engineering\Complex::IMAGINARY()
-     *
      * @param string $complexNumber the complex number for which you want the imaginary
      *                                         coefficient
      *
-     * @return array|float|string
+     * @return float
      */
     public static function IMAGINARY($complexNumber)
     {
-        return Engineering\Complex::IMAGINARY($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        return (new Complex($complexNumber))->getImaginary();
     }
 
     /**
@@ -584,17 +1011,15 @@ class Engineering
      * Excel Function:
      *        IMREAL(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMREAL() method in the Engineering\Complex class instead
-     * @see Engineering\Complex::IMREAL()
-     *
      * @param string $complexNumber the complex number for which you want the real coefficient
      *
-     * @return array|float|string
+     * @return float
      */
     public static function IMREAL($complexNumber)
     {
-        return Engineering\Complex::IMREAL($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        return (new Complex($complexNumber))->getReal();
     }
 
     /**
@@ -605,17 +1030,15 @@ class Engineering
      * Excel Function:
      *        IMABS(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMABS() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMABS()
-     *
      * @param string $complexNumber the complex number for which you want the absolute value
      *
-     * @return array|float|string
+     * @return float
      */
     public static function IMABS($complexNumber)
     {
-        return ComplexFunctions::IMABS($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        return (new Complex($complexNumber))->abs();
     }
 
     /**
@@ -627,17 +1050,20 @@ class Engineering
      * Excel Function:
      *        IMARGUMENT(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMARGUMENT() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMARGUMENT()
+     * @param string $complexNumber the complex number for which you want the argument theta
      *
-     * @param array|string $complexNumber the complex number for which you want the argument theta
-     *
-     * @return array|float|string
+     * @return float|string
      */
     public static function IMARGUMENT($complexNumber)
     {
-        return ComplexFunctions::IMARGUMENT($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        $complex = new Complex($complexNumber);
+        if ($complex->getReal() == 0.0 && $complex->getImaginary() == 0.0) {
+            return Functions::DIV0();
+        }
+
+        return $complex->argument();
     }
 
     /**
@@ -648,17 +1074,15 @@ class Engineering
      * Excel Function:
      *        IMCONJUGATE(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMCONJUGATE() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMCONJUGATE()
+     * @param string $complexNumber the complex number for which you want the conjugate
      *
-     * @param array|string $complexNumber the complex number for which you want the conjugate
-     *
-     * @return array|string
+     * @return string
      */
     public static function IMCONJUGATE($complexNumber)
     {
-        return ComplexFunctions::IMCONJUGATE($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        return (string) (new Complex($complexNumber))->conjugate();
     }
 
     /**
@@ -669,17 +1093,15 @@ class Engineering
      * Excel Function:
      *        IMCOS(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMCOS() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMCOS()
+     * @param string $complexNumber the complex number for which you want the cosine
      *
-     * @param array|string $complexNumber the complex number for which you want the cosine
-     *
-     * @return array|float|string
+     * @return float|string
      */
     public static function IMCOS($complexNumber)
     {
-        return ComplexFunctions::IMCOS($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        return (string) (new Complex($complexNumber))->cos();
     }
 
     /**
@@ -690,17 +1112,15 @@ class Engineering
      * Excel Function:
      *        IMCOSH(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMCOSH() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMCOSH()
+     * @param string $complexNumber the complex number for which you want the hyperbolic cosine
      *
-     * @param array|string $complexNumber the complex number for which you want the hyperbolic cosine
-     *
-     * @return array|float|string
+     * @return float|string
      */
     public static function IMCOSH($complexNumber)
     {
-        return ComplexFunctions::IMCOSH($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        return (string) (new Complex($complexNumber))->cosh();
     }
 
     /**
@@ -711,17 +1131,15 @@ class Engineering
      * Excel Function:
      *        IMCOT(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMCOT() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMCOT()
+     * @param string $complexNumber the complex number for which you want the cotangent
      *
-     * @param array|string $complexNumber the complex number for which you want the cotangent
-     *
-     * @return array|float|string
+     * @return float|string
      */
     public static function IMCOT($complexNumber)
     {
-        return ComplexFunctions::IMCOT($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        return (string) (new Complex($complexNumber))->cot();
     }
 
     /**
@@ -732,17 +1150,15 @@ class Engineering
      * Excel Function:
      *        IMCSC(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMCSC() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMCSC()
+     * @param string $complexNumber the complex number for which you want the cosecant
      *
-     * @param array|string $complexNumber the complex number for which you want the cosecant
-     *
-     * @return array|float|string
+     * @return float|string
      */
     public static function IMCSC($complexNumber)
     {
-        return ComplexFunctions::IMCSC($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        return (string) (new Complex($complexNumber))->csc();
     }
 
     /**
@@ -753,17 +1169,15 @@ class Engineering
      * Excel Function:
      *        IMCSCH(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMCSCH() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMCSCH()
+     * @param string $complexNumber the complex number for which you want the hyperbolic cosecant
      *
-     * @param array|string $complexNumber the complex number for which you want the hyperbolic cosecant
-     *
-     * @return array|float|string
+     * @return float|string
      */
     public static function IMCSCH($complexNumber)
     {
-        return ComplexFunctions::IMCSCH($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        return (string) (new Complex($complexNumber))->csch();
     }
 
     /**
@@ -774,17 +1188,15 @@ class Engineering
      * Excel Function:
      *        IMSIN(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMSIN() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMSIN()
-     *
      * @param string $complexNumber the complex number for which you want the sine
      *
-     * @return array|float|string
+     * @return float|string
      */
     public static function IMSIN($complexNumber)
     {
-        return ComplexFunctions::IMSIN($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        return (string) (new Complex($complexNumber))->sin();
     }
 
     /**
@@ -795,17 +1207,15 @@ class Engineering
      * Excel Function:
      *        IMSINH(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMSINH() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMSINH()
-     *
      * @param string $complexNumber the complex number for which you want the hyperbolic sine
      *
-     * @return array|float|string
+     * @return float|string
      */
     public static function IMSINH($complexNumber)
     {
-        return ComplexFunctions::IMSINH($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        return (string) (new Complex($complexNumber))->sinh();
     }
 
     /**
@@ -816,17 +1226,15 @@ class Engineering
      * Excel Function:
      *        IMSEC(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMSEC() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMSEC()
-     *
      * @param string $complexNumber the complex number for which you want the secant
      *
-     * @return array|float|string
+     * @return float|string
      */
     public static function IMSEC($complexNumber)
     {
-        return ComplexFunctions::IMSEC($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        return (string) (new Complex($complexNumber))->sec();
     }
 
     /**
@@ -837,17 +1245,15 @@ class Engineering
      * Excel Function:
      *        IMSECH(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMSECH() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMSECH()
-     *
      * @param string $complexNumber the complex number for which you want the hyperbolic secant
      *
-     * @return array|float|string
+     * @return float|string
      */
     public static function IMSECH($complexNumber)
     {
-        return ComplexFunctions::IMSECH($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        return (string) (new Complex($complexNumber))->sech();
     }
 
     /**
@@ -858,17 +1264,15 @@ class Engineering
      * Excel Function:
      *        IMTAN(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMTAN() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMTAN()
-     *
      * @param string $complexNumber the complex number for which you want the tangent
      *
-     * @return array|float|string
+     * @return float|string
      */
     public static function IMTAN($complexNumber)
     {
-        return ComplexFunctions::IMTAN($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        return (string) (new Complex($complexNumber))->tan();
     }
 
     /**
@@ -879,17 +1283,20 @@ class Engineering
      * Excel Function:
      *        IMSQRT(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMSQRT() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMSQRT()
-     *
      * @param string $complexNumber the complex number for which you want the square root
      *
-     * @return array|string
+     * @return string
      */
     public static function IMSQRT($complexNumber)
     {
-        return ComplexFunctions::IMSQRT($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        $theta = self::IMARGUMENT($complexNumber);
+        if ($theta === Functions::DIV0()) {
+            return '0';
+        }
+
+        return (string) (new Complex($complexNumber))->sqrt();
     }
 
     /**
@@ -900,17 +1307,20 @@ class Engineering
      * Excel Function:
      *        IMLN(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMLN() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMLN()
-     *
      * @param string $complexNumber the complex number for which you want the natural logarithm
      *
-     * @return array|string
+     * @return string
      */
     public static function IMLN($complexNumber)
     {
-        return ComplexFunctions::IMLN($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        $complex = new Complex($complexNumber);
+        if ($complex->getReal() == 0.0 && $complex->getImaginary() == 0.0) {
+            return Functions::NAN();
+        }
+
+        return (string) (new Complex($complexNumber))->ln();
     }
 
     /**
@@ -921,17 +1331,20 @@ class Engineering
      * Excel Function:
      *        IMLOG10(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMLOG10() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMLOG10()
-     *
      * @param string $complexNumber the complex number for which you want the common logarithm
      *
-     * @return array|string
+     * @return string
      */
     public static function IMLOG10($complexNumber)
     {
-        return ComplexFunctions::IMLOG10($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        $complex = new Complex($complexNumber);
+        if ($complex->getReal() == 0.0 && $complex->getImaginary() == 0.0) {
+            return Functions::NAN();
+        }
+
+        return (string) (new Complex($complexNumber))->log10();
     }
 
     /**
@@ -942,17 +1355,20 @@ class Engineering
      * Excel Function:
      *        IMLOG2(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMLOG2() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMLOG2()
-     *
      * @param string $complexNumber the complex number for which you want the base-2 logarithm
      *
-     * @return array|string
+     * @return string
      */
     public static function IMLOG2($complexNumber)
     {
-        return ComplexFunctions::IMLOG2($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        $complex = new Complex($complexNumber);
+        if ($complex->getReal() == 0.0 && $complex->getImaginary() == 0.0) {
+            return Functions::NAN();
+        }
+
+        return (string) (new Complex($complexNumber))->log2();
     }
 
     /**
@@ -963,17 +1379,15 @@ class Engineering
      * Excel Function:
      *        IMEXP(complexNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMEXP() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMEXP()
-     *
      * @param string $complexNumber the complex number for which you want the exponential
      *
-     * @return array|string
+     * @return string
      */
     public static function IMEXP($complexNumber)
     {
-        return ComplexFunctions::IMEXP($complexNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+
+        return (string) (new Complex($complexNumber))->exp();
     }
 
     /**
@@ -984,18 +1398,21 @@ class Engineering
      * Excel Function:
      *        IMPOWER(complexNumber,realNumber)
      *
-     * @deprecated 1.18.0
-     *      Use the IMPOWER() method in the Engineering\ComplexFunctions class instead
-     * @see ComplexFunctions::IMPOWER()
-     *
      * @param string $complexNumber the complex number you want to raise to a power
      * @param float $realNumber the power to which you want to raise the complex number
      *
-     * @return array|string
+     * @return string
      */
     public static function IMPOWER($complexNumber, $realNumber)
     {
-        return ComplexFunctions::IMPOWER($complexNumber, $realNumber);
+        $complexNumber = Functions::flattenSingleValue($complexNumber);
+        $realNumber = Functions::flattenSingleValue($realNumber);
+
+        if (!is_numeric($realNumber)) {
+            return Functions::VALUE();
+        }
+
+        return (string) (new Complex($complexNumber))->pow($realNumber);
     }
 
     /**
@@ -1006,18 +1423,21 @@ class Engineering
      * Excel Function:
      *        IMDIV(complexDividend,complexDivisor)
      *
-     * @deprecated 1.18.0
-     *      Use the IMDIV() method in the Engineering\ComplexOperations class instead
-     * @see ComplexOperations::IMDIV()
-     *
      * @param string $complexDividend the complex numerator or dividend
      * @param string $complexDivisor the complex denominator or divisor
      *
-     * @return array|string
+     * @return string
      */
     public static function IMDIV($complexDividend, $complexDivisor)
     {
-        return ComplexOperations::IMDIV($complexDividend, $complexDivisor);
+        $complexDividend = Functions::flattenSingleValue($complexDividend);
+        $complexDivisor = Functions::flattenSingleValue($complexDivisor);
+
+        try {
+            return (string) (new Complex($complexDividend))->divideby(new Complex($complexDivisor));
+        } catch (ComplexException $e) {
+            return Functions::NAN();
+        }
     }
 
     /**
@@ -1028,18 +1448,21 @@ class Engineering
      * Excel Function:
      *        IMSUB(complexNumber1,complexNumber2)
      *
-     * @deprecated 1.18.0
-     *      Use the IMSUB() method in the Engineering\ComplexOperations class instead
-     * @see ComplexOperations::IMSUB()
-     *
      * @param string $complexNumber1 the complex number from which to subtract complexNumber2
      * @param string $complexNumber2 the complex number to subtract from complexNumber1
      *
-     * @return array|string
+     * @return string
      */
     public static function IMSUB($complexNumber1, $complexNumber2)
     {
-        return ComplexOperations::IMSUB($complexNumber1, $complexNumber2);
+        $complexNumber1 = Functions::flattenSingleValue($complexNumber1);
+        $complexNumber2 = Functions::flattenSingleValue($complexNumber2);
+
+        try {
+            return (string) (new Complex($complexNumber1))->subtract(new Complex($complexNumber2));
+        } catch (ComplexException $e) {
+            return Functions::NAN();
+        }
     }
 
     /**
@@ -1050,17 +1473,26 @@ class Engineering
      * Excel Function:
      *        IMSUM(complexNumber[,complexNumber[,...]])
      *
-     * @deprecated 1.18.0
-     *      Use the IMSUM() method in the Engineering\ComplexOperations class instead
-     * @see ComplexOperations::IMSUM()
-     *
      * @param string ...$complexNumbers Series of complex numbers to add
      *
      * @return string
      */
     public static function IMSUM(...$complexNumbers)
     {
-        return ComplexOperations::IMSUM(...$complexNumbers);
+        // Return value
+        $returnValue = new Complex(0.0);
+        $aArgs = Functions::flattenArray($complexNumbers);
+
+        try {
+            // Loop through the arguments
+            foreach ($aArgs as $complex) {
+                $returnValue = $returnValue->add(new Complex($complex));
+            }
+        } catch (ComplexException $e) {
+            return Functions::NAN();
+        }
+
+        return (string) $returnValue;
     }
 
     /**
@@ -1071,42 +1503,50 @@ class Engineering
      * Excel Function:
      *        IMPRODUCT(complexNumber[,complexNumber[,...]])
      *
-     * @deprecated 1.18.0
-     *      Use the IMPRODUCT() method in the Engineering\ComplexOperations class instead
-     * @see ComplexOperations::IMPRODUCT()
-     *
      * @param string ...$complexNumbers Series of complex numbers to multiply
      *
      * @return string
      */
     public static function IMPRODUCT(...$complexNumbers)
     {
-        return ComplexOperations::IMPRODUCT(...$complexNumbers);
+        // Return value
+        $returnValue = new Complex(1.0);
+        $aArgs = Functions::flattenArray($complexNumbers);
+
+        try {
+            // Loop through the arguments
+            foreach ($aArgs as $complex) {
+                $returnValue = $returnValue->multiply(new Complex($complex));
+            }
+        } catch (ComplexException $e) {
+            return Functions::NAN();
+        }
+
+        return (string) $returnValue;
     }
 
     /**
      * DELTA.
      *
      * Tests whether two values are equal. Returns 1 if number1 = number2; returns 0 otherwise.
-     * Use this function to filter a set of values. For example, by summing several DELTA
-     *     functions you calculate the count of equal pairs. This function is also known as the
-     *     Kronecker Delta function.
+     *    Use this function to filter a set of values. For example, by summing several DELTA
+     *    functions you calculate the count of equal pairs. This function is also known as the
+     * Kronecker Delta function.
      *
      *    Excel Function:
      *        DELTA(a[,b])
      *
-     * @deprecated 1.17.0
-     *      Use the DELTA() method in the Engineering\Compare class instead
-     * @see Engineering\Compare::DELTA()
-     *
      * @param float $a the first number
      * @param float $b The second number. If omitted, b is assumed to be zero.
      *
-     * @return array|int|string (string in the event of an error)
+     * @return int
      */
     public static function DELTA($a, $b = 0)
     {
-        return Engineering\Compare::DELTA($a, $b);
+        $a = Functions::flattenSingleValue($a);
+        $b = Functions::flattenSingleValue($b);
+
+        return (int) ($a == $b);
     }
 
     /**
@@ -1117,20 +1557,77 @@ class Engineering
      *
      *    Returns 1 if number >= step; returns 0 (zero) otherwise
      *    Use this function to filter a set of values. For example, by summing several GESTEP
-     *        functions you calculate the count of values that exceed a threshold.
-     *
-     * @deprecated 1.17.0
-     *      Use the GESTEP() method in the Engineering\Compare class instead
-     * @see Engineering\Compare::GESTEP()
+     * functions you calculate the count of values that exceed a threshold.
      *
      * @param float $number the value to test against step
-     * @param float $step The threshold value. If you omit a value for step, GESTEP uses zero.
+     * @param float $step The threshold value.
+     *                                    If you omit a value for step, GESTEP uses zero.
      *
-     * @return array|int|string (string in the event of an error)
+     * @return int
      */
     public static function GESTEP($number, $step = 0)
     {
-        return Engineering\Compare::GESTEP($number, $step);
+        $number = Functions::flattenSingleValue($number);
+        $step = Functions::flattenSingleValue($step);
+
+        return (int) ($number >= $step);
+    }
+
+    //
+    //    Private method to calculate the erf value
+    //
+    private static $twoSqrtPi = 1.128379167095512574;
+
+    public static function erfVal($x)
+    {
+        if (abs($x) > 2.2) {
+            return 1 - self::erfcVal($x);
+        }
+        $sum = $term = $x;
+        $xsqr = ($x * $x);
+        $j = 1;
+        do {
+            $term *= $xsqr / $j;
+            $sum -= $term / (2 * $j + 1);
+            ++$j;
+            $term *= $xsqr / $j;
+            $sum += $term / (2 * $j + 1);
+            ++$j;
+            if ($sum == 0.0) {
+                break;
+            }
+        } while (abs($term / $sum) > Functions::PRECISION);
+
+        return self::$twoSqrtPi * $sum;
+    }
+
+    /**
+     * Validate arguments passed to the bitwise functions.
+     *
+     * @param mixed $value
+     *
+     * @return int
+     */
+    private static function validateBitwiseArgument($value)
+    {
+        $value = Functions::flattenSingleValue($value);
+
+        if (is_int($value)) {
+            return $value;
+        } elseif (is_numeric($value)) {
+            if ($value == (int) ($value)) {
+                $value = (int) ($value);
+                if (($value > 2 ** 48 - 1) || ($value < 0)) {
+                    throw new Exception(Functions::NAN());
+                }
+
+                return $value;
+            }
+
+            throw new Exception(Functions::NAN());
+        }
+
+        throw new Exception(Functions::VALUE());
     }
 
     /**
@@ -1141,18 +1638,21 @@ class Engineering
      * Excel Function:
      *        BITAND(number1, number2)
      *
-     * @deprecated 1.17.0
-     *      Use the BITAND() method in the Engineering\BitWise class instead
-     * @see Engineering\BitWise::BITAND()
-     *
      * @param int $number1
      * @param int $number2
      *
-     * @return array|int|string
+     * @return int|string
      */
     public static function BITAND($number1, $number2)
     {
-        return Engineering\BitWise::BITAND($number1, $number2);
+        try {
+            $number1 = self::validateBitwiseArgument($number1);
+            $number2 = self::validateBitwiseArgument($number2);
+        } catch (Exception $e) {
+            return $e->getMessage();
+        }
+
+        return $number1 & $number2;
     }
 
     /**
@@ -1163,18 +1663,21 @@ class Engineering
      * Excel Function:
      *        BITOR(number1, number2)
      *
-     * @deprecated 1.17.0
-     *      Use the BITOR() method in the Engineering\BitWise class instead
-     * @see Engineering\BitWise::BITOR()
-     *
      * @param int $number1
      * @param int $number2
      *
-     * @return array|int|string
+     * @return int|string
      */
     public static function BITOR($number1, $number2)
     {
-        return Engineering\BitWise::BITOR($number1, $number2);
+        try {
+            $number1 = self::validateBitwiseArgument($number1);
+            $number2 = self::validateBitwiseArgument($number2);
+        } catch (Exception $e) {
+            return $e->getMessage();
+        }
+
+        return $number1 | $number2;
     }
 
     /**
@@ -1185,18 +1688,21 @@ class Engineering
      * Excel Function:
      *        BITXOR(number1, number2)
      *
-     * @deprecated 1.17.0
-     *      Use the BITXOR() method in the Engineering\BitWise class instead
-     * @see Engineering\BitWise::BITXOR()
-     *
      * @param int $number1
      * @param int $number2
      *
-     * @return array|int|string
+     * @return int|string
      */
     public static function BITXOR($number1, $number2)
     {
-        return Engineering\BitWise::BITXOR($number1, $number2);
+        try {
+            $number1 = self::validateBitwiseArgument($number1);
+            $number2 = self::validateBitwiseArgument($number2);
+        } catch (Exception $e) {
+            return $e->getMessage();
+        }
+
+        return $number1 ^ $number2;
     }
 
     /**
@@ -1207,18 +1713,27 @@ class Engineering
      * Excel Function:
      *        BITLSHIFT(number, shift_amount)
      *
-     * @deprecated 1.17.0
-     *      Use the BITLSHIFT() method in the Engineering\BitWise class instead
-     * @see Engineering\BitWise::BITLSHIFT()
-     *
      * @param int $number
      * @param int $shiftAmount
      *
-     * @return array|float|int|string
+     * @return int|string
      */
     public static function BITLSHIFT($number, $shiftAmount)
     {
-        return Engineering\BitWise::BITLSHIFT($number, $shiftAmount);
+        try {
+            $number = self::validateBitwiseArgument($number);
+        } catch (Exception $e) {
+            return $e->getMessage();
+        }
+
+        $shiftAmount = Functions::flattenSingleValue($shiftAmount);
+
+        $result = $number << $shiftAmount;
+        if ($result > 2 ** 48 - 1) {
+            return Functions::NAN();
+        }
+
+        return $result;
     }
 
     /**
@@ -1229,18 +1744,22 @@ class Engineering
      * Excel Function:
      *        BITRSHIFT(number, shift_amount)
      *
-     * @deprecated 1.17.0
-     *      Use the BITRSHIFT() method in the Engineering\BitWise class instead
-     * @see Engineering\BitWise::BITRSHIFT()
-     *
      * @param int $number
      * @param int $shiftAmount
      *
-     * @return array|float|int|string
+     * @return int|string
      */
     public static function BITRSHIFT($number, $shiftAmount)
     {
-        return Engineering\BitWise::BITRSHIFT($number, $shiftAmount);
+        try {
+            $number = self::validateBitwiseArgument($number);
+        } catch (Exception $e) {
+            return $e->getMessage();
+        }
+
+        $shiftAmount = Functions::flattenSingleValue($shiftAmount);
+
+        return $number >> $shiftAmount;
     }
 
     /**
@@ -1256,19 +1775,27 @@ class Engineering
      *    Excel Function:
      *        ERF(lower[,upper])
      *
-     * @deprecated 1.17.0
-     *      Use the ERF() method in the Engineering\Erf class instead
-     * @see Engineering\Erf::ERF()
-     *
      * @param float $lower lower bound for integrating ERF
      * @param float $upper upper bound for integrating ERF.
      *                                If omitted, ERF integrates between zero and lower_limit
      *
-     * @return array|float|string
+     * @return float|string
      */
     public static function ERF($lower, $upper = null)
     {
-        return Engineering\Erf::ERF($lower, $upper);
+        $lower = Functions::flattenSingleValue($lower);
+        $upper = Functions::flattenSingleValue($upper);
+
+        if (is_numeric($lower)) {
+            if ($upper === null) {
+                return self::erfVal($lower);
+            }
+            if (is_numeric($upper)) {
+                return self::erfVal($upper) - self::erfVal($lower);
+            }
+        }
+
+        return Functions::VALUE();
     }
 
     /**
@@ -1279,17 +1806,48 @@ class Engineering
      *    Excel Function:
      *        ERF.PRECISE(limit)
      *
-     * @deprecated 1.17.0
-     *      Use the ERFPRECISE() method in the Engineering\Erf class instead
-     * @see Engineering\Erf::ERFPRECISE()
-     *
      * @param float $limit bound for integrating ERF
      *
-     * @return array|float|string
+     * @return float|string
      */
     public static function ERFPRECISE($limit)
     {
-        return Engineering\Erf::ERFPRECISE($limit);
+        $limit = Functions::flattenSingleValue($limit);
+
+        return self::ERF($limit);
+    }
+
+    //
+    //    Private method to calculate the erfc value
+    //
+    private static $oneSqrtPi = 0.564189583547756287;
+
+    private static function erfcVal($x)
+    {
+        if (abs($x) < 2.2) {
+            return 1 - self::erfVal($x);
+        }
+        if ($x < 0) {
+            return 2 - self::ERFC(-$x);
+        }
+        $a = $n = 1;
+        $b = $c = $x;
+        $d = ($x * $x) + 0.5;
+        $q1 = $q2 = $b / $d;
+        $t = 0;
+        do {
+            $t = $a * $n + $b * $x;
+            $a = $b;
+            $b = $t;
+            $t = $c * $n + $d * $x;
+            $c = $d;
+            $d = $t;
+            $n += 0.5;
+            $q1 = $q2;
+            $q2 = $b / $d;
+        } while ((abs($q1 - $q2) / $q2) > Functions::PRECISION);
+
+        return self::$oneSqrtPi * exp(-$x * $x) * $q2;
     }
 
     /**
@@ -1305,26 +1863,26 @@ class Engineering
      *    Excel Function:
      *        ERFC(x)
      *
-     * @deprecated 1.17.0
-     *      Use the ERFC() method in the Engineering\ErfC class instead
-     * @see Engineering\ErfC::ERFC()
-     *
      * @param float $x The lower bound for integrating ERFC
      *
-     * @return array|float|string
+     * @return float|string
      */
     public static function ERFC($x)
     {
-        return Engineering\ErfC::ERFC($x);
+        $x = Functions::flattenSingleValue($x);
+
+        if (is_numeric($x)) {
+            return self::erfcVal($x);
+        }
+
+        return Functions::VALUE();
     }
 
     /**
      *    getConversionGroups
      * Returns a list of the different conversion groups for UOM conversions.
      *
-     * @deprecated 1.16.0
-     *      Use the getConversionCategories() method in the Engineering\ConvertUOM class instead
-     * @see Engineering\ConvertUOM::getConversionCategories()
+     * @Deprecated Use the getConversionCategories() method in the ConvertUOM class instead
      *
      * @return array
      */
@@ -1337,9 +1895,7 @@ class Engineering
      *    getConversionGroupUnits
      * Returns an array of units of measure, for a specified conversion group, or for all groups.
      *
-     * @deprecated 1.16.0
-     *      Use the getConversionCategoryUnits() method in the ConvertUOM class instead
-     * @see Engineering\ConvertUOM::getConversionCategoryUnits()
+     * @Deprecated Use the getConversionCategoryUnits() method in the ConvertUOM class instead
      *
      * @param null|mixed $category
      *
@@ -1353,9 +1909,7 @@ class Engineering
     /**
      * getConversionGroupUnitDetails.
      *
-     * @deprecated 1.16.0
-     *      Use the getConversionCategoryUnitDetails() method in the ConvertUOM class instead
-     * @see Engineering\ConvertUOM::getConversionCategoryUnitDetails()
+     * @Deprecated Use the getConversionCategoryUnitDetails() method in the ConvertUOM class instead
      *
      * @param null|mixed $category
      *
@@ -1370,11 +1924,9 @@ class Engineering
      *    getConversionMultipliers
      * Returns an array of the Multiplier prefixes that can be used with Units of Measure in CONVERTUOM().
      *
-     * @deprecated 1.16.0
-     *      Use the getConversionMultipliers() method in the ConvertUOM class instead
-     * @see Engineering\ConvertUOM::getConversionMultipliers()
+     * @Deprecated Use the getConversionMultipliers() method in the ConvertUOM class instead
      *
-     * @return mixed[]
+     * @return array of mixed
      */
     public static function getConversionMultipliers()
     {
@@ -1382,16 +1934,12 @@ class Engineering
     }
 
     /**
-     *    getBinaryConversionMultipliers.
+     *    getBinaryConversionMultipliers
+     * Returns an array of the additional Multiplier prefixes that can be used with Information Units of Measure in CONVERTUOM().
      *
-     * Returns an array of the additional Multiplier prefixes that can be used with Information Units of Measure
-     *     in CONVERTUOM().
+     * @Deprecated Use the getBinaryConversionMultipliers() method in the ConvertUOM class instead
      *
-     * @deprecated 1.16.0
-     *      Use the getBinaryConversionMultipliers() method in the ConvertUOM class instead
-     * @see Engineering\ConvertUOM::getBinaryConversionMultipliers()
-     *
-     * @return mixed[]
+     * @return array of mixed
      */
     public static function getBinaryConversionMultipliers()
     {
@@ -1408,15 +1956,13 @@ class Engineering
      *    Excel Function:
      *        CONVERT(value,fromUOM,toUOM)
      *
-     * @deprecated 1.16.0
-     *      Use the CONVERT() method in the ConvertUOM class instead
-     * @see Engineering\ConvertUOM::CONVERT()
+     * @Deprecated Use the CONVERT() method in the ConvertUOM class instead
      *
      * @param float|int $value the value in fromUOM to convert
      * @param string $fromUOM the units for value
      * @param string $toUOM the units for the result
      *
-     * @return array|float|string
+     * @return float|string
      */
     public static function CONVERTUOM($value, $fromUOM, $toUOM)
     {

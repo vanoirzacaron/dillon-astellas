@@ -20,8 +20,10 @@ namespace mod_quiz\completion;
 
 use context_module;
 use core_completion\activity_custom_completion;
-use mod_quiz\quiz_settings;
-use mod_quiz\access_manager;
+use grade_grade;
+use grade_item;
+use quiz;
+use quiz_access_manager;
 
 /**
  * Activity custom completion subclass for the quiz activity.
@@ -46,14 +48,23 @@ class custom_completion extends activity_custom_completion {
 
         $completionpassorattempts = $this->cm->customdata['customcompletionrules']['completionpassorattemptsexhausted'];
 
-        if (empty($completionpassorattempts['completionpassgrade'])) {
+        if (empty($completionpassorattempts['completionpass'])) {
             return true;
         }
 
-        if ($this->completionstate &&
-                isset($this->completionstate['passgrade']) &&
-                $this->completionstate['passgrade'] == COMPLETION_COMPLETE_PASS) {
-            return true;
+        // Check for passing grade.
+        $item = grade_item::fetch([
+            'courseid' => $this->cm->get_course()->id,
+            'itemtype' => 'mod',
+            'itemmodule' => 'quiz',
+            'iteminstance' => $this->cm->instance,
+            'outcomeid' => null
+        ]);
+        if ($item) {
+            $grades = grade_grade::fetch_users_grades($item, [$this->userid], false);
+            if (!empty($grades[$this->userid]) && $grades[$this->userid]->is_passed($item)) {
+                return true;
+            }
         }
 
         // If a passing grade is required and exhausting all available attempts is not accepted for completion,
@@ -69,8 +80,8 @@ class custom_completion extends activity_custom_completion {
         }
         $lastfinishedattempt = end($attempts);
         $context = context_module::instance($this->cm->id);
-        $quizobj = quiz_settings::create((int) $this->cm->instance, $this->userid);
-        $accessmanager = new access_manager(
+        $quizobj = quiz::create($this->cm->instance, $this->userid);
+        $accessmanager = new quiz_access_manager(
             $quizobj,
             time(),
             has_capability('mod/quiz:ignoretimelimits', $context, $this->userid, false)
@@ -135,15 +146,18 @@ class custom_completion extends activity_custom_completion {
      */
     public function get_custom_rule_descriptions(): array {
         $minattempts = $this->cm->customdata['customcompletionrules']['completionminattempts'] ?? 0;
-        $description['completionminattempts'] = get_string('completiondetail:minattempts', 'mod_quiz', $minattempts);
 
-        // Completion pass grade is now part of core. Only show the following if it's combined with min attempts.
         $completionpassorattempts = $this->cm->customdata['customcompletionrules']['completionpassorattemptsexhausted'] ?? [];
         if (!empty($completionpassorattempts['completionattemptsexhausted'])) {
-            $description['completionpassorattemptsexhausted'] = get_string('completiondetail:passorexhaust', 'mod_quiz');
+            $passorallattemptslabel = get_string('completiondetail:passorexhaust', 'mod_quiz');
+        } else {
+            $passorallattemptslabel = get_string('completiondetail:passgrade', 'mod_quiz');
         }
 
-        return $description;
+        return [
+            'completionpassorattemptsexhausted' => $passorallattemptslabel,
+            'completionminattempts' => get_string('completiondetail:minattempts', 'mod_quiz', $minattempts),
+        ];
     }
 
     /**
@@ -156,7 +170,6 @@ class custom_completion extends activity_custom_completion {
             'completionview',
             'completionminattempts',
             'completionusegrade',
-            'completionpassgrade',
             'completionpassorattemptsexhausted',
         ];
     }

@@ -111,23 +111,10 @@ abstract class question_state {
     }
 
     /**
-     * Get the instance of this class for a given state name.
-     *
      * @param string $name a state name.
-     * @return question_state|null the state with that name. (Null only in an exceptional case.)
+     * @return question_state the state with that name.
      */
-    public static function get(string $name): ?question_state {
-        // In the past, there was a bug where null states got stored
-        // in the database as an empty string, which was wrong because
-        // the state column should be NOT NULL.
-        // That is no longer possible, but we need to avoid exceptions
-        // for people with old bad data in their database.
-        if ($name === '') {
-            debugging('Attempt to create a state from an empty string. ' .
-                'This is probably a sign of bad data in your database. See MDL-80127.');
-            return null;
-        }
-
+    public static function get($name) {
         return self::$$name;
     }
 

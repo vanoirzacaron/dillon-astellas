@@ -83,7 +83,7 @@ function glossary_add_instance($glossary) {
     //Check displayformat is a valid one
     $formats = get_list_of_plugins('mod/glossary/formats','TEMPLATE');
     if (!in_array($glossary->displayformat, $formats)) {
-        throw new \moodle_exception('unknowformat', '', '', $glossary->displayformat);
+        print_error('unknowformat', '', '', $glossary->displayformat);
     }
 
     $returnid = $DB->insert_record("glossary", $glossary);
@@ -130,7 +130,7 @@ function glossary_update_instance($glossary) {
     //Check displayformat is a valid one
     $formats = get_list_of_plugins('mod/glossary/formats','TEMPLATE');
     if (!in_array($glossary->displayformat, $formats)) {
-        throw new \moodle_exception('unknowformat', '', '', $glossary->displayformat);
+        print_error('unknowformat', '', '', $glossary->displayformat);
     }
 
     $DB->update_record("glossary", $glossary);
@@ -1009,8 +1009,8 @@ function glossary_get_entries($glossaryid, $entrylist, $pivot = "") {
 /**
  * @global object
  * @global object
- * @param string $concept
- * @param int $courseid
+ * @param object $concept
+ * @param string $courseid
  * @return array
  */
 function glossary_get_entries_search($concept, $courseid) {
@@ -2194,13 +2194,13 @@ function glossary_print_dynaentry($courseid, $entries, $displayformat = -1) {
     if ( $entries ) {
         foreach ( $entries as $entry ) {
             if (! $glossary = $DB->get_record('glossary', array('id'=>$entry->glossaryid))) {
-                throw new \moodle_exception('invalidid', 'glossary');
+                print_error('invalidid', 'glossary');
             }
             if (! $course = $DB->get_record('course', array('id'=>$glossary->course))) {
-                throw new \moodle_exception('coursemisconf');
+                print_error('coursemisconf');
             }
             if (!$cm = get_coursemodule_from_instance('glossary', $entry->glossaryid, $glossary->course) ) {
-                throw new \moodle_exception('invalidid', 'glossary');
+                print_error('invalidid', 'glossary');
             }
 
             //If displayformat is present, override glossary->displayformat
@@ -2791,7 +2791,7 @@ function glossary_get_post_actions() {
 /**
  * Implementation of the function for printing the form elements that control
  * whether the course reset functionality affects the glossary.
- * @param MoodleQuickForm $mform form passed by reference
+ * @param object $mform form passed by reference
  */
 function glossary_reset_course_form_definition(&$mform) {
     $mform->addElement('header', 'glossaryheader', get_string('modulenameplural', 'glossary'));
@@ -3084,7 +3084,7 @@ function glossary_get_extra_capabilities() {
 
 /**
  * @param string $feature FEATURE_xx constant for requested feature
- * @return mixed True if module supports feature, false if not, null if doesn't know or string for the module purpose.
+ * @return mixed True if module supports feature, null if doesn't know
  */
 function glossary_supports($feature) {
     switch($feature) {
@@ -3099,7 +3099,6 @@ function glossary_supports($feature) {
         case FEATURE_BACKUP_MOODLE2:          return true;
         case FEATURE_SHOW_DESCRIPTION:        return true;
         case FEATURE_COMMENT:                 return true;
-        case FEATURE_MOD_PURPOSE:             return MOD_PURPOSE_COLLABORATION;
 
         default: return null;
     }
@@ -3142,52 +3141,36 @@ function glossary_extend_navigation($navigation, $course, $module, $cm) {
  * @param navigation_node $glossarynode The node to add module settings to
  */
 function glossary_extend_settings_navigation(settings_navigation $settings, navigation_node $glossarynode) {
-    global $DB, $CFG, $USER;
+    global $PAGE, $DB, $CFG, $USER;
 
     $mode = optional_param('mode', '', PARAM_ALPHA);
     $hook = optional_param('hook', 'ALL', PARAM_CLEAN);
 
-    if (has_capability('mod/glossary:import', $settings->get_page()->cm->context)) {
-        $node = $glossarynode->add(get_string('importentries', 'glossary'),
-            new moodle_url('/mod/glossary/import.php', ['id' => $settings->get_page()->cm->id]));
-        $node->set_show_in_secondary_navigation(false);
+    if (has_capability('mod/glossary:import', $PAGE->cm->context)) {
+        $glossarynode->add(get_string('importentries', 'glossary'), new moodle_url('/mod/glossary/import.php', array('id'=>$PAGE->cm->id)));
     }
 
-    if (has_capability('mod/glossary:export', $settings->get_page()->cm->context)) {
-        $node = $glossarynode->add(get_string('exportentries', 'glossary'),
-            new moodle_url('/mod/glossary/export.php', ['id' => $settings->get_page()->cm->id, 'mode' => $mode,
-            'hook' => $hook]));
-        $node->set_show_in_secondary_navigation(false);
+    if (has_capability('mod/glossary:export', $PAGE->cm->context)) {
+        $glossarynode->add(get_string('exportentries', 'glossary'), new moodle_url('/mod/glossary/export.php', array('id'=>$PAGE->cm->id, 'mode'=>$mode, 'hook'=>$hook)));
     }
 
-    $glossary = $DB->get_record('glossary', array("id" => $settings->get_page()->cm->instance));
-    $hiddenentries = $DB->count_records('glossary_entries', ['glossaryid' => $settings->get_page()->cm->instance,
-        'approved' => 0]);
-
-    // Safe guard check - Ideally, there shouldn't be any hidden entries if the glossary has 'defaultapproval'.
-    if (has_capability('mod/glossary:approve', $settings->get_page()->cm->context) &&
-            (!$glossary->defaultapproval || $hiddenentries)) {
-        $glossarynode->add(get_string('pendingapprovalcount', 'glossary', $hiddenentries),
-            new moodle_url('/mod/glossary/view.php', ['id' => $settings->get_page()->cm->id, 'mode' => 'approval']),
-            navigation_node::TYPE_CUSTOM, null, 'pendingapproval');
+    if (has_capability('mod/glossary:approve', $PAGE->cm->context) && ($hiddenentries = $DB->count_records('glossary_entries', array('glossaryid'=>$PAGE->cm->instance, 'approved'=>0)))) {
+        $glossarynode->add(get_string('waitingapproval', 'glossary'), new moodle_url('/mod/glossary/view.php', array('id'=>$PAGE->cm->id, 'mode'=>'approval')));
     }
 
-    if (has_capability('mod/glossary:write', $settings->get_page()->cm->context)) {
-        $node = $glossarynode->add(get_string('addentry', 'glossary'),
-            new moodle_url('/mod/glossary/edit.php', ['cmid' => $settings->get_page()->cm->id]));
-        $node->set_show_in_secondary_navigation(false);
+    if (has_capability('mod/glossary:write', $PAGE->cm->context)) {
+        $glossarynode->add(get_string('addentry', 'glossary'), new moodle_url('/mod/glossary/edit.php', array('cmid'=>$PAGE->cm->id)));
     }
 
-    if (!empty($CFG->enablerssfeeds) && !empty($CFG->glossary_enablerssfeeds) && $glossary->rsstype &&
-            $glossary->rssarticles && has_capability('mod/glossary:view', $settings->get_page()->cm->context)) {
+    $glossary = $DB->get_record('glossary', array("id" => $PAGE->cm->instance));
+
+    if (!empty($CFG->enablerssfeeds) && !empty($CFG->glossary_enablerssfeeds) && $glossary->rsstype && $glossary->rssarticles && has_capability('mod/glossary:view', $PAGE->cm->context)) {
         require_once("$CFG->libdir/rsslib.php");
 
         $string = get_string('rsstype', 'glossary');
 
-        $url = new moodle_url(rss_get_url($settings->get_page()->cm->context->id, $USER->id, 'mod_glossary',
-            $glossary->id));
-        $node = $glossarynode->add($string, $url, settings_navigation::TYPE_SETTING, null, null, new pix_icon('i/rss', ''));
-        $node->set_show_in_secondary_navigation(false);
+        $url = new moodle_url(rss_get_url($PAGE->cm->context->id, $USER->id, 'mod_glossary', $glossary->id));
+        $glossarynode->add($string, $url, settings_navigation::TYPE_SETTING, null, null, new pix_icon('i/rss', ''));
     }
 }
 
@@ -4374,7 +4357,7 @@ function mod_glossary_delete_entry($entry, $glossary, $cm, $context, $course, $h
     // If it is an imported entry, just delete the relation.
     if ($entry->sourceglossaryid) {
         if (!$newcm = get_coursemodule_from_instance('glossary', $entry->sourceglossaryid)) {
-            throw new \moodle_exception('invalidcoursemodule');
+            print_error('invalidcoursemodule');
         }
         $newcontext = context_module::instance($newcm->id);
 

@@ -81,9 +81,6 @@ class OAuthConsumer {
     public $key;
     public $secret;
 
-    /** @var string|null callback URL. */
-    public ?string $callback_url;
-
     function __construct($key, $secret, $callback_url = null) {
         $this->key = $key;
         $this->secret = $secret;
@@ -264,11 +261,6 @@ class OAuthSignatureMethod_RSA_SHA1 extends OAuthSignatureMethod {
 
         // Sign using the key
         $ok = openssl_sign($base_string, $signature, $privatekeyid);
-
-        // Avoid passing null values to base64_encode.
-        if (!$ok) {
-            throw new OAuthException("OpenSSL unable to sign data");
-        }
 
         // TODO: Remove this block once PHP 8.0 becomes required.
         if (PHP_MAJOR_VERSION < 8) {

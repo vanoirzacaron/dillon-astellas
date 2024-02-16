@@ -24,6 +24,8 @@
 
 namespace customcertelement_daterange\privacy;
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * Privacy Subsystem for customcertelement_daterange implementing null_provider.
  *

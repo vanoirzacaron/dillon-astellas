@@ -92,8 +92,7 @@ class exporters_content_item_test extends \advanced_testcase {
             '* First point
             * Another point',
             MOD_ARCHETYPE_OTHER,
-            'core_test',
-            MOD_PURPOSE_CONTENT
+            'core_test'
         );
 
         $ciexporter = new course_content_item_exporter($contentitem, ['context' => \context_course::instance($course->id)]);

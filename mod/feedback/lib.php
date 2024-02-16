@@ -52,7 +52,7 @@ require_once(__DIR__ . '/deprecatedlib.php');
  * @uses FEATURE_GRADE_HAS_GRADE
  * @uses FEATURE_GRADE_OUTCOMES
  * @param string $feature FEATURE_xx constant for requested feature
- * @return mixed True if module supports feature, false if not, null if doesn't know or string for the module purpose.
+ * @return mixed True if module supports feature, null if doesn't know
  */
 function feedback_supports($feature) {
     switch($feature) {
@@ -65,7 +65,6 @@ function feedback_supports($feature) {
         case FEATURE_GRADE_OUTCOMES:          return false;
         case FEATURE_BACKUP_MOODLE2:          return true;
         case FEATURE_SHOW_DESCRIPTION:        return true;
-        case FEATURE_MOD_PURPOSE:             return MOD_PURPOSE_COMMUNICATION;
 
         default: return null;
     }
@@ -496,7 +495,7 @@ function feedback_print_recent_mod_activity($activity, $courseid, $detail, $modn
     if ($detail) {
         $modname = $modnames[$activity->type];
         echo '<div class="title">';
-        echo $OUTPUT->image_icon('monologo', $modname, $activity->type);
+        echo $OUTPUT->image_icon('icon', $modname, $activity->type);
         echo "<a href=\"$CFG->wwwroot/mod/feedback/view.php?id={$activity->cmid}\">{$activity->name}</a>";
         echo '</div>';
     }
@@ -677,7 +676,7 @@ function feedback_reset_userdata($data) {
  *
  * @global object
  * @uses FEEDBACK_RESETFORM_RESET
- * @param MoodleQuickForm $mform form passed by reference
+ * @param object $mform form passed by reference
  */
 function feedback_reset_course_form_definition(&$mform) {
     global $COURSE, $DB;
@@ -1181,7 +1180,7 @@ function feedback_get_receivemail_users($cmid, $groups = false) {
  * @param int $courseid
  * @param string $name the name of template shown in the templatelist
  * @param int $ispublic 0:privat 1:public
- * @return stdClass the new template
+ * @return int the new templateid
  */
 function feedback_create_template($courseid, $name, $ispublic = 0) {
     global $DB;
@@ -1458,8 +1457,6 @@ function feedback_get_template_list($course, $onlyownorpublic = '') {
  */
 function feedback_get_item_class($typ) {
     global $CFG;
-
-    require_once($CFG->dirroot.'/mod/feedback/item/feedback_item_class.php');
 
     //get the class of item-typ
     $itemclass = 'feedback_item_'.$typ;
@@ -1968,7 +1965,7 @@ function feedback_delete_completedtmp() {
  *
  * @global object
  * @param int $feedbackid
- * @return int|false false if there already is a pagebreak on last position or the id of the pagebreak-item
+ * @return mixed false if there already is a pagebreak on last position or the id of the pagebreak-item
  */
 function feedback_create_pagebreak($feedbackid) {
     global $DB;
@@ -2787,7 +2784,7 @@ function feedback_send_email_html($info, $course, $cm) {
 function feedback_encode_target_url($url) {
     if (strpos($url, '?')) {
         list($part1, $part2) = explode('?', $url, 2); //maximal 2 parts
-        return $part1 . '?' . htmlentities($part2, ENT_COMPAT);
+        return $part1 . '?' . htmlentities($part2);
     } else {
         return $url;
     }
@@ -2799,55 +2796,64 @@ function feedback_encode_target_url($url) {
  * @param settings_navigation $settings The settings navigation object
  * @param navigation_node $feedbacknode The node to add module settings to
  */
-function feedback_extend_settings_navigation(settings_navigation $settings, navigation_node $feedbacknode) {
-    $hassecondary = $settings->get_page()->has_secondary_navigation();
-    if (!$context = context_module::instance($settings->get_page()->cm->id, IGNORE_MISSING)) {
-        throw new \moodle_exception('badcontext');
+function feedback_extend_settings_navigation(settings_navigation $settings,
+                                             navigation_node $feedbacknode) {
+
+    global $PAGE;
+
+    if (!$context = context_module::instance($PAGE->cm->id, IGNORE_MISSING)) {
+        print_error('badcontext');
     }
 
     if (has_capability('mod/feedback:edititems', $context)) {
-        $questionnode = $feedbacknode->add(get_string('questions', 'feedback'), null,
-            navigation_node::TYPE_CUSTOM, null, 'questionnode');
+        $questionnode = $feedbacknode->add(get_string('questions', 'feedback'));
+
         $questionnode->add(get_string('edit_items', 'feedback'),
-            new moodle_url('/mod/feedback/edit.php', ['id' => $settings->get_page()->cm->id]));
+                    new moodle_url('/mod/feedback/edit.php',
+                                    array('id' => $PAGE->cm->id,
+                                          'do_show' => 'edit')));
 
         $questionnode->add(get_string('export_questions', 'feedback'),
-            new moodle_url('/mod/feedback/export.php', ['id' => $settings->get_page()->cm->id, 'action' => 'exportfile']));
+                    new moodle_url('/mod/feedback/export.php',
+                                    array('id' => $PAGE->cm->id,
+                                          'action' => 'exportfile')));
 
         $questionnode->add(get_string('import_questions', 'feedback'),
-            new moodle_url('/mod/feedback/import.php', ['id' => $settings->get_page()->cm->id]));
+                    new moodle_url('/mod/feedback/import.php',
+                                    array('id' => $PAGE->cm->id)));
 
-        $feedbacknode->add(get_string('templates', 'feedback'),
-            new moodle_url('/mod/feedback/manage_templates.php', ['id' => $settings->get_page()->cm->id, 'mode' => 'manage']),
-            navigation_node::TYPE_CUSTOM, null, 'templatenode');
+        $questionnode->add(get_string('templates', 'feedback'),
+                    new moodle_url('/mod/feedback/edit.php',
+                                    array('id' => $PAGE->cm->id,
+                                          'do_show' => 'templates')));
     }
 
-    if (has_capability('mod/feedback:mapcourse', $context) && $settings->get_page()->course->id == SITEID) {
+    if (has_capability('mod/feedback:mapcourse', $context) && $PAGE->course->id == SITEID) {
         $feedbacknode->add(get_string('mappedcourses', 'feedback'),
-            new moodle_url('/mod/feedback/mapcourse.php', ['id' => $settings->get_page()->cm->id]),
-            navigation_node::TYPE_CUSTOM, null, 'mapcourse');
-    }
-
-    $feedback = $settings->get_page()->activityrecord;
-    if ($feedback->course == SITEID) {
-        $analysisnode = navigation_node::create(get_string('analysis', 'feedback'),
-            new moodle_url('/mod/feedback/analysis_course.php', ['id' => $settings->get_page()->cm->id]),
-            navigation_node::TYPE_CUSTOM, null, 'feedbackanalysis');
-    } else {
-        $analysisnode = navigation_node::create(get_string('analysis', 'feedback'),
-            new moodle_url('/mod/feedback/analysis.php', ['id' => $settings->get_page()->cm->id]),
-            navigation_node::TYPE_CUSTOM, null, 'feedbackanalysis');
+                    new moodle_url('/mod/feedback/mapcourse.php',
+                                    array('id' => $PAGE->cm->id)));
     }
 
     if (has_capability('mod/feedback:viewreports', $context)) {
-        $feedbacknode->add_node($analysisnode);
-        $feedbacknode->add(get_string(($hassecondary ? 'responses' : 'show_entries'), 'feedback'),
-            new moodle_url('/mod/feedback/show_entries.php', ['id' => $settings->get_page()->cm->id]),
-            navigation_node::TYPE_CUSTOM, null, 'responses');
-    } else {
-        $feedbackcompletion = new mod_feedback_completion($feedback, $context, $settings->get_page()->course->id);
-        if ($feedbackcompletion->can_view_analysis()) {
-            $feedbacknode->add_node($analysisnode);
+        $feedback = $PAGE->activityrecord;
+        if ($feedback->course == SITEID) {
+            $feedbacknode->add(get_string('analysis', 'feedback'),
+                    new moodle_url('/mod/feedback/analysis_course.php',
+                                    array('id' => $PAGE->cm->id)));
+        } else {
+            $feedbacknode->add(get_string('analysis', 'feedback'),
+                    new moodle_url('/mod/feedback/analysis.php',
+                                    array('id' => $PAGE->cm->id)));
+        }
+
+        $feedbacknode->add(get_string('show_entries', 'feedback'),
+                    new moodle_url('/mod/feedback/show_entries.php',
+                                    array('id' => $PAGE->cm->id)));
+
+        if ($feedback->anonymous == FEEDBACK_ANONYMOUS_NO AND $feedback->course != SITEID) {
+            $feedbacknode->add(get_string('show_nonrespondents', 'feedback'),
+                        new moodle_url('/mod/feedback/show_nonrespondents.php',
+                                        array('id' => $PAGE->cm->id)));
         }
     }
 }
@@ -3244,27 +3250,4 @@ function mod_feedback_core_calendar_event_timestart_updated(\calendar_event $eve
         $event = \core\event\course_module_updated::create_from_cm($coursemodule, $context);
         $event->trigger();
     }
-}
-
-/**
- * Callback to fetch the activity event type lang string.
- *
- * @param string $eventtype The event type.
- * @return lang_string The event type lang string.
- */
-function mod_feedback_core_calendar_get_event_action_string(string $eventtype): string {
-    $modulename = get_string('modulename', 'feedback');
-
-    switch ($eventtype) {
-        case FEEDBACK_EVENT_TYPE_OPEN:
-            $identifier = 'calendarstart';
-            break;
-        case FEEDBACK_EVENT_TYPE_CLOSE:
-            $identifier = 'calendarend';
-            break;
-        default:
-            return get_string('requiresaction', 'calendar', $modulename);
-    }
-
-    return get_string($identifier, 'feedback', $modulename);
 }

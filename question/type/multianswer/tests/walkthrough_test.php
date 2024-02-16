@@ -27,7 +27,6 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 require_once($CFG->dirroot . '/question/engine/tests/helpers.php');
-require_once($CFG->dirroot . '/question/type/multianswer/questiontype.php');
 
 
 /**
@@ -41,7 +40,7 @@ class walkthrough_test extends \qbehaviour_walkthrough_test_base {
 
     protected function get_contains_subq_status(question_state $state) {
         return new \question_pattern_expectation('~' .
-                preg_quote($state->default_string(true), '~') . '~');
+                preg_quote($state->default_string(true), '~') . '<br />~');
     }
 
     public function test_deferred_feedback() {

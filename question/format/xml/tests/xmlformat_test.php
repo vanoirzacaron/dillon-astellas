@@ -66,7 +66,8 @@ class xmlformat_test extends \question_testcase {
         $q->penalty = 0.3333333;
         $q->length = 1;
         $q->stamp = make_unique_id_code();
-        $q->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
+        $q->version = make_unique_id_code();
+        $q->hidden = 0;
         $q->timecreated = time();
         $q->timemodified = time();
         $q->createdby = $USER->id;
@@ -350,7 +351,7 @@ END;
         $qdata->defaultmark = 0;
         $qdata->length = 0;
         $qdata->penalty = 0;
-        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
+        $qdata->hidden = 0;
         $qdata->idnumber = null;
 
         $exporter = new qformat_xml();
@@ -578,7 +579,7 @@ END;
         $qdata->defaultmark = 1;
         $qdata->length = 1;
         $qdata->penalty = 0;
-        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
+        $qdata->hidden = 0;
         $qdata->idnumber = null;
         $qdata->options = new \stdClass();
         $qdata->options->id = 456;
@@ -750,7 +751,7 @@ END;
         $qdata->defaultmark = 1;
         $qdata->length = 1;
         $qdata->penalty = 0.3333333;
-        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
+        $qdata->hidden = 0;
         $qdata->idnumber = null;
 
         $qdata->options = new \stdClass();
@@ -983,7 +984,7 @@ END;
         $qdata->defaultmark = 2;
         $qdata->length = 1;
         $qdata->penalty = 0.3333333;
-        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
+        $qdata->hidden = 0;
         $qdata->idnumber = null;
 
         $qdata->options = new \stdClass();
@@ -1160,7 +1161,7 @@ END;
         $qdata->defaultmark = 1;
         $qdata->length = 1;
         $qdata->penalty = 0.1;
-        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
+        $qdata->hidden = 0;
         $qdata->idnumber = null;
 
         $qdata->options = new \stdClass();
@@ -1292,7 +1293,7 @@ END;
         $qdata->defaultmark = 1;
         $qdata->length = 1;
         $qdata->penalty = 0.3333333;
-        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
+        $qdata->hidden = 0;
         $qdata->idnumber = null;
 
         $qdata->options = new \stdClass();
@@ -1468,7 +1469,7 @@ END;
         $qdata->defaultmark = 1;
         $qdata->length = 1;
         $qdata->penalty = 1;
-        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
+        $qdata->hidden = 0;
         $qdata->idnumber = null;
 
         $qdata->options = new \stdClass();
@@ -1528,7 +1529,7 @@ END;
         $qdata->defaultmark = 1;
         $qdata->length = 1;
         $qdata->penalty = 1;
-        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
+        $qdata->hidden = 0;
         $qdata->idnumber = 'TestIDNum2';
 
         $qdata->options = new \stdClass();
@@ -1588,7 +1589,6 @@ END;
     </generalfeedback>
     <penalty>0.5</penalty>
     <hidden>0</hidden>
-    <idnumber>id-101</idnumber>
     <hint format="html">
       <text>Hint 1</text>
     </hint>
@@ -1613,7 +1613,6 @@ END;
         $expectedqa->name = 'Simple multianswer';
         $expectedqa->qtype = 'multianswer';
         $expectedqa->questiontext = 'Complete this opening line of verse: "The {#1} and the {#2} went to sea".';
-        $expectedqa->idnumber = 'id-101';
         $expectedqa->generalfeedback =
                 'General feedback: It\'s from "The Owl and the Pussy-cat" by Lear: "The owl and the pussycat went to sea".';
         $expectedqa->defaultmark = 2;

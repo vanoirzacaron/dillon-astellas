@@ -127,7 +127,7 @@ class publicpaths extends check {
             [
                 'pattern'   => 'readme.txt',
                 '404'       => [
-                    'lib/scssphp/readme_moodle.txt',
+                    'lib/scssphp/moodle_readme.txt',
                     'mod/resource/readme.txt',
                 ],
             ],
@@ -173,7 +173,7 @@ class publicpaths extends check {
 
         $status = result::OK;
         $details = '';
-        $summary = get_string('check_publicpaths_ok', 'report_security');
+        $summary = '';
         $errors = [];
 
         $c = new \curl();
@@ -250,7 +250,6 @@ class publicpaths extends check {
                         } else {
                             $result = new result(result::ERROR, '', '');
                             $status = result::ERROR;
-                            $summary = get_string('check_publicpaths_warning', 'report_security');
                         }
 
                         $rowdetail = isset($path['details']) ? $path['details'] : $rowsummary;
@@ -295,7 +294,7 @@ class publicpaths extends check {
     /**
      * Link to the dev docs for more info.
      *
-     * @return \action_link|null
+     * @return action_link|null
      */
     public function get_action_link(): ?\action_link {
         return new \action_link(

@@ -170,12 +170,11 @@ class provider_test extends \core_privacy\tests\provider_testcase {
         $user = $this->getDataGenerator()->create_user();
 
         // Set some message user preferences.
-        set_user_preference('message_provider_moodle_instantmessage_enabled', 'airnotifier', $USER->id);
-        set_user_preference('message_provider_mod_feedback_submission_enabled', 'popup', $USER->id);
-
+        set_user_preference('message_provider_moodle_instantmessage_loggedin', 'airnotifier', $USER->id);
+        set_user_preference('message_provider_moodle_instantmessage_loggedoff', 'popup', $USER->id);
         set_user_preference('message_blocknoncontacts', \core_message\api::MESSAGE_PRIVACY_ONLYCONTACTS, $USER->id);
         set_user_preference('message_entertosend', true, $USER->id);
-        set_user_preference('message_provider_moodle_instantmessage_enabled', 'inbound', $user->id);
+        set_user_preference('message_provider_moodle_instantmessage_loggedoff', 'inbound', $user->id);
 
         // Set an unrelated preference.
         set_user_preference('some_unrelated_preference', 'courses', $USER->id);
@@ -190,15 +189,15 @@ class provider_test extends \core_privacy\tests\provider_testcase {
 
         // Check only 3 preferences exist.
         $this->assertCount(4, $prefs);
-        $this->assertArrayHasKey('message_provider_moodle_instantmessage_enabled', $prefs);
-        $this->assertArrayHasKey('message_provider_mod_feedback_submission_enabled', $prefs);
+        $this->assertArrayHasKey('message_provider_moodle_instantmessage_loggedin', $prefs);
+        $this->assertArrayHasKey('message_provider_moodle_instantmessage_loggedoff', $prefs);
         $this->assertArrayHasKey('message_blocknoncontacts', $prefs);
         $this->assertArrayHasKey('message_entertosend', $prefs);
 
         foreach ($prefs as $key => $pref) {
-            if ($key == 'message_provider_moodle_instantmessage_enabled') {
+            if ($key == 'message_provider_moodle_instantmessage_loggedin') {
                 $this->assertEquals('airnotifier', $pref->value);
-            } else if ($key == 'message_provider_mod_feedback_submission_enabled') {
+            } else if ($key == 'message_provider_moodle_instantmessage_loggedoff') {
                 $this->assertEquals('popup', $pref->value);
             } else {
                 $this->assertEquals(1, $pref->value);
@@ -550,7 +549,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
         $writer = writer::with_context($user1context);
 
         $contacts = (array) $writer->get_data([get_string('contacts', 'core_message')]);
-        usort($contacts, [static::class, 'sort_contacts']);
+        usort($contacts, ['static', 'sort_contacts']);
 
         $this->assertCount(3, $contacts);
 
@@ -706,7 +705,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
         $dbm2 = $DB->get_record('messages', ['id' => $m2]);
         $dbm3 = $DB->get_record('messages', ['id' => $m3]);
 
-        usort($messages, [static::class, 'sort_messages']);
+        usort($messages, ['static', 'sort_messages']);
         $m1 = array_shift($messages);
         $m2 = array_shift($messages);
         $m3 = array_shift($messages);
@@ -736,7 +735,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
         $dbm5 = $DB->get_record('messages', ['id' => $m5]);
         $dbm6 = $DB->get_record('messages', ['id' => $m6]);
 
-        usort($messages, [static::class, 'sort_messages']);
+        usort($messages, ['static', 'sort_messages']);
         $m4 = array_shift($messages);
         $m5 = array_shift($messages);
         $m6 = array_shift($messages);
@@ -1740,7 +1739,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
         ]);
         $this->assertCount(3, $messages);
 
-        usort($messages, [static::class, 'sort_messages']);
+        usort($messages, ['static', 'sort_messages']);
         $m1 = array_shift($messages);
         $m2 = array_shift($messages);
         $m3 = array_shift($messages);
@@ -1810,7 +1809,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
         ]);
         $this->assertCount(3, $messages);
 
-        usort($messages, [static::class, 'sort_messages']);
+        usort($messages, ['static', 'sort_messages']);
         $m1 = array_shift($messages);
         $m2 = array_shift($messages);
         $m3 = array_shift($messages);

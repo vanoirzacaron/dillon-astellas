@@ -14,9 +14,9 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * CSS selectors for the calendar.
+ * This module is responsible for the calendar filter.
  *
- * @module     core_calendar/selectors
+ * @module     core_calendar/calendar_selectors
  * @copyright  2017 Andrew Nicols <andrew@nicols.co.uk>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -49,13 +49,9 @@ define([], function() {
             edit: '[data-action="edit"]',
             remove: '[data-action="delete"]',
             viewEvent: '[data-action="view-event"]',
-            deleteSubscription: '[data-action="delete-subscription"]',
         },
         elements: {
             courseSelector: 'select[name="course"]',
-            dateContainer: '.clickable.hasevent',
-            dateContent: '[data-region="day-content"]',
-            monthDetailed: '.calendarmonth.calendartable',
         },
         today: '.today',
         day: '[data-region="day"]',
@@ -70,7 +66,5 @@ define([], function() {
         containers: {
             loadingIcon: '[data-region="overlay-icon-container"]',
         },
-        mainCalendar: '.maincalendar .heightcontainer',
-        fullCalendarView: 'page-calendar-view',
     };
 });

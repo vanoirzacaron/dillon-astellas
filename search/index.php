@@ -48,6 +48,9 @@ if (!empty($CFG->forcelogin)) {
     require_login();
 }
 
+// Unlock the session during a search.
+\core\session\manager::write_close();
+
 require_capability('moodle/search:query', $context);
 
 $searchrenderer = $PAGE->get_renderer('core_search');
@@ -166,9 +169,6 @@ $PAGE->set_url($url);
 // We are ready to render.
 echo $OUTPUT->header();
 
-// Unlock the session only after outputting the header as this modifies the session cachestore.
-\core\session\manager::write_close();
-
 // Get the results.
 if ($data) {
     $results = $search->paged_search($data, $page);
@@ -188,10 +188,6 @@ if ($errorstr = $search->get_engine()->get_query_error()) {
 $mform->display();
 
 if (!empty($results)) {
-    $topresults = $search->search_top($data);
-    if (!empty($topresults)) {
-        echo $searchrenderer->render_top_results($topresults);
-    }
     echo $searchrenderer->render_results($results->results, $results->actualpage, $results->totalcount, $url, $cat);
 
     \core_search\manager::trigger_search_results_viewed([

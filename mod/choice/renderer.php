@@ -137,6 +137,7 @@ class mod_choice_renderer extends plugin_renderer_base {
      */
     public function display_publish_name_vertical($choices) {
         $html ='';
+        $html .= html_writer::tag('h3',format_string(get_string("responses", "choice")));
 
         $attributes = array('method'=>'POST');
         $attributes['action'] = new moodle_url($this->page->url);
@@ -186,10 +187,7 @@ class mod_choice_renderer extends plugin_renderer_base {
             } else if ($optionid > 0) {
                 $headertitle = format_string($choices->options[$optionid]->text);
                 if (!empty($choices->options[$optionid]->user) && count($choices->options[$optionid]->user) > 0) {
-                    if (
-                        $choices->limitanswers &&
-                        (count($choices->options[$optionid]->user) == $choices->options[$optionid]->maxanswer)
-                    ) {
+                    if ((count($choices->options[$optionid]->user)) == ($choices->options[$optionid]->maxanswer)) {
                         $headertitle .= ' ' . get_string('full', 'choice');
                     }
                 }

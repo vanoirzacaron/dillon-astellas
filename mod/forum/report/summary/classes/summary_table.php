@@ -351,13 +351,13 @@ class summary_table extends table_sql {
         ];
 
         // Add relevant filter params.
-        foreach ($this->exportfilterdata as $name => $filterdata) {
-            if (is_array($filterdata)) {
-                foreach ($filterdata as $key => $value) {
+        foreach ($this->exportfilterdata as $name => $data) {
+            if (is_array($data)) {
+                foreach ($data as $key => $value) {
                     $params["{$name}[{$key}]"] = $value;
                 }
             } else {
-                $params[$name] = $filterdata;
+                $params[$name] = $data;
             }
         }
 
@@ -377,7 +377,7 @@ class summary_table extends table_sql {
     public function print_nothing_to_display(): void {
         global $OUTPUT;
 
-        echo $OUTPUT->notification(get_string('nothingtodisplay'), \core\output\notification::NOTIFY_INFO);
+        echo $OUTPUT->heading(get_string('nothingtodisplay'), 4);
     }
 
     /**
@@ -736,7 +736,7 @@ class summary_table extends table_sql {
                 $orderby = " ORDER BY {$sort}";
             }
         } else {
-            $selectfields = 'COUNT(DISTINCT u.id)';
+            $selectfields = 'COUNT(u.id)';
         }
 
         $sql = "SELECT {$selectfields}
@@ -762,7 +762,7 @@ class summary_table extends table_sql {
         foreach ($readers as $reader) {
 
             // If reader is not a sql_internal_table_reader and not legacy store then return.
-            if (!($reader instanceof \core\log\sql_internal_table_reader)) {
+            if (!($reader instanceof \core\log\sql_internal_table_reader) && !($reader instanceof logstore_legacy\log\store)) {
                 continue;
             }
             $logreader = $reader;
@@ -785,8 +785,14 @@ class summary_table extends table_sql {
 
         $this->create_log_summary_temp_table();
 
-        $logtable = $this->logreader->get_internal_log_table_name();
-        $nonanonymous = 'AND anonymous = 0';
+        if ($this->logreader instanceof logstore_legacy\log\store) {
+            $logtable = 'log';
+            // Anonymous actions are never logged in legacy log.
+            $nonanonymous = '';
+        } else {
+            $logtable = $this->logreader->get_internal_log_table_name();
+            $nonanonymous = 'AND anonymous = 0';
+        }
 
         // Apply dates filter if applied.
         $datewhere = $this->sql->filterbase['dateslog'] ?? '';

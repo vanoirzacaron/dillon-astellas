@@ -26,8 +26,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'block_accessreview';
-$plugin->version   = 2023100900;
-$plugin->requires  = 2023100400;
-$plugin->dependencies = [
+$plugin->version   = 2021051700;
+$plugin->requires  = 2021051100;
+$plugin->dependencies = array(
     'tool_brickfield' => ANY_VERSION,
-];
+);

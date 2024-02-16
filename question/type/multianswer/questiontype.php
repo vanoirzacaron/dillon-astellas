@@ -146,7 +146,7 @@ class qtype_multianswer extends question_type {
             question_bank::get_qtype($wrapped->qtype)->get_question_options($wrapped);
             // For wrapped questions the maxgrade is always equal to the defaultmark,
             // there is no entry in the question_instances table for them.
-            $wrapped->category = $question->categoryobject->id;
+            $wrapped->maxmark = $wrapped->defaultmark;
             $question->options->questions[$sequence[$wrapped->id]] = $wrapped;
         }
         $question->hints = $DB->get_records('question_hints',
@@ -168,17 +168,15 @@ class qtype_multianswer extends question_type {
 
         // First we get all the existing wrapped questions.
         $oldwrappedquestions = [];
-        if (isset($question->oldparent)) {
-            if ($oldwrappedids = $DB->get_field('question_multianswer', 'sequence',
-                ['question' => $question->oldparent])) {
-                $oldwrappedidsarray = explode(',', $oldwrappedids);
-                $unorderedquestions = $DB->get_records_list('question', 'id', $oldwrappedidsarray);
+        if ($oldwrappedids = $DB->get_field('question_multianswer', 'sequence',
+                array('question' => $question->id))) {
+            $oldwrappedidsarray = explode(',', $oldwrappedids);
+            $unorderedquestions = $DB->get_records_list('question', 'id', $oldwrappedidsarray);
 
-                // Keep the order as given in the sequence field.
-                foreach ($oldwrappedidsarray as $questionid) {
-                    if (isset($unorderedquestions[$questionid])) {
-                        $oldwrappedquestions[] = $unorderedquestions[$questionid];
-                    }
+            // Keep the order as given in the sequence field.
+            foreach ($oldwrappedidsarray as $questionid) {
+                if (isset($unorderedquestions[$questionid])) {
+                    $oldwrappedquestions[] = $unorderedquestions[$questionid];
                 }
             }
         }
@@ -187,10 +185,10 @@ class qtype_multianswer extends question_type {
         foreach ($question->options->questions as $wrapped) {
             if (!empty($wrapped)) {
                 // If we still have some old wrapped question ids, reuse the next of them.
-                $wrapped->id = 0;
+
                 if (is_array($oldwrappedquestions) &&
                         $oldwrappedquestion = array_shift($oldwrappedquestions)) {
-                    $wrapped->oldid = $oldwrappedquestion->id;
+                    $wrapped->id = $oldwrappedquestion->id;
                     if ($oldwrappedquestion->qtype != $wrapped->qtype) {
                         switch ($oldwrappedquestion->qtype) {
                             case 'multichoice':
@@ -208,8 +206,11 @@ class qtype_multianswer extends question_type {
                             default:
                                 throw new moodle_exception('qtypenotrecognized',
                                         'qtype_multianswer', '', $oldwrappedquestion->qtype);
+                                $wrapped->id = 0;
                         }
                     }
+                } else {
+                    $wrapped->id = 0;
                 }
             }
             $wrapped->name = $question->name;
@@ -256,7 +257,7 @@ class qtype_multianswer extends question_type {
             $question->id = $authorizedquestion->id;
         }
 
-        $question->category = $form->category;
+        $question->category = $authorizedquestion->category;
         $form->defaultmark = $question->defaultmark;
         $form->questiontext = $question->questiontext;
         $form->questiontextformat = 0;
@@ -280,7 +281,7 @@ class qtype_multianswer extends question_type {
         parent::initialise_question_instance($question, $questiondata);
 
         $bits = preg_split('/\{#(\d+)\}/', $question->questiontext,
-                -1, PREG_SPLIT_DELIM_CAPTURE);
+                null, PREG_SPLIT_DELIM_CAPTURE);
         $question->textfragments[0] = array_shift($bits);
         $i = 1;
         while (!empty($bits)) {
@@ -302,7 +303,7 @@ class qtype_multianswer extends question_type {
                 }
             }
             $question->subquestions[$key] = question_bank::make_question($subqdata);
-            $question->subquestions[$key]->defaultmark = $subqdata->defaultmark;
+            $question->subquestions[$key]->maxmark = $subqdata->defaultmark;
             if (isset($subqdata->options->layout)) {
                 $question->subquestions[$key]->layout = $subqdata->options->layout;
             }
@@ -313,18 +314,11 @@ class qtype_multianswer extends question_type {
         $fractionsum = 0;
         $fractionmax = 0;
         foreach ($questiondata->options->questions as $key => $subqdata) {
-            if ($subqdata->qtype == 'subquestion_replacement') {
-                continue;
-            }
             $fractionmax += $subqdata->defaultmark;
             $fractionsum += question_bank::get_qtype(
                     $subqdata->qtype)->get_random_guess_score($subqdata);
         }
-        if ($fractionmax > question_utils::MARK_TOLERANCE) {
-            return $fractionsum / $fractionmax;
-        } else {
-            return null;
-        }
+        return $fractionsum / $fractionmax;
     }
 
     public function move_files($questionid, $oldcontextid, $newcontextid) {
@@ -507,7 +501,7 @@ function qtype_multianswer_extract_question($text) {
             $wrapped->shuffleanswers = 1;
             $wrapped->layout = qtype_multichoice_base::LAYOUT_HORIZONTAL;
         } else {
-            throw new \moodle_exception('unknownquestiontype', 'question', '', $answerregs[2]);
+            print_error('unknownquestiontype', 'question', '', $answerregs[2]);
             return false;
         }
 

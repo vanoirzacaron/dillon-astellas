@@ -24,6 +24,8 @@
 
 namespace mod_customcert\output;
 
+defined('MOODLE_INTERNAL') || die();
+
 use renderable;
 use templatable;
 
@@ -76,7 +78,7 @@ class verify_certificate_results implements templatable, renderable {
         $result = new \stdClass();
         $result->success = $this->success;
         $result->message = $this->message;
-        $result->issues = [];
+        $result->issues = array();
         foreach ($this->issues as $issue) {
             $resultissue = new verify_certificate_result($issue);
             $result->issues[] = $resultissue->export_for_template($output);

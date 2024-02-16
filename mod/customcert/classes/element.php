@@ -24,6 +24,8 @@
 
 namespace mod_customcert;
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * Class element
  *
@@ -267,7 +269,7 @@ abstract class element {
      * @throws \InvalidArgumentException if the provided new alignment is not valid.
      */
     protected function set_alignment(string $alignment) {
-        $validvalues = [self::ALIGN_LEFT, self::ALIGN_CENTER, self::ALIGN_RIGHT];
+        $validvalues = array(self::ALIGN_LEFT, self::ALIGN_CENTER, self::ALIGN_RIGHT);
         if (!in_array($alignment, $validvalues)) {
             throw new \InvalidArgumentException("'$alignment' is not a valid alignment value. It has to be one of " .
                 implode(', ', $validvalues));
@@ -331,7 +333,7 @@ abstract class element {
      */
     public function validate_form_elements($data, $files) {
         // Array to return the errors.
-        $errors = [];
+        $errors = array();
 
         // Common validation methods.
         $errors += element_helper::validate_form_element_colour($data);
@@ -372,22 +374,13 @@ abstract class element {
         // Check if we are updating, or inserting a new element.
         if (!empty($this->id)) { // Must be updating a record in the database.
             $element->id = $this->id;
-            $return = $DB->update_record('customcert_elements', $element);
-
-            \mod_customcert\event\element_updated::create_from_element($this)->trigger();
-
-            return $return;
+            return $DB->update_record('customcert_elements', $element);
         } else { // Must be adding a new one.
             $element->element = $data->element;
             $element->pageid = $data->pageid;
             $element->sequence = \mod_customcert\element_helper::get_element_sequence($element->pageid);
             $element->timecreated = time();
-            $element->id = $DB->insert_record('customcert_elements', $element, true);
-            $this->id = $element->id;
-
-            \mod_customcert\event\element_created::create_from_element($this)->trigger();
-
-            return $element->id;
+            return $DB->insert_record('customcert_elements', $element, false);
         }
     }
 
@@ -456,11 +449,7 @@ abstract class element {
     public function delete() {
         global $DB;
 
-        $return = $DB->delete_records('customcert_elements', ['id' => $this->id]);
-
-        \mod_customcert\event\element_deleted::create_from_element($this)->trigger();
-
-        return $return;
+        return $DB->delete_records('customcert_elements', array('id' => $this->id));
     }
 
     /**

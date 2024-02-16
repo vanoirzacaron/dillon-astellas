@@ -9,7 +9,7 @@ Feature: Managers can manage course custom fields text
       | name              | component   | area   | itemid |
       | Category for test | core_course | course | 0      |
     And I log in as "admin"
-    And I navigate to "Courses > Default settings > Course custom fields" in site administration
+    And I navigate to "Courses > Course custom fields" in site administration
 
   Scenario: Create a custom course text field
     When I click on "Add a new custom field" "link"
@@ -61,7 +61,7 @@ Feature: Managers can manage course custom fields text
     And the following "course enrolments" exist:
       | user     | course | role           |
       | teacher1 | C1     | editingteacher |
-    And I navigate to "Courses > Default settings > Course custom fields" in site administration
+    And I navigate to "Courses > Course custom fields" in site administration
     And I click on "Add a new custom field" "link"
     And I click on "Short text" "link"
     And I set the following fields to these values:
@@ -73,7 +73,7 @@ Feature: Managers can manage course custom fields text
     And I log out
     Then I log in as "teacher1"
     And I am on "Course 1" course homepage
-    And I navigate to "Settings" in current page administration
+    And I navigate to "Edit settings" in current page administration
     And I set the following fields to these values:
       | See more on website | course/view.php?id=35 |
     And I press "Save and display"
@@ -91,7 +91,7 @@ Feature: Managers can manage course custom fields text
     And the following "course enrolments" exist:
       | user     | course | role           |
       | teacher1 | C1     | editingteacher |
-    And I navigate to "Courses > Default settings > Course custom fields" in site administration
+    And I navigate to "Courses > Course custom fields" in site administration
     And I click on "Add a new custom field" "link"
     And I click on "Short text" "link"
     And I set the following fields to these values:
@@ -102,7 +102,7 @@ Feature: Managers can manage course custom fields text
     And I log out
     Then I log in as "teacher1"
     And I am on "Course 1" course homepage
-    And I navigate to "Settings" in current page administration
+    And I navigate to "Edit settings" in current page administration
     And I set the following fields to these values:
       | Test field | 1234 |
     And I press "Save and display"
@@ -118,7 +118,7 @@ Feature: Managers can manage course custom fields text
     And the following "course enrolments" exist:
       | user     | course | role           |
       | teacher1 | C1     | editingteacher |
-    And I navigate to "Courses > Default settings > Course custom fields" in site administration
+    And I navigate to "Courses > Course custom fields" in site administration
     And I click on "Add a new custom field" "link"
     And I click on "Short text" "link"
     And I set the following fields to these values:
@@ -131,7 +131,7 @@ Feature: Managers can manage course custom fields text
     When I am on site homepage
     Then I should see "Test field: testdefault"
     When I am on "Course 1" course homepage
-    And I navigate to "Settings" in current page administration
+    And I navigate to "Edit settings" in current page administration
     Then the "value" attribute of "#id_customfield_testfield" "css_element" should contain "testdefault"
     When I set the following fields to these values:
       | Test field |  |

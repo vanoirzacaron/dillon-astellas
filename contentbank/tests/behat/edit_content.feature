@@ -5,14 +5,9 @@ Feature: Content bank use editor feature
   I need to be able to access the edition options
 
   Background:
-    Given the following "blocks" exist:
-      | blockname     | contextlevel | reference | pagetypepattern | defaultregion |
-      | private_files | System       | 1         | my-index        | side-post     |
-    And I log in as "admin"
+    Given I log in as "admin"
     And I am on site homepage
     And I turn editing mode on
-    And the following config values are set as admin:
-      | unaddableblocks | | theme_boost|
     And I add the "Navigation" block if not present
     And I configure the "Navigation" block
     And I set the following fields to these values:
@@ -25,7 +20,7 @@ Feature: Content bank use editor feature
     Then the "[data-action=Add-content]" "css_element" should be disabled
 
   Scenario: Users can see the Add button if there is content type available for creation
-    Given I follow "Dashboard"
+    Given I follow "Dashboard" in the user menu
     And I follow "Manage private files..."
     And I upload "h5p/tests/fixtures/filltheblanks.h5p" file to "Files" filemanager
     And I click on "Save changes" "button"
@@ -39,12 +34,12 @@ Feature: Content bank use editor feature
     And I click on "Save changes" "button"
     When I click on "Content bank" "link"
     And I click on "filltheblanks.h5p" "link"
-    And I click on "Exit" "link"
+    And I click on "Close" "link"
     Then I click on "[data-action=Add-content]" "css_element"
     And I should see "Fill in the Blanks"
 
   Scenario: Users can edit content if they have the required permission
-    Given I follow "Dashboard"
+    Given I follow "Dashboard" in the user menu
     And I follow "Manage private files..."
     And I upload "h5p/tests/fixtures/filltheblanks.h5p" file to "Files" filemanager
     And I click on "Save changes" "button"
@@ -62,7 +57,7 @@ Feature: Content bank use editor feature
     And I switch to "h5p-editor-iframe" class iframe
     And I switch to the main frame
     And I click on "Cancel" "button"
-    And I should see "filltheblanks.h5p" in the "h2" "css_element"
+    And I should see "filltheblanks.h5p" in the "h1" "css_element"
 
   Scenario: Users can create new content if they have the required permission
     Given I navigate to "H5P > Manage H5P content types" in site administration
@@ -116,7 +111,7 @@ Feature: Content bank use editor feature
     And I set the field "Title" to "New title"
     And I switch to the main frame
     When I click on "Save" "button"
-    And I should see "filltheblanks.h5p" in the "h2" "css_element"
+    And I should see "filltheblanks.h5p" in the "h1" "css_element"
     And I click on "Edit" "link"
     And I switch to "h5p-editor-iframe" class iframe
     Then the field "Title" matches value "New title"
@@ -184,7 +179,8 @@ Feature: Content bank use editor feature
       | contextlevel | reference | contenttype     | user     | contentname       | filepath                              |
       | Course       | C1        | contenttype_h5p | admin    | filltheblanks.h5p | /h5p/tests/fixtures/filltheblanks.h5p |
       | Course       | C1        | contenttype_h5p | teacher1 | ipsums.h5p        | /h5p/tests/fixtures/ipsums.h5p        |
-    And I am on the "Course 1" "course copy" page
+    And I am on "Course 1" course homepage
+    And I navigate to "Copy course" in current page administration
     And I set the following fields to these values:
       | Course full name  | Copy |
       | Course short name | Copy |
@@ -199,6 +195,6 @@ Feature: Content bank use editor feature
     And I click on "Content bank" "link"
     And I follow "ipsums.h5p"
     Then "Edit" "link" should exist in the "region-main" "region"
-    And I navigate to "Content bank" in current page administration
+    And I click on "Content bank" "link"
     And I follow "filltheblanks.h5p"
     Then "Edit" "link" should not exist in the "region-main" "region"

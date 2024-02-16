@@ -24,6 +24,8 @@
  *
  */
 
+defined('MOODLE_INTERNAL') || die;
+
 /**
  * @copyright 2015 Jeremy Hopkins (Coventry University)
  * @copyright 2015 Fernando Acedo (3-bits.com)
@@ -146,8 +148,8 @@ class adaptable_setting_confightmleditor extends admin_setting_configtext {
         $mediaoptions = initialise_filepicker($args);
         $mediaoptions->context = $ctx;
         $mediaoptions->client_id = uniqid();
-        $mediaoptions->maxbytes = $options['maxbytes'];
-        $mediaoptions->areamaxbytes = $options['areamaxbytes'];
+        $mediaoptions->maxbytes  = $options['maxbytes'];
+        $mediaoptions->areamaxbytes  = $options['areamaxbytes'];
         $mediaoptions->env = 'editor';
         $mediaoptions->itemid = $draftitemid;
 
@@ -156,8 +158,8 @@ class adaptable_setting_confightmleditor extends admin_setting_configtext {
         $linkoptions = initialise_filepicker($args);
         $linkoptions->context = $ctx;
         $linkoptions->client_id = uniqid();
-        $linkoptions->maxbytes = $options['maxbytes'];
-        $linkoptions->areamaxbytes = $options['areamaxbytes'];
+        $linkoptions->maxbytes  = $options['maxbytes'];
+        $linkoptions->areamaxbytes  = $options['areamaxbytes'];
         $linkoptions->env = 'editor';
         $linkoptions->itemid = $draftitemid;
 

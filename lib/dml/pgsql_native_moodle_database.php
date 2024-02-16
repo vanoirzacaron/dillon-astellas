@@ -44,21 +44,10 @@ class pgsql_native_moodle_database extends moodle_database {
         query_end as read_slave_query_end;
     }
 
-    /** @var array $sslmodes */
-    private static $sslmodes = [
-        'disable',
-        'prefer',
-        'require',
-        'verify-full'
-    ];
-
-    /** @var array $serverinfo cache */
-    private $serverinfo = [];
-
     /** @var array $dbhcursor keep track of open cursors */
     private $dbhcursor = [];
 
-    /** @var resource|PgSql\Connection|null $pgsql database resource */
+    /** @var resource $pgsql database resource */
     protected $pgsql     = null;
 
     protected $last_error_reporting; // To handle pgsql driver default verbosity
@@ -138,7 +127,6 @@ class pgsql_native_moodle_database extends moodle_database {
      * @param mixed $prefix string means moodle db prefix, false used for external databases where prefix not used
      * @param array $dboptions driver specific options
      * @return bool true
-     * @throws moodle_exception
      * @throws dml_connection_exception if error
      */
     public function raw_connect(string $dbhost, string $dbuser, string $dbpass, string $dbname, $prefix, array $dboptions=null): bool {
@@ -194,14 +182,6 @@ class pgsql_native_moodle_database extends moodle_database {
             }
 
             $connection .= " options='" . implode(' ', $options) . "'";
-        }
-
-        if (isset($this->dboptions['ssl'])) {
-            $sslmode = $this->dboptions['ssl'];
-            if (!in_array($sslmode, self::$sslmodes, true)) {
-                throw new moodle_exception('validateerrorlist', 'admin', '', "'dboptions''ssl': $sslmode");
-            }
-            $connection .= " sslmode=$sslmode";
         }
 
         ob_start();
@@ -356,12 +336,7 @@ class pgsql_native_moodle_database extends moodle_database {
         error_reporting($this->last_error_reporting);
         try {
             $this->read_slave_query_end($result);
-            if ($this->savepointpresent &&
-                    !in_array(
-                        $this->last_type,
-                        [SQL_QUERY_AUX, SQL_QUERY_AUX_READONLY, SQL_QUERY_SELECT],
-                        true
-                    )) {
+            if ($this->savepointpresent and $this->last_type != SQL_QUERY_AUX and $this->last_type != SQL_QUERY_SELECT) {
                 $res = @pg_query($this->pgsql, "RELEASE SAVEPOINT moodle_pg_savepoint; SAVEPOINT moodle_pg_savepoint");
                 if ($res) {
                     pg_free_result($res);
@@ -382,16 +357,14 @@ class pgsql_native_moodle_database extends moodle_database {
      * Returns database server info array
      * @return array Array containing 'description' and 'version' info
      */
-    public function get_server_info(): array {
-        if (empty($this->serverinfo)) {
-            $this->query_start('--pg_version()', null, SQL_QUERY_AUX);
-            $this->serverinfo = pg_version($this->pgsql);
+    public function get_server_info() {
+        static $info;
+        if (!$info) {
+            $this->query_start("--pg_version()", null, SQL_QUERY_AUX);
+            $info = pg_version($this->pgsql);
             $this->query_end(true);
         }
-        return [
-            'description' => $this->serverinfo['server'],
-            'version' => $this->serverinfo['server'],
-        ];
+        return array('description'=>$info['server'], 'version'=>$info['server']);
     }
 
     /**
@@ -427,7 +400,7 @@ class pgsql_native_moodle_database extends moodle_database {
                  WHERE c.relname LIKE '$prefix%' ESCAPE '|'
                        AND c.relkind = 'r'
                        AND (ns.nspname = current_schema() OR ns.oid = pg_my_temp_schema())";
-        $this->query_start($sql, null, SQL_QUERY_AUX_READONLY);
+        $this->query_start($sql, null, SQL_QUERY_AUX);
         $result = pg_query($this->pgsql, $sql);
         $this->query_end($result);
 
@@ -519,7 +492,7 @@ class pgsql_native_moodle_database extends moodle_database {
                  WHERE i.tablename = '$tablename'
                        AND (i.schemaname = current_schema() OR ns.oid = pg_my_temp_schema())";
 
-        $this->query_start($sql, null, SQL_QUERY_AUX_READONLY);
+        $this->query_start($sql, null, SQL_QUERY_AUX);
         $result = pg_query($this->pgsql, $sql);
         $this->query_end($result);
 
@@ -562,7 +535,7 @@ class pgsql_native_moodle_database extends moodle_database {
         $tablename = $this->prefix.$table;
 
         $sql = "SELECT a.attnum, a.attname AS field, t.typname AS type, a.attlen, a.atttypmod, a.attnotnull, a.atthasdef,
-                       CASE WHEN a.atthasdef THEN pg_catalog.pg_get_expr(d.adbin, d.adrelid) ELSE '' END AS adsrc
+                       CASE WHEN a.atthasdef THEN pg_catalog.pg_get_expr(d.adbin, d.adrelid) END AS adsrc
                   FROM pg_catalog.pg_class c
                   JOIN pg_catalog.pg_namespace as ns ON ns.oid = c.relnamespace
                   JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid
@@ -572,7 +545,7 @@ class pgsql_native_moodle_database extends moodle_database {
                        AND (ns.nspname = current_schema() OR ns.oid = pg_my_temp_schema())
               ORDER BY a.attnum";
 
-        $this->query_start($sql, null, SQL_QUERY_AUX_READONLY);
+        $this->query_start($sql, null, SQL_QUERY_AUX);
         $result = pg_query($this->pgsql, $sql);
         $this->query_end($result);
 
@@ -611,7 +584,7 @@ class pgsql_native_moodle_database extends moodle_database {
 
             } else if (preg_match('/int(\d)/i', $rawcolumn->type, $matches)) {
                 $info->type = 'int';
-                if (strpos($rawcolumn->adsrc ?? '', 'nextval') === 0) {
+                if (strpos($rawcolumn->adsrc, 'nextval') === 0) {
                     $info->primary_key   = true;
                     $info->meta_type     = 'R';
                     $info->unique        = true;
@@ -793,8 +766,8 @@ class pgsql_native_moodle_database extends moodle_database {
      */
     public function setup_is_unicodedb() {
         // Get PostgreSQL server_encoding value
-        $sql = 'SHOW server_encoding';
-        $this->query_start($sql, null, SQL_QUERY_AUX_READONLY);
+        $sql = "SHOW server_encoding";
+        $this->query_start($sql, null, SQL_QUERY_AUX);
         $result = pg_query($this->pgsql, $sql);
         $this->query_end($result);
 
@@ -983,37 +956,6 @@ class pgsql_native_moodle_database extends moodle_database {
     }
 
     /**
-     * A faster version of pg_field_type
-     *
-     * The pg_field_type function in the php postgres driver internally makes an sql call
-     * to get the list of field types which it statically caches only for a single request.
-     * This wraps it in a cache keyed by oid to avoid these DB calls on every request.
-     *
-     * @param resource|PgSql\Result $result
-     * @param int $fieldnumber
-     * @return string Field type
-     */
-    public function pg_field_type($result, int $fieldnumber) {
-        static $map;
-        $cache = $this->get_metacache();
-
-        // Getting the oid doesn't make an internal query.
-        $oid = pg_field_type_oid($result, $fieldnumber);
-        if (!$map) {
-            $map = $cache->get('oid2typname');
-        }
-        if ($map === false) {
-            $map = [];
-        }
-        if (isset($map[$oid])) {
-            return $map[$oid];
-        }
-        $map[$oid] = pg_field_type($result, $fieldnumber);
-        $cache->set('oid2typname', $map);
-        return $map[$oid];
-    }
-
-    /**
      * Get a number of records as an array of objects using a SQL statement.
      *
      * Return value is like:
@@ -1047,7 +989,7 @@ class pgsql_native_moodle_database extends moodle_database {
         $numfields = pg_num_fields($result);
         $blobs = array();
         for ($i = 0; $i < $numfields; $i++) {
-            $type = $this->pg_field_type($result, $i);
+            $type = pg_field_type($result, $i);
             if ($type == 'bytea') {
                 $blobs[] = pg_field_name($result, $i);
             }
@@ -1088,7 +1030,7 @@ class pgsql_native_moodle_database extends moodle_database {
 
         $return = pg_fetch_all_columns($result, 0);
 
-        if ($this->pg_field_type($result, 0) == 'bytea') {
+        if (pg_field_type($result, 0) == 'bytea') {
             foreach ($return as $key => $value) {
                 $return[$key] = ($value === null ? $value : pg_unescape_bytea($value));
             }
@@ -1322,7 +1264,7 @@ class pgsql_native_moodle_database extends moodle_database {
     /**
      * Update record in database, as fast as possible, no safety checks, lobs not supported.
      * @param string $table name
-     * @param stdClass|array $params data record as object or array
+     * @param mixed $params data record as object or array
      * @param bool true means repeated updates expected
      * @return bool true
      * @throws dml_exception A DML specific exception is thrown for any errors.
@@ -1369,8 +1311,7 @@ class pgsql_native_moodle_database extends moodle_database {
      * specify the record to update
      *
      * @param string $table The database table to be checked against.
-     * @param stdClass|array $dataobject An object with contents equal to fieldname=>fieldvalue.
-     *        Must have an entry for 'id' to map to the table specified.
+     * @param object $dataobject An object with contents equal to fieldname=>fieldvalue. Must have an entry for 'id' to map to the table specified.
      * @param bool true means repeated updates expected
      * @return bool true
      * @throws dml_exception A DML specific exception is thrown for any errors.
@@ -1490,16 +1431,6 @@ class pgsql_native_moodle_database extends moodle_database {
         return '((' . $int1 . ') # (' . $int2 . '))';
     }
 
-    /**
-     * Return SQL for casting to char of given field/expression
-     *
-     * @param string $field Table field or SQL expression to be cast
-     * @return string
-     */
-    public function sql_cast_to_char(string $field): string {
-        return "CAST({$field} AS VARCHAR)";
-    }
-
     public function sql_cast_char2int($fieldname, $text=false) {
         return ' CAST(' . $fieldname . ' AS INT) ';
     }
@@ -1540,20 +1471,7 @@ class pgsql_native_moodle_database extends moodle_database {
      */
     public function sql_group_concat(string $field, string $separator = ', ', string $sort = ''): string {
         $fieldsort = $sort ? "ORDER BY {$sort}" : '';
-        return "STRING_AGG(" . $this->sql_cast_to_char($field) . ", '{$separator}' {$fieldsort})";
-    }
-
-    /**
-     * Returns the SQL text to be used to order by columns, standardising the return
-     * pattern of null values across database types to sort nulls first when ascending
-     * and last when descending.
-     *
-     * @param string $fieldname The name of the field we need to sort by.
-     * @param int $sort An order to sort the results in.
-     * @return string The piece of SQL code to be used in your statement.
-     */
-    public function sql_order_by_null(string $fieldname, int $sort = SORT_ASC): string {
-        return parent::sql_order_by_null($fieldname, $sort) . ' NULLS ' . ($sort == SORT_ASC ? 'FIRST' : 'LAST');
+        return "STRING_AGG(CAST({$field} AS VARCHAR), '{$separator}' {$fieldsort})";
     }
 
     public function sql_regex_supported() {

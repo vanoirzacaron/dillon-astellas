@@ -91,18 +91,13 @@ define('URL_MATCH_EXACT', 2);
  * @return string
  */
 function s($var) {
+
     if ($var === false) {
         return '0';
     }
 
-    if ($var === null || $var === '') {
-        return '';
-    }
-
-    return preg_replace(
-        '/&amp;#(\d+|x[0-9a-f]+);/i', '&#$1;',
-        htmlspecialchars($var, ENT_QUOTES | ENT_HTML401 | ENT_SUBSTITUTE)
-    );
+    return preg_replace('/&amp;#(\d+|x[0-9a-f]+);/i', '&#$1;',
+            htmlspecialchars($var, ENT_QUOTES | ENT_HTML401 | ENT_SUBSTITUTE));
 }
 
 /**
@@ -113,6 +108,7 @@ function s($var) {
  * @see s()
  *
  * @param string $var the string potentially containing HTML characters
+ * @return string
  */
 function p($var) {
     echo s($var);
@@ -152,9 +148,6 @@ function addslashes_js($var) {
  * @return string The remaining URL.
  */
 function strip_querystring($url) {
-    if ($url === null || $url === '') {
-        return '';
-    }
 
     if ($commapos = strpos($url, '?')) {
         return substr($url, 0, $commapos);
@@ -255,6 +248,7 @@ function get_local_referer($stripquery = true) {
  *     - and output the params as hidden fields to be output within a form
  *
  * @copyright 2007 jamiesensei
+ * @link http://docs.moodle.org/dev/lib/weblib.php_moodle_url See short write up here
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @package core
  */
@@ -342,7 +336,6 @@ class moodle_url {
             $this->anchor = $url->anchor;
 
         } else {
-            $url = $url ?? '';
             // Detect if anchor used.
             $apos = strpos($url, '#');
             if ($apos !== false) {
@@ -533,27 +526,6 @@ class moodle_url {
         } else {
             return implode('&', $arr);
         }
-    }
-
-    /**
-     * Get the url params as an array of key => value pairs.
-     *
-     * This helps in handling cases where url params contain arrays.
-     *
-     * @return array params array for templates.
-     */
-    public function export_params_for_template(): array {
-        $data = [];
-        foreach ($this->params as $key => $val) {
-            if (is_array($val)) {
-                foreach ($val as $index => $value) {
-                    $data[] = ['name' => $key.'['.$index.']', 'value' => $value];
-                }
-            } else {
-                $data[] = ['name' => $key, 'value' => $val];
-            }
-        }
-        return $data;
     }
 
     /**
@@ -900,20 +872,7 @@ class moodle_url {
     }
 
     /**
-     * Checks if URL is relative to $CFG->wwwroot.
-     *
-     * @return bool True if URL is relative to $CFG->wwwroot; otherwise, false.
-     */
-    public function is_local_url() : bool {
-        global $CFG;
-
-        $url = $this->out();
-        // Does URL start with wwwroot? Otherwise, URL isn't relative to wwwroot.
-        return ( ($url === $CFG->wwwroot) || (strpos($url, $CFG->wwwroot.'/') === 0) );
-    }
-
-    /**
-     * Returns URL as relative path from $CFG->wwwroot
+     * Returns URL a relative path from $CFG->wwwroot
      *
      * Can be used for passing around urls with the wwwroot stripped
      *
@@ -925,9 +884,10 @@ class moodle_url {
     public function out_as_local_url($escaped = true, array $overrideparams = null) {
         global $CFG;
 
-        // URL should be relative to wwwroot. If not then throw exception.
-        if ($this->is_local_url()) {
-            $url = $this->out($escaped, $overrideparams);
+        $url = $this->out($escaped, $overrideparams);
+
+        // Url should be equal to wwwroot. If not then throw exception.
+        if (($url === $CFG->wwwroot) || (strpos($url, $CFG->wwwroot.'/') === 0)) {
             $localurl = substr($url, strlen($CFG->wwwroot));
             return !empty($localurl) ? $localurl : '';
         } else {
@@ -1148,14 +1108,9 @@ function page_get_doc_link_path(moodle_page $page) {
  */
 function validate_email($address) {
     global $CFG;
+    require_once($CFG->libdir.'/phpmailer/moodle_phpmailer.php');
 
-    if ($address === null || $address === false || $address === '') {
-        return false;
-    }
-
-    require_once("{$CFG->libdir}/phpmailer/moodle_phpmailer.php");
-
-    return moodle_phpmailer::validateAddress($address ?? '') && !preg_match('/[<>]/', $address);
+    return moodle_phpmailer::validateAddress($address) && !preg_match('/[<>]/', $address);
 }
 
 /**
@@ -1256,7 +1211,7 @@ function format_text_menu() {
  * @param string $text The text to be formatted. This is raw text originally from user input.
  * @param int $format Identifier of the text format to be used
  *            [FORMAT_MOODLE, FORMAT_HTML, FORMAT_PLAIN, FORMAT_MARKDOWN]
- * @param stdClass|array $options text formatting options
+ * @param object/array $options text formatting options
  * @param int $courseiddonotuse deprecated course id, use context option instead
  * @return string
  */
@@ -1268,26 +1223,10 @@ function format_text($text, $format = FORMAT_MOODLE, $options = null, $courseidd
         return '';
     }
 
-    if ($options instanceof \core\context) {
-        // A common mistake has been to call this function with a context object.
-        // This has never been expected, nor supported.
-        debugging(
-            'The options argument should not be a context object directly. ' .
-                ' Please pass an array with a context key instead.',
-            DEBUG_DEVELOPER,
-        );
-        $options = ['context' => $options];
-    }
-
     // Detach object, we can not modify it.
     $options = (array)$options;
 
     if (!isset($options['trusted'])) {
-        $options['trusted'] = false;
-    }
-    if ($format == FORMAT_MARKDOWN) {
-        // Markdown format cannot be trusted in trusttext areas,
-        // because we do not know how to sanitise it before editing.
         $options['trusted'] = false;
     }
     if (!isset($options['noclean'])) {
@@ -1446,9 +1385,9 @@ function format_text($text, $format = FORMAT_MOODLE, $options = null, $courseidd
         }
 
         // This regex is nasty and I don't like it. The correct way to solve this is by loading the HTML like so:
-        // $domdoc->loadHTML($text, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD); however it seems like some libxml
-        // versions don't work properly and end up leaving <html><body>, so I'm forced to use
-        // this regex to remove those tags as a preventive measure.
+        // $domdoc->loadHTML($text, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD); however it seems like the libxml
+        // version that travis uses doesn't work properly and ends up leaving <html><body>, so I'm forced to use
+        // this regex to remove those tags.
         $text = trim(preg_replace('~<(?:!DOCTYPE|/?(?:html|body))[^>]*>\s*~i', '', $domdoc->saveHTML($domdoc->documentElement)));
     }
 
@@ -1507,11 +1446,6 @@ function reset_text_filters_cache($phpunitreset = false) {
 function format_string($string, $striplinks = true, $options = null) {
     global $CFG, $PAGE;
 
-    if ($string === '' || is_null($string)) {
-        // No need to do any filters and cleaning.
-        return '';
-    }
-
     // We'll use a in-memory cache here to speed up repeated strings.
     static $strcache = false;
 
@@ -1525,35 +1459,12 @@ function format_string($string, $striplinks = true, $options = null) {
         $strcache = array();
     }
 
-    // This method only expects either:
-    // - an array of options;
-    // - a stdClass of options to be cast to an array; or
-    // - an integer courseid.
-    if ($options === null) {
-        $options = [];
-    } else if (is_numeric($options)) {
+    if (is_numeric($options)) {
         // Legacy courseid usage.
-        $options  = ['context' => \core\context\course::instance($options)];
-    } else if ($options instanceof \core\context) {
-        // A common mistake has been to call this function with a context object.
-        // This has never been expected, or nor supported.
-        debugging(
-            'The options argument should not be a context object directly. ' .
-                ' Please pass an array with a context key instead.',
-            DEBUG_DEVELOPER,
-        );
-        $options = ['context' => $options];
-    } else if (is_array($options) || is_a($options, \stdClass::class)) {
-        // Re-cast to array to prevent modifications to the original object.
-        $options = (array) $options;
+        $options  = array('context' => context_course::instance($options));
     } else {
-        // Something else was passed, so we'll just use an empty array.
-        // Attempt to cast to array since we always used to, but throw in some debugging.
-        debugging(sprintf(
-            'The options argument should be an Array, or stdclass. %s passed.',
-            gettype($options),
-        ), DEBUG_DEVELOPER);
-        $options = (array) $options;
+        // Detach object, we can not modify it.
+        $options = (array)$options;
     }
 
     if (empty($options['context'])) {
@@ -1624,7 +1535,7 @@ function format_string($string, $striplinks = true, $options = null) {
  * @return string
  */
 function replace_ampersands_not_followed_by_entity($string) {
-    return preg_replace("/\&(?![a-zA-Z0-9#]{1,8};)/", "&amp;", $string ?? '');
+    return preg_replace("/\&(?![a-zA-Z0-9#]{1,8};)/", "&amp;", $string);
 }
 
 /**
@@ -1750,12 +1661,6 @@ function trusttext_strip($text) {
 function trusttext_pre_edit($object, $field, $context) {
     $trustfield  = $field.'trust';
     $formatfield = $field.'format';
-
-    if ($object->$formatfield == FORMAT_MARKDOWN) {
-        // We do not have a way to sanitise Markdown texts,
-        // luckily editors for this format should not have XSS problems.
-        return $object;
-    }
 
     if (!$object->$trustfield or !trusttext_trusted($context)) {
         $object->$field = clean_text($object->$field, $object->$formatfield);
@@ -1933,7 +1838,7 @@ function purify_html($text, $options = array()) {
         $config = HTMLPurifier_Config::createDefault();
 
         $config->set('HTML.DefinitionID', 'moodlehtml');
-        $config->set('HTML.DefinitionRev', 7);
+        $config->set('HTML.DefinitionRev', 6);
         $config->set('Cache.SerializerPath', $cachedir);
         $config->set('Cache.SerializerPermissions', $CFG->directorypermissions);
         $config->set('Core.NormalizeNewlines', false);
@@ -1972,13 +1877,10 @@ function purify_html($text, $options = array()) {
             $def->addElement('algebra', 'Inline', 'Inline', array());                   // Algebra syntax, equivalent to @@xx@@.
             $def->addElement('lang', 'Block', 'Flow', array(), array('lang'=>'CDATA')); // Original multilang style - only our hacked lang attribute.
             $def->addAttribute('span', 'xxxlang', 'CDATA');                             // Current very problematic multilang.
-            // Enable the bidirectional isolate element and its span equivalent.
-            $def->addElement('bdi', 'Inline', 'Flow', 'Common');
-            $def->addAttribute('span', 'dir', 'Enum#ltr,rtl,auto');
 
             // Media elements.
             // https://html.spec.whatwg.org/#the-video-element
-            $def->addElement('video', 'Inline', 'Optional: #PCDATA | Flow | source | track', 'Common', [
+            $def->addElement('video', 'Block', 'Optional: #PCDATA | Flow | source | track', 'Common', [
                 'src' => 'URI',
                 'crossorigin' => 'Enum#anonymous,use-credentials',
                 'poster' => 'URI',
@@ -1992,7 +1894,7 @@ function purify_html($text, $options = array()) {
                 'height' => 'Length',
             ]);
             // https://html.spec.whatwg.org/#the-audio-element
-            $def->addElement('audio', 'Inline', 'Optional: #PCDATA | Flow | source | track', 'Common', [
+            $def->addElement('audio', 'Block', 'Optional: #PCDATA | Flow | source | track', 'Common', [
                 'src' => 'URI',
                 'crossorigin' => 'Enum#anonymous,use-credentials',
                 'preload' => 'Enum#auto,metadata,none',
@@ -2321,32 +2223,6 @@ function highlightfast($needle, $haystack) {
 }
 
 /**
- * Converts a language code to hyphen-separated format in accordance to the
- * {@link https://datatracker.ietf.org/doc/html/rfc5646#section-2.1 BCP47 syntax}.
- *
- * For additional information, check out
- * {@link https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/lang MDN web docs - lang}.
- *
- * @param string $langcode The language code to convert.
- * @return string
- */
-function get_html_lang_attribute_value(string $langcode): string {
-    $langcode = clean_param($langcode, PARAM_LANG);
-    if ($langcode === '') {
-        return 'en';
-    }
-
-    // Grab language ISO code from lang config. If it differs from English, then it's been specified and we can return it.
-    $langiso = (string) (new lang_string('iso6391', 'core_langconfig', null, $langcode));
-    if ($langiso !== 'en') {
-        return $langiso;
-    }
-
-    // Where we cannot determine the value from lang config, use the first two characters from the lang code.
-    return substr($langcode, 0, 2);
-}
-
-/**
  * Return a string containing 'lang', xml:lang and optionally 'dir' HTML attributes.
  *
  * Internationalisation, for print_header and backup/restorelib.
@@ -2358,7 +2234,7 @@ function get_html_lang($dir = false) {
     global $CFG;
 
     $currentlang = current_language();
-    if (isset($CFG->lang) && $currentlang !== $CFG->lang && !get_string_manager()->translation_exists($currentlang)) {
+    if ($currentlang !== $CFG->lang && !get_string_manager()->translation_exists($currentlang)) {
         // Use the default site language when the current language is not available.
         $currentlang = $CFG->lang;
         // Fix the current language.
@@ -2375,7 +2251,7 @@ function get_html_lang($dir = false) {
     }
 
     // Accessibility: added the 'lang' attribute to $direction, used in theme <html> tag.
-    $language = get_html_lang_attribute_value($currentlang);
+    $language = str_replace('_', '-', $currentlang);
     @header('Content-Language: '.$language);
     return ($direction.' lang="'.$language.'" xml:lang="'.$language.'"');
 }
@@ -2458,7 +2334,7 @@ function link_arrow_right($text, $url='', $accesshide=false, $addclass='', $addp
     if (!$url) {
         $arrowclass .= $addclass;
     }
-    $arrow = '<span class="'.$arrowclass.'" aria-hidden="true">'.$OUTPUT->rarrow().'</span>';
+    $arrow = '<span class="'.$arrowclass.'">'.$OUTPUT->rarrow().'</span>';
     $htmltext = '';
     if ($text) {
         $htmltext = '<span class="arrow_text">'.$text.'</span>&nbsp;';
@@ -2500,7 +2376,7 @@ function link_arrow_left($text, $url='', $accesshide=false, $addclass='', $addpa
     if (! $url) {
         $arrowclass .= $addclass;
     }
-    $arrow = '<span class="'.$arrowclass.'" aria-hidden="true">'.$OUTPUT->larrow().'</span>';
+    $arrow = '<span class="'.$arrowclass.'">'.$OUTPUT->larrow().'</span>';
     $htmltext = '';
     if ($text) {
         $htmltext = '&nbsp;<span class="arrow_text">'.$text.'</span>';
@@ -2601,6 +2477,7 @@ function print_collapsible_region_start($classes, $id, $caption, $userpref = '',
 
     // Work out the initial state.
     if (!empty($userpref) and is_string($userpref)) {
+        user_preference_allow_ajax_update($userpref, PARAM_BOOL);
         $collapsed = get_user_preferences($userpref, $default);
     } else {
         $collapsed = $default;
@@ -2784,7 +2661,7 @@ function print_recent_activity_note($time, $user, $text, $link, $return=false, $
  * outputs a simple list structure in XHTML.
  * The data is taken from the serialised array stored in the course record.
  *
- * @param stdClass $course A course object.
+ * @param course $course A {@link $COURSE} object.
  * @param array $sections
  * @param course_modinfo $modinfo
  * @param string $strsection
@@ -2861,7 +2738,7 @@ function navmenulist($course, $sections, $modinfo, $strsection, $strjumpto, $wid
         $class = 'activity '.$mod->modname;
         $class .= ($cmid == $mod->id) ? ' selected' : '';
         $menu[] = '<li class="'.$class.'">'.
-                  $OUTPUT->image_icon('monologo', '', $mod->modname).
+                  $OUTPUT->image_icon('icon', '', $mod->modname).
                   '<a href="'.$CFG->wwwroot.'/mod/'.$url.'">'.$mod->name.'</a></li>';
     }
 
@@ -3251,6 +3128,7 @@ function print_maintenance_message() {
 
     $PAGE->set_pagetype('maintenance-message');
     $PAGE->set_pagelayout('maintenance');
+    $PAGE->set_title(strip_tags($SITE->fullname));
     $PAGE->set_heading($SITE->fullname);
     echo $OUTPUT->header();
     echo $OUTPUT->heading(get_string('sitemaintenance', 'admin'));
@@ -3559,7 +3437,7 @@ class html_progress_trace extends progress_trace {
      * @return void Output is echo'd
      */
     public function output($message, $depth = 0) {
-        echo '<p>', str_repeat('&#160;&#160;', $depth), htmlspecialchars($message, ENT_COMPAT), "</p>\n";
+        echo '<p>', str_repeat('&#160;&#160;', $depth), htmlspecialchars($message), "</p>\n";
         flush();
     }
 }
@@ -3600,7 +3478,7 @@ class html_list_progress_trace extends progress_trace {
         if ($samedepth) {
             echo "</li>\n<li>";
         }
-        echo htmlspecialchars($message, ENT_COMPAT);
+        echo htmlspecialchars($message);
         flush();
     }
 
@@ -3654,7 +3532,7 @@ class error_log_progress_trace extends progress_trace {
  * @package core
  */
 class progress_trace_buffer extends progress_trace {
-    /** @var progress_trace */
+    /** @var progres_trace */
     protected $trace;
     /** @var bool do we pass output out */
     protected $passthrough;
@@ -3824,7 +3702,7 @@ function print_password_policy() {
  *                which format to output the doclink in.
  * @param string|object|array $a An object, string or number that can be used
  *      within translation strings
- * @return stdClass An object containing:
+ * @return Object An object containing:
  * - heading: Any heading that there may be for this help string.
  * - text: The wiki-formatted help string.
  * - doclink: An object containing a link, the linktext, and any additional

@@ -115,15 +115,13 @@ class Horde_String
              !Horde_Util::extensionExists('iconv') ||
              !Horde_Util::extensionExists('mbstring'))) {
             if (($to == 'utf-8') &&
-                function_exists('utf8_encode') &&
                 in_array($from, array('iso-8859-1', 'us-ascii', 'utf-8'))) {
-                return @utf8_encode($input);
+                return utf8_encode($input);
             }
 
             if (($from == 'utf-8') &&
-                function_exists('utf8_decode') &&
                 in_array($to, array('iso-8859-1', 'us-ascii', 'utf-8'))) {
-                return @utf8_decode($input);
+                return utf8_decode($input);
             }
         }
 
@@ -159,13 +157,9 @@ class Horde_String
 
         /* Try mbstring. */
         if (Horde_Util::extensionExists('mbstring')) {
-            try {
-                $out = @mb_convert_encoding($input, $to, self::_mbstringCharset($from));
-                if (!empty($out)) {
-                    return $out;
-                }
-            } catch (ValueError $e) {
-                // catch error thrown under PHP 8.0, if mbstring does not support the encoding
+            $out = @mb_convert_encoding($input, $to, self::_mbstringCharset($from));
+            if (!empty($out)) {
+                return $out;
             }
         }
 
@@ -201,11 +195,7 @@ class Horde_String
         if (!isset(self::$_lowers[$string])) {
             $language = setlocale(LC_CTYPE, 0);
             setlocale(LC_CTYPE, 'C');
-            if ($string === null) {
-                self::$_lowers[$string] = '';
-            } else {
-                self::$_lowers[$string] = strtolower($string);
-            }
+            self::$_lowers[$string] = strtolower($string);
             setlocale(LC_CTYPE, $language);
         }
 
@@ -383,12 +373,7 @@ class Horde_String
         $charset = self::lower($charset);
 
         if ($charset == 'utf-8' || $charset == 'utf8') {
-            if (Horde_Util::extensionExists('mbstring')) {
-                return strlen(mb_convert_encoding($string, 'ISO-8859-1', 'UTF-8'));
-
-            } else if (function_exists('utf8_decode')) {
-                return strlen(@utf8_decode($string));
-            }
+            return strlen(utf8_decode($string));
         }
 
         if (Horde_Util::extensionExists('mbstring')) {

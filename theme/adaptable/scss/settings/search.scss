@@ -63,6 +63,14 @@
     height: 35px;
 }
 
+@media (max-width: 979px) {
+    .headersearch {
+        margin: 0;
+        padding-bottom: 5px;
+        width: 100%;
+    }
+}
+
 #adaptable-page-header-wrapper .navbarsearchsocial form .icon {
     color: [[setting:fontcolor]];
 }
@@ -81,9 +89,16 @@
     padding-right: 0;
 }
 
-.simplesearchform .collapse.show,
-.simplesearchform .collapsing {
-    background-color: transparent;
-    height: auto;
-    position: relative;
+@media (max-width: 991.98px) {
+    .navbarsearchsocial .simplesearchform .collapse.show,
+    .navbarsearchsocial .simplesearchform .collapsing {
+        background-color: transparent;
+        display: flex;
+        height: auto;
+        left: 0;
+        position: relative;
+        top: 0;
+        width: 100%;
+        z-index: 1060;
+    }
 }

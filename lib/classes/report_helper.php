@@ -25,6 +25,7 @@
 
 namespace core;
 use moodle_url;
+use url_select;
 
 /**
  * A helper class with static methods to help report plugins
@@ -44,65 +45,41 @@ class report_helper {
         global $OUTPUT, $PAGE;
 
         if ($reportnode = $PAGE->settingsnav->find('coursereports', \navigation_node::TYPE_CONTAINER)) {
+            if ($children = $reportnode->children) {
+                // Menu to select report pages to navigate.
+                $activeurl = '';
+                foreach ($children as $key => $node) {
+                    $name = $node->text;
 
-            $menuarray = \core\navigation\views\secondary::create_menu_element([$reportnode]);
-            if (empty($menuarray)) {
-                return;
-            }
-
-            $coursereports = get_string('reports');
-            $activeurl = '';
-            if (isset($menuarray[0])) {
-                // Remove the reports entry.
-                $result = array_search($coursereports, $menuarray[0][$coursereports]);
-                unset($menuarray[0][$coursereports][$result]);
-
-                // Find the active node.
-                foreach ($menuarray[0] as $key => $value) {
-                    $check = array_search($pluginname, $value);
-                    if ($check !== false) {
-                        $activeurl = $check;
+                    if ($node->has_action()) {
+                        $url = $node->action()->out(false);
+                        $menu[$url] = $name;
+                        if ($name === $pluginname) {
+                            $activeurl = $url;
+                        }
                     }
                 }
-            } else {
-                $result = array_search($coursereports, $menuarray);
-                unset($menuarray[$result]);
-
-                $check = array_search($pluginname, $menuarray);
-                if ($check !== false) {
-                    $activeurl = $check;
-                }
-
             }
-            $selectmenu = new \core\output\select_menu('reporttype', $menuarray, $activeurl);
-            $selectmenu->set_label(get_string('reporttype'), ['class' => 'sr-only']);
-            $options = \html_writer::tag(
-                'div',
-                $OUTPUT->render_from_template('core/tertiary_navigation_selector', $selectmenu->export_for_template($OUTPUT)),
-                ['class' => 'row pb-3']
-            );
-            echo \html_writer::tag(
-                'div',
-                $options,
-                ['class' => 'tertiary-navigation full-width-bottom-border ml-0', 'id' => 'tertiary-navigation']);
-        } else {
-            echo $OUTPUT->heading($pluginname, 2, 'mb-3');
+
+            if (!empty($menu)) {
+                $select = new url_select($menu, $activeurl, null, 'choosecoursereport');
+                $select->set_label(get_string('report'), ['class' => 'accesshide']);
+                $select->attributes['style'] = "margin-bottom: 1.5rem";
+                $select->class .= " mb-4";
+                echo $OUTPUT->render($select);
+            }
         }
     }
 
     /**
      * Save the last selected report in the session
      *
-     * @deprecated since Moodle 4.0
      * @param int $id The course id
      * @param moodle_url $url The moodle url
      * @return void
      */
     public static function save_selected_report(int $id, moodle_url $url):void {
         global $USER;
-
-        debugging('save_selected_report() has been deprecated because it is no longer used and will be '.
-            'removed in future versions of Moodle', DEBUG_DEVELOPER);
 
         // Last selected report.
         if (!isset($USER->course_last_report)) {

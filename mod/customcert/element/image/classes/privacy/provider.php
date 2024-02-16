@@ -24,6 +24,8 @@
 
 namespace customcertelement_image\privacy;
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * Privacy Subsystem for customcertelement_image implementing null_provider.
  *

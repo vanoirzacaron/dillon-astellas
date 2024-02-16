@@ -24,6 +24,8 @@
 
 namespace customcertelement_studentname\privacy;
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * Privacy Subsystem for customcertelement_studentname implementing null_provider.
  *

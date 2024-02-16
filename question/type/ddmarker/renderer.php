@@ -69,7 +69,7 @@ class qtype_ddmarker_renderer extends qtype_ddtoimage_renderer_base {
         $orderedgroup = $question->get_ordered_choices(1);
         $hiddenfields = '';
         foreach ($orderedgroup as $choiceno => $drag) {
-            $classes = ['marker', 'user-select-none', 'choice' . $choiceno];
+            $classes = ['marker', 'choice' . $choiceno];
             $attr = [];
             if ($drag->infinite) {
                 $classes[] = 'infinite';

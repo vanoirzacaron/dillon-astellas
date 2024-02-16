@@ -5,16 +5,12 @@ Feature: Quiz user override
   I need to create an override for that user.
 
   Background:
-    And the following "custom profile fields" exist:
-      | datatype | shortname  | name           |
-      | text     | frog       | Favourite frog |
     Given the following "users" exist:
-      | username | firstname | lastname | email                | profile_field_frog |
-      | teacher  | Teacher   | One      | teacher@example.com  |                    |
-      | helper   | Exam      | Helper   | helper@example.com   |                    |
-      | student1 | Student   | One      | student1@example.com | yellow frog        |
-      | student2 | Student   | Two      | student2@example.com | prince frog        |
-      | student3 | Student   | Three    | student3@example.com | Kermit             |
+      | username | firstname | lastname | email                |
+      | teacher  | Teacher   | One      | teacher@example.com  |
+      | helper   | Exam      | Helper   | helper@example.com   |
+      | student1 | Student   | One      | student1@example.com |
+      | student2 | Student   | Two      | student2@example.com |
     And the following "courses" exist:
       | fullname | shortname | category |
       | Course 1 | C1        | 0        |
@@ -24,7 +20,6 @@ Feature: Quiz user override
       | helper   | C1     | teacher        |
       | student1 | C1     | student        |
       | student2 | C1     | student        |
-      | student3 | C1     | student        |
 
   @javascript
   Scenario: Add, modify then delete a user override
@@ -32,8 +27,7 @@ Feature: Quiz user override
       | activity   | name      | course | idnumber |
       | quiz       | Test quiz | C1     | quiz1    |
     And I am on the "Test quiz" "mod_quiz > View" page logged in as "teacher"
-    And I change window size to "large"
-    And I navigate to "Overrides" in current page administration
+    And I navigate to "User overrides" in current page administration
     And I press "Add user override"
     And I set the following fields to these values:
       | Override user        | Student One (student1@example.com) |
@@ -58,30 +52,6 @@ Feature: Quiz user override
     And I should see "Are you sure you want to delete the override for user Student One (student1@example.com)?"
     And I press "Continue"
     And I should not see "Student One"
-
-  @javascript
-  Scenario: Add multiple user overrides, one after another
-    Given the following "activities" exist:
-      | activity   | name      | course | idnumber |
-      | quiz       | Test quiz | C1     | quiz1    |
-    And I am on the "Test quiz" "mod_quiz > View" page logged in as "teacher"
-    And I change window size to "large"
-    And I navigate to "Overrides" in current page administration
-    And I press "Add user override"
-    And I set the following fields to these values:
-      | Override user      | Student One                |
-      | timeclose[enabled] | 1                          |
-      | Close the quiz     | ## 1 January 2020 08:00 ## |
-    And I press "Save and enter another override"
-    And I set the following fields to these values:
-      | Override user      | Student Two                |
-      | timeclose[enabled] | 1                          |
-      | Close the quiz     | ## 2 January 2020 08:00 ## |
-    When I press "Save"
-    Then the following should exist in the "generaltable" table:
-      | User        | Overrides   | -4-                  |
-      | Student One | Quiz closes | 1 January 2020, 8:00 |
-      | Student Two | Quiz closes | 2 January 2020, 8:00 |
 
   @javascript
   Scenario: Can add a user override when the quiz is not available to the student
@@ -171,7 +141,7 @@ Feature: Quiz user override
       | Test quiz | student1 | 2        |
       | Test quiz | student2 | 2        |
     And I am on the "Test quiz" "mod_quiz > View" page logged in as "helper"
-    When I navigate to "Overrides" in current page administration
+    When I navigate to "User overrides" in current page administration
     Then "Student One" "table_row" should exist
     And "Student Two" "table_row" should exist
     And "Add user override" "button" should not exist
@@ -181,62 +151,3 @@ Feature: Quiz user override
     And "Delete" "link" should not exist in the "Student One" "table_row"
     And I am on the "Test quiz" "mod_quiz > View" page
     And I should see "Settings overrides exist (Users: 2)"
-
-  @javascript
-  Scenario: Teachers can see user additional user identity information
-    Given the following config values are set as admin:
-      | showuseridentity | email,profile_field_frog |
-    And the following "activities" exist:
-      | activity   | name      | course | idnumber |
-      | quiz       | Test quiz | C1     | quiz1    |
-    And the following "mod_quiz > user overrides" exist:
-      | quiz      | user     | attempts |
-      | Test quiz | student1 | 2        |
-      | Test quiz | student2 | 2        |
-    When I am on the "Test quiz" "mod_quiz > User overrides" page logged in as "teacher"
-    Then I should see "yellow frog" in the "Student One" "table_row"
-    And I should see "prince frog" in the "Student Two" "table_row"
-
-    And I press "Add user override"
-    And I expand the "Override user" autocomplete
-    And I should see "Kermit"
-    And I should not see "Student one"
-    And I should not see "Student two"
-    And I press "Cancel"
-
-    And I click on "Edit" "link" in the "Student One" "table_row"
-    And I should see "Student One (student1@example.com, yellow frog)"
-    And I press "Cancel"
-
-    And I click on "Delete" "link" in the "Student One" "table_row"
-    And I should see "Student One (student1@example.com, yellow frog)"
-
-  Scenario: Add button disabled if no users
-    Given the following "courses" exist:
-      | fullname | shortname | category |
-      | Course 2 | C2        | 0        |
-    And the following "activities" exist:
-      | activity   | name       | course | idnumber |
-      | quiz       | Other quiz | C2     | quiz2    |
-    When I am on the "Other quiz" "mod_quiz > User overrides" page logged in as "admin"
-    Then the "Add user override" "button" should be disabled
-
-  @javascript
-  Scenario: Should see only enrolled users in user selector
-    Given the following "users" exist:
-      | username | firstname | lastname | email           |
-      | manager  | Max       | Manager  | man@example.com |
-    And the following "role assigns" exist:
-      | user    | role    | contextlevel | reference |
-      | manager | manager | System       |           |
-    And the following "activities" exist:
-      | activity | name      | course | idnumber | groupmode |
-      | quiz     | Test quiz | C1     | quiz1    | 1         |
-    And the following "role capability" exists:
-      | role             | manager |
-      | mod/quiz:attempt | allow   |
-    When I am on the "Test quiz" "mod_quiz > User overrides" page logged in as "teacher"
-    And I press "Add user override"
-    And I click on "Override user" "field"
-    And I type "Max Manager"
-    Then I should see "No suggestions"

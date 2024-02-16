@@ -32,7 +32,6 @@ if (!defined('MAX_MODINFO_CACHE_SIZE')) {
     define('MAX_MODINFO_CACHE_SIZE', 10);
 }
 
-use core_courseformat\output\activitybadge;
 
 /**
  * Information about a course that is cached in the course table 'modinfo' field (and then in
@@ -92,12 +91,6 @@ class course_modinfo {
      * @var array
      */
     private $sections;
-
-    /**
-     * Array from section id => section num.
-     * @var array
-     */
-    private $sectionids;
 
     /**
      * Array from int (cm id) => cm_info object
@@ -240,7 +233,7 @@ class course_modinfo {
      */
     public function get_cm($cmid) {
         if (empty($this->cms[$cmid])) {
-            throw new moodle_exception('invalidcoursemoduleid', 'error', '', $cmid);
+            throw new moodle_exception('invalidcoursemodule', 'error');
         }
         return $this->cms[$cmid];
     }
@@ -272,7 +265,7 @@ class course_modinfo {
 
     /**
      * Obtains all instances of a particular module on this course.
-     * @param string $modname Name of module (not full frankenstyle) e.g. 'label'
+     * @param $modname Name of module (not full frankenstyle) e.g. 'label'
      * @return cm_info[] Array from instance id => cm_info for modules on this course; empty if none
      */
     public function get_instances_of($modname) {
@@ -288,6 +281,11 @@ class course_modinfo {
      */
     private function get_groups_all() {
         if (is_null($this->groups)) {
+            // NOTE: Performance could be improved here. The system caches user groups
+            // in $USER->groupmember[$courseid] => array of groupid=>groupid. Unfortunately this
+            // structure does not include grouping information. It probably could be changed to
+            // do so, without a significant performance hit on login, thus saving this one query
+            // each request.
             $this->groups = groups_get_user_groups($this->course->id, $this->userid);
         }
         return $this->groups;
@@ -333,24 +331,6 @@ class course_modinfo {
     }
 
     /**
-     * Gets data about specific section ID.
-     * @param int $sectionid ID (not number) of section
-     * @param int $strictness Use MUST_EXIST to throw exception if it doesn't
-     * @return section_info|null Information for numbered section or null if not found
-     */
-    public function get_section_info_by_id(int $sectionid, int $strictness = IGNORE_MISSING): ?section_info {
-
-        if (!isset($this->sectionids[$sectionid])) {
-            if ($strictness === MUST_EXIST) {
-                throw new moodle_exception('sectionnotexist');
-            } else {
-                return null;
-            }
-        }
-        return $this->get_section_info($this->sectionids[$sectionid], $strictness);
-    }
-
-    /**
      * Static cache for generated course_modinfo instances
      *
      * @see course_modinfo::instance()
@@ -369,33 +349,17 @@ class course_modinfo {
     protected static $cacheaccessed = array();
 
     /**
-     * Store a list of known course cacherev values. This is in case people reuse a course object
-     * (with an old cacherev value) within the same request when calling things like
-     * get_fast_modinfo, after rebuild_course_cache.
-     *
-     * @var int[]
-     */
-    protected static $mincacherevs = [];
-
-    /**
      * Clears the cache used in course_modinfo::instance()
      *
      * Used in {@link get_fast_modinfo()} when called with argument $reset = true
      * and in {@link rebuild_course_cache()}
      *
-     * If the cacherev for the course is known to have updated (i.e. when doing
-     * rebuild_course_cache), it should be specified here.
-     *
      * @param null|int|stdClass $courseorid if specified removes only cached value for this course
-     * @param int $newcacherev If specified, the known cache rev for this course id will be updated
      */
-    public static function clear_instance_cache($courseorid = null, int $newcacherev = 0) {
+    public static function clear_instance_cache($courseorid = null) {
         if (empty($courseorid)) {
             self::$instancecache = array();
             self::$cacheaccessed = array();
-            // This is called e.g. in phpunit when we just want to reset the caches, so also
-            // reset the mincacherevs static cache.
-            self::$mincacherevs = [];
             return;
         }
         if (is_object($courseorid)) {
@@ -408,11 +372,6 @@ class course_modinfo {
             self::$instancecache[$courseorid] = '';
             unset(self::$instancecache[$courseorid]);
             unset(self::$cacheaccessed[$courseorid]);
-        }
-        // When clearing cache for a course, we record the new cacherev version, to make
-        // sure that any future requests for the cache use at least this version.
-        if ($newcacherev) {
-            self::$mincacherevs[(int)$courseorid] = $newcacherev;
         }
     }
 
@@ -489,29 +448,27 @@ class course_modinfo {
             $course = get_course($course->id, false);
         }
 
-        // If we have rebuilt the course cache in this request, ensure that requested cacherev is
-        // at least that value. This ensures that we're not reusing a course object with old
-        // cacherev, which could result in using old cached data.
-        if (array_key_exists($course->id, self::$mincacherevs) &&
-                $course->cacherev < self::$mincacherevs[$course->id]) {
-            $course->cacherev = self::$mincacherevs[$course->id];
-        }
-
         $cachecoursemodinfo = cache::make('core', 'coursemodinfo');
 
         // Retrieve modinfo from cache. If not present or cacherev mismatches, call rebuild and retrieve again.
-        $coursemodinfo = $cachecoursemodinfo->get_versioned($course->id, $course->cacherev);
-        // Note the version comparison using the data in the cache should not be necessary, but the
-        // partial rebuild logic sometimes sets the $coursemodinfo->cacherev to -1 which is an
-        // indicator that it needs rebuilding.
-        if ($coursemodinfo === false || ($course->cacherev > $coursemodinfo->cacherev)) {
-            $coursemodinfo = self::build_course_cache($course);
+        $coursemodinfo = $cachecoursemodinfo->get($course->id);
+        if ($coursemodinfo === false || ($course->cacherev != $coursemodinfo->cacherev)) {
+            $lock = self::get_course_cache_lock($course->id);
+            try {
+                // Only actually do the build if it's still needed after getting the lock (not if
+                // somebody else, who might have been holding the lock, built it already).
+                $coursemodinfo = $cachecoursemodinfo->get($course->id);
+                if ($coursemodinfo === false || ($course->cacherev != $coursemodinfo->cacherev)) {
+                    $coursemodinfo = self::inner_build_course_cache($course, $lock);
+                }
+            } finally {
+                $lock->release();
+            }
         }
 
         // Set initial values
         $this->userid = $userid;
         $this->sections = array();
-        $this->sectionids = [];
         $this->cms = array();
         $this->instances = array();
         $this->groups = null;
@@ -532,7 +489,7 @@ class course_modinfo {
                             ' does not have context. Rebuilding cache for course '. $course->id);
                     // Re-request the course record from DB as well, don't use get_course() here.
                     $course = $DB->get_record('course', array('id' => $course->id), '*', MUST_EXIST);
-                    $coursemodinfo = self::build_course_cache($course, true);
+                    $coursemodinfo = self::build_course_cache($course);
                     break;
                 }
             }
@@ -583,7 +540,6 @@ class course_modinfo {
         // Expand section objects
         $this->sectioninfo = array();
         foreach ($coursemodinfo->sectioncache as $number => $data) {
-            $this->sectionids[$data->id] = $number;
             $this->sectioninfo[$number] = new section_info($data, $number, null, null,
                     $this, null);
         }
@@ -606,37 +562,23 @@ class course_modinfo {
      * in some other way.)
      *
      * @param stdClass $course Course object (must contain fields
-     * @param boolean $usecache use cached section info if exists, use true for partial course rebuild
      * @return array Information about sections, indexed by section number (not id)
      */
-    protected static function build_course_section_cache(\stdClass $course, bool $usecache = false): array {
+    protected static function build_course_section_cache($course) {
         global $DB;
 
         // Get section data
         $sections = $DB->get_records('course_sections', array('course' => $course->id), 'section',
                 'section, id, course, name, summary, summaryformat, sequence, visible, availability');
-        $compressedsections = [];
-        $courseformat = course_get_format($course);
-
-        if ($usecache) {
-            $cachecoursemodinfo = \cache::make('core', 'coursemodinfo');
-            $coursemodinfo = $cachecoursemodinfo->get_versioned($course->id, $course->cacherev);
-            if ($coursemodinfo !== false) {
-                $compressedsections = $coursemodinfo->sectioncache;
-            }
-        }
+        $compressedsections = array();
 
         $formatoptionsdef = course_get_format($course)->section_format_options();
         // Remove unnecessary data and add availability
         foreach ($sections as $number => $section) {
-            $sectioninfocached = isset($compressedsections[$number]);
-            if ($sectioninfocached) {
-                continue;
-            }
             // Add cached options from course format to $section object
             foreach ($formatoptionsdef as $key => $option) {
                 if (!empty($option['cache'])) {
-                    $formatoptions = $courseformat->get_format_options($section);
+                    $formatoptions = course_get_format($course)->get_format_options($section);
                     if (!array_key_exists('cachedefault', $option) || $option['cachedefault'] !== $formatoptions[$key]) {
                         $section->$key = $formatoptions[$key];
                     }
@@ -647,8 +589,35 @@ class course_modinfo {
             section_info::convert_for_section_cache($compressedsections[$number]);
         }
 
-        ksort($compressedsections);
         return $compressedsections;
+    }
+
+    /**
+     * Gets a lock for rebuilding the cache of a single course.
+     *
+     * Caller must release the returned lock.
+     *
+     * This is used to ensure that the cache rebuild doesn't happen multiple times in parallel.
+     * This function will wait up to 1 minute for the lock to be obtained. If the lock cannot
+     * be obtained, it throws an exception.
+     *
+     * @param int $courseid Course id
+     * @return \core\lock\lock Lock (must be released!)
+     * @throws moodle_exception If the lock cannot be obtained
+     */
+    protected static function get_course_cache_lock($courseid) {
+        // Get database lock to ensure this doesn't happen multiple times in parallel. Wait a
+        // reasonable time for the lock to be released, so we can give a suitable error message.
+        // In case the system crashes while building the course cache, the lock will automatically
+        // expire after a (slightly longer) period.
+        $lockfactory = \core\lock\lock_config::get_lock_factory('core_modinfo');
+        $lock = $lockfactory->get_lock('build_course_cache_' . $courseid,
+                self::COURSE_CACHE_LOCK_WAIT, self::COURSE_CACHE_LOCK_EXPIRY);
+        if (!$lock) {
+            throw new moodle_exception('locktimeout', '', '', null,
+                    'core_modinfo/build_course_cache_' . $courseid);
+        }
+        return $lock;
     }
 
     /**
@@ -657,190 +626,77 @@ class course_modinfo {
      *
      * @param stdClass $course object from DB table course. Must have property 'id'
      *     but preferably should have all cached fields.
-     * @param boolean $partialrebuild Indicate if it's partial course cache rebuild or not
      * @return stdClass object with all cached keys of the course plus fields modinfo and sectioncache.
      *     The same object is stored in MUC
      * @throws moodle_exception if course is not found (if $course object misses some of the
      *     necessary fields it is re-requested from database)
      */
-    public static function build_course_cache(\stdClass $course, bool $partialrebuild = false): \stdClass {
+    public static function build_course_cache($course) {
         if (empty($course->id)) {
             throw new coding_exception('Object $course is missing required property \id\'');
         }
 
-        $cachecoursemodinfo = cache::make('core', 'coursemodinfo');
-        $cachekey = $course->id;
-        $cachecoursemodinfo->acquire_lock($cachekey);
+        $lock = self::get_course_cache_lock($course->id);
         try {
-            // Only actually do the build if it's still needed after getting the lock (not if
-            // somebody else, who might have been holding the lock, built it already).
-            $coursemodinfo = $cachecoursemodinfo->get_versioned($course->id, $course->cacherev);
-            if ($coursemodinfo === false || ($course->cacherev > $coursemodinfo->cacherev)) {
-                $coursemodinfo = self::inner_build_course_cache($course);
-            }
+            return self::inner_build_course_cache($course, $lock);
         } finally {
-            $cachecoursemodinfo->release_lock($cachekey);
+            $lock->release();
         }
-        return $coursemodinfo;
     }
 
     /**
      * Called to build course cache when there is already a lock obtained.
      *
      * @param stdClass $course object from DB table course
-     * @param bool $partialrebuild Indicate if it's partial course cache rebuild or not
+     * @param \core\lock\lock $lock Lock object - not actually used, just there to indicate you have a lock
      * @return stdClass Course object that has been stored in MUC
      */
-    protected static function inner_build_course_cache(\stdClass $course, bool $partialrebuild = false): \stdClass {
+    protected static function inner_build_course_cache($course, \core\lock\lock $lock) {
         global $DB, $CFG;
         require_once("{$CFG->dirroot}/course/lib.php");
 
-        $cachekey = $course->id;
-        $cachecoursemodinfo = cache::make('core', 'coursemodinfo');
-        if (!$cachecoursemodinfo->check_lock_state($cachekey)) {
-            throw new coding_exception('You must acquire a lock on the course ID before calling inner_build_course_cache');
+        // Ensure object has all necessary fields.
+        foreach (self::$cachedfields as $key) {
+            if (!isset($course->$key)) {
+                $course = $DB->get_record('course', array('id' => $course->id),
+                        implode(',', array_merge(array('id'), self::$cachedfields)), MUST_EXIST);
+                break;
+            }
         }
-
-        // Always reload the course object from database to ensure we have the latest possible
-        // value for cacherev.
-        $course = $DB->get_record('course', ['id' => $course->id],
-                implode(',', array_merge(['id'], self::$cachedfields)), MUST_EXIST);
         // Retrieve all information about activities and sections.
+        // This may take time on large courses and it is possible that another user modifies the same course during this process.
+        // Field cacherev stored in both DB and cache will ensure that cached data matches the current course state.
         $coursemodinfo = new stdClass();
-        $coursemodinfo->modinfo = self::get_array_of_activities($course, $partialrebuild);
-        $coursemodinfo->sectioncache = self::build_course_section_cache($course, $partialrebuild);
+        $coursemodinfo->modinfo = self::get_array_of_activities($course);
+        $coursemodinfo->sectioncache = self::build_course_section_cache($course);
         foreach (self::$cachedfields as $key) {
             $coursemodinfo->$key = $course->$key;
         }
         // Set the accumulated activities and sections information in cache, together with cacherev.
-        $cachecoursemodinfo->set_versioned($cachekey, $course->cacherev, $coursemodinfo);
+        $cachecoursemodinfo = cache::make('core', 'coursemodinfo');
+        $cachecoursemodinfo->set($course->id, $coursemodinfo);
         return $coursemodinfo;
-    }
-
-    /**
-     * Purge the cache of a course section by its id.
-     *
-     * @param int $courseid The course to purge cache in
-     * @param int $sectionid The section _id_ to purge
-     */
-    public static function purge_course_section_cache_by_id(int $courseid, int $sectionid): void {
-        $course = get_course($courseid);
-        $cache = cache::make('core', 'coursemodinfo');
-        $cachekey = $course->id;
-        $cache->acquire_lock($cachekey);
-        try {
-            $coursemodinfo = $cache->get_versioned($cachekey, $course->cacherev);
-            if ($coursemodinfo !== false) {
-                foreach ($coursemodinfo->sectioncache as $sectionno => $sectioncache) {
-                    if ($sectioncache->id == $sectionid) {
-                        $coursemodinfo->cacherev = -1;
-                        unset($coursemodinfo->sectioncache[$sectionno]);
-                        $cache->set_versioned($cachekey, $course->cacherev, $coursemodinfo);
-                        break;
-                    }
-                }
-            }
-        } finally {
-            $cache->release_lock($cachekey);
-        }
-    }
-
-    /**
-     * Purge the cache of a course section by its number.
-     *
-     * @param int $courseid The course to purge cache in
-     * @param int $sectionno The section number to purge
-     */
-    public static function purge_course_section_cache_by_number(int $courseid, int $sectionno): void {
-        $course = get_course($courseid);
-        $cache = cache::make('core', 'coursemodinfo');
-        $cachekey = $course->id;
-        $cache->acquire_lock($cachekey);
-        try {
-            $coursemodinfo = $cache->get_versioned($cachekey, $course->cacherev);
-            if ($coursemodinfo !== false && array_key_exists($sectionno, $coursemodinfo->sectioncache)) {
-                $coursemodinfo->cacherev = -1;
-                unset($coursemodinfo->sectioncache[$sectionno]);
-                $cache->set_versioned($cachekey, $course->cacherev, $coursemodinfo);
-            }
-        } finally {
-            $cache->release_lock($cachekey);
-        }
-    }
-
-    /**
-     * Purge the cache of a course module.
-     *
-     * @param int $courseid Course id
-     * @param int $cmid Course module id
-     */
-    public static function purge_course_module_cache(int $courseid, int $cmid): void {
-        self::purge_course_modules_cache($courseid, [$cmid]);
-    }
-
-    /**
-     * Purge the cache of multiple course modules.
-     *
-     * @param int $courseid Course id
-     * @param int[] $cmids List of course module ids
-     * @return void
-     */
-    public static function purge_course_modules_cache(int $courseid, array $cmids): void {
-        $course = get_course($courseid);
-        $cache = cache::make('core', 'coursemodinfo');
-        $cachekey = $course->id;
-        $cache->acquire_lock($cachekey);
-        try {
-            $coursemodinfo = $cache->get_versioned($cachekey, $course->cacherev);
-            $hascache = ($coursemodinfo !== false);
-            $updatedcache = false;
-            if ($hascache) {
-                foreach ($cmids as $cmid) {
-                    if (array_key_exists($cmid, $coursemodinfo->modinfo)) {
-                        unset($coursemodinfo->modinfo[$cmid]);
-                        $updatedcache = true;
-                    }
-                }
-                if ($updatedcache) {
-                    $coursemodinfo->cacherev = -1;
-                    $cache->set_versioned($cachekey, $course->cacherev, $coursemodinfo);
-                    $cache->get_versioned($cachekey, $course->cacherev);
-                }
-            }
-        } finally {
-            $cache->release_lock($cachekey);
-        }
     }
 
     /**
      * For a given course, returns an array of course activity objects
      *
      * @param stdClass $course Course object
-     * @param bool $usecache get activities from cache if modinfo exists when $usecache is true
      * @return array list of activities
      */
-    public static function get_array_of_activities(stdClass $course, bool $usecache = false): array {
+    public static function get_array_of_activities(stdClass $course): array {
         global $CFG, $DB;
 
         if (empty($course)) {
             throw new moodle_exception('courseidnotfound');
         }
 
+        $mod = [];
+
         $rawmods = get_course_mods($course->id);
         if (empty($rawmods)) {
-            return [];
+            return $mod; // always return array
         }
-
-        $mods = [];
-        if ($usecache) {
-            // Get existing cache.
-            $cachecoursemodinfo = cache::make('core', 'coursemodinfo');
-            $coursemodinfo = $cachecoursemodinfo->get_versioned($course->id, $course->cacherev);
-            if ($coursemodinfo !== false) {
-                $mods = $coursemodinfo->modinfo;
-            }
-        }
-
         $courseformat = course_get_format($course);
 
         if ($sections = $DB->get_records('course_sections', ['course' => $course->id],
@@ -855,55 +711,48 @@ class course_modinfo {
             // Build array of activities.
             foreach ($sections as $section) {
                 if (!empty($section->sequence)) {
-                    $cmids = explode(",", $section->sequence);
-                    $numberofmods = count($cmids);
-                    foreach ($cmids as $cmid) {
-                        // Activity does not exist in the database.
-                        $notexistindb = empty($rawmods[$cmid]);
-                        $activitycached = isset($mods[$cmid]);
-                        if ($activitycached || $notexistindb) {
+                    $sequence = explode(",", $section->sequence);
+                    foreach ($sequence as $seq) {
+                        if (empty($rawmods[$seq])) {
                             continue;
                         }
-
                         // Adjust visibleoncoursepage, value in DB may not respect format availability.
-                        $rawmods[$cmid]->visibleoncoursepage = (!$rawmods[$cmid]->visible
-                            || $rawmods[$cmid]->visibleoncoursepage
+                        $rawmods[$seq]->visibleoncoursepage = (!$rawmods[$seq]->visible
+                            || $rawmods[$seq]->visibleoncoursepage
                             || empty($CFG->allowstealth)
-                            || !$courseformat->allow_stealth_module_visibility($rawmods[$cmid], $section)) ? 1 : 0;
+                            || !$courseformat->allow_stealth_module_visibility($rawmods[$seq], $section)) ? 1 : 0;
 
-                        $mods[$cmid] = new stdClass();
-                        $mods[$cmid]->id = $rawmods[$cmid]->instance;
-                        $mods[$cmid]->cm = $rawmods[$cmid]->id;
-                        $mods[$cmid]->mod = $rawmods[$cmid]->modname;
+                        // Create an object that will be cached.
+                        $mod[$seq] = new stdClass();
+                        $mod[$seq]->id = $rawmods[$seq]->instance;
+                        $mod[$seq]->cm = $rawmods[$seq]->id;
+                        $mod[$seq]->mod = $rawmods[$seq]->modname;
 
                         // Oh dear. Inconsistent names left here for backward compatibility.
-                        $mods[$cmid]->section = $section->section;
-                        $mods[$cmid]->sectionid = $rawmods[$cmid]->section;
+                        $mod[$seq]->section = $section->section;
+                        $mod[$seq]->sectionid = $rawmods[$seq]->section;
 
-                        $mods[$cmid]->module = $rawmods[$cmid]->module;
-                        $mods[$cmid]->added = $rawmods[$cmid]->added;
-                        $mods[$cmid]->score = $rawmods[$cmid]->score;
-                        $mods[$cmid]->idnumber = $rawmods[$cmid]->idnumber;
-                        $mods[$cmid]->visible = $rawmods[$cmid]->visible;
-                        $mods[$cmid]->visibleoncoursepage = $rawmods[$cmid]->visibleoncoursepage;
-                        $mods[$cmid]->visibleold = $rawmods[$cmid]->visibleold;
-                        $mods[$cmid]->groupmode = $rawmods[$cmid]->groupmode;
-                        $mods[$cmid]->groupingid = $rawmods[$cmid]->groupingid;
-                        $mods[$cmid]->indent = $rawmods[$cmid]->indent;
-                        $mods[$cmid]->completion = $rawmods[$cmid]->completion;
-                        $mods[$cmid]->extra = "";
-                        $mods[$cmid]->completiongradeitemnumber =
-                            $rawmods[$cmid]->completiongradeitemnumber;
-                        $mods[$cmid]->completionpassgrade = $rawmods[$cmid]->completionpassgrade;
-                        $mods[$cmid]->completionview = $rawmods[$cmid]->completionview;
-                        $mods[$cmid]->completionexpected = $rawmods[$cmid]->completionexpected;
-                        $mods[$cmid]->showdescription = $rawmods[$cmid]->showdescription;
-                        $mods[$cmid]->availability = $rawmods[$cmid]->availability;
-                        $mods[$cmid]->deletioninprogress = $rawmods[$cmid]->deletioninprogress;
-                        $mods[$cmid]->downloadcontent = $rawmods[$cmid]->downloadcontent;
-                        $mods[$cmid]->lang = $rawmods[$cmid]->lang;
+                        $mod[$seq]->module = $rawmods[$seq]->module;
+                        $mod[$seq]->added = $rawmods[$seq]->added;
+                        $mod[$seq]->score = $rawmods[$seq]->score;
+                        $mod[$seq]->idnumber = $rawmods[$seq]->idnumber;
+                        $mod[$seq]->visible = $rawmods[$seq]->visible;
+                        $mod[$seq]->visibleoncoursepage = $rawmods[$seq]->visibleoncoursepage;
+                        $mod[$seq]->visibleold = $rawmods[$seq]->visibleold;
+                        $mod[$seq]->groupmode = $rawmods[$seq]->groupmode;
+                        $mod[$seq]->groupingid = $rawmods[$seq]->groupingid;
+                        $mod[$seq]->indent = $rawmods[$seq]->indent;
+                        $mod[$seq]->completion = $rawmods[$seq]->completion;
+                        $mod[$seq]->extra = "";
+                        $mod[$seq]->completiongradeitemnumber =
+                            $rawmods[$seq]->completiongradeitemnumber;
+                        $mod[$seq]->completionview = $rawmods[$seq]->completionview;
+                        $mod[$seq]->completionexpected = $rawmods[$seq]->completionexpected;
+                        $mod[$seq]->showdescription = $rawmods[$seq]->showdescription;
+                        $mod[$seq]->availability = $rawmods[$seq]->availability;
+                        $mod[$seq]->deletioninprogress = $rawmods[$seq]->deletioninprogress;
 
-                        $modname = $mods[$cmid]->mod;
+                        $modname = $mod[$seq]->mod;
                         $functionname = $modname . "_get_coursemodule_info";
 
                         if (!file_exists("$CFG->dirroot/mod/$modname/lib.php")) {
@@ -913,88 +762,86 @@ class course_modinfo {
                         include_once("$CFG->dirroot/mod/$modname/lib.php");
 
                         if ($hasfunction = function_exists($functionname)) {
-                            if ($info = $functionname($rawmods[$cmid])) {
+                            if ($info = $functionname($rawmods[$seq])) {
                                 if (!empty($info->icon)) {
-                                    $mods[$cmid]->icon = $info->icon;
+                                    $mod[$seq]->icon = $info->icon;
                                 }
                                 if (!empty($info->iconcomponent)) {
-                                    $mods[$cmid]->iconcomponent = $info->iconcomponent;
+                                    $mod[$seq]->iconcomponent = $info->iconcomponent;
                                 }
                                 if (!empty($info->name)) {
-                                    $mods[$cmid]->name = $info->name;
+                                    $mod[$seq]->name = $info->name;
                                 }
                                 if ($info instanceof cached_cm_info) {
-                                    // When using cached_cm_info you can include three new fields.
-                                    // That aren't available for legacy code.
+                                    // When using cached_cm_info you can include three new fields
+                                    // that aren't available for legacy code
                                     if (!empty($info->content)) {
-                                        $mods[$cmid]->content = $info->content;
+                                        $mod[$seq]->content = $info->content;
                                     }
                                     if (!empty($info->extraclasses)) {
-                                        $mods[$cmid]->extraclasses = $info->extraclasses;
+                                        $mod[$seq]->extraclasses = $info->extraclasses;
                                     }
                                     if (!empty($info->iconurl)) {
-                                        // Convert URL to string as it's easier to store.
-                                        // Also serialized object contains \0 byte,
-                                        // ... and can not be written to Postgres DB.
+                                        // Convert URL to string as it's easier to store. Also serialized object contains \0 byte and can not be written to Postgres DB.
                                         $url = new moodle_url($info->iconurl);
-                                        $mods[$cmid]->iconurl = $url->out(false);
+                                        $mod[$seq]->iconurl = $url->out(false);
                                     }
                                     if (!empty($info->onclick)) {
-                                        $mods[$cmid]->onclick = $info->onclick;
+                                        $mod[$seq]->onclick = $info->onclick;
                                     }
                                     if (!empty($info->customdata)) {
-                                        $mods[$cmid]->customdata = $info->customdata;
+                                        $mod[$seq]->customdata = $info->customdata;
                                     }
                                 } else {
-                                    // When using a stdclass, the (horrible) deprecated ->extra field,
-                                    // ... that is available for BC.
+                                    // When using a stdclass, the (horrible) deprecated ->extra field
+                                    // is available for BC
                                     if (!empty($info->extra)) {
-                                        $mods[$cmid]->extra = $info->extra;
+                                        $mod[$seq]->extra = $info->extra;
                                     }
                                 }
                             }
                         }
                         // When there is no modname_get_coursemodule_info function,
-                        // ... but showdescriptions is enabled, then we use the 'intro',
-                        // ... and 'introformat' fields in the module table.
-                        if (!$hasfunction && $rawmods[$cmid]->showdescription) {
-                            if ($modvalues = $DB->get_record($rawmods[$cmid]->modname,
-                                ['id' => $rawmods[$cmid]->instance], 'name, intro, introformat')) {
-                                // Set content from intro and introformat. Filters are disabled.
-                                // Because we filter it with format_text at display time.
-                                $mods[$cmid]->content = format_module_intro($rawmods[$cmid]->modname,
-                                    $modvalues, $rawmods[$cmid]->id, false);
+                        // but showdescriptions is enabled, then we use the 'intro'
+                        // and 'introformat' fields in the module table
+                        if (!$hasfunction && $rawmods[$seq]->showdescription) {
+                            if ($modvalues = $DB->get_record($rawmods[$seq]->modname,
+                                ['id' => $rawmods[$seq]->instance], 'name, intro, introformat')) {
+                                // Set content from intro and introformat. Filters are disabled
+                                // because we  filter it with format_text at display time
+                                $mod[$seq]->content = format_module_intro($rawmods[$seq]->modname,
+                                    $modvalues, $rawmods[$seq]->id, false);
 
-                                // To save making another query just below, put name in here.
-                                $mods[$cmid]->name = $modvalues->name;
+                                // To save making another query just below, put name in here
+                                $mod[$seq]->name = $modvalues->name;
                             }
                         }
-                        if (!isset($mods[$cmid]->name)) {
-                            $mods[$cmid]->name = $DB->get_field($rawmods[$cmid]->modname, "name",
-                                ["id" => $rawmods[$cmid]->instance]);
+                        if (!isset($mod[$seq]->name)) {
+                            $mod[$seq]->name =
+                                $DB->get_field($rawmods[$seq]->modname, "name", ["id" => $rawmods[$seq]->instance]);
                         }
 
-                        // Minimise the database size by unsetting default options when they are 'empty'.
-                        // This list corresponds to code in the cm_info constructor.
+                        // Minimise the database size by unsetting default options when they are
+                        // 'empty'. This list corresponds to code in the cm_info constructor.
                         foreach (['idnumber', 'groupmode', 'groupingid',
                             'indent', 'completion', 'extra', 'extraclasses', 'iconurl', 'onclick', 'content',
                             'icon', 'iconcomponent', 'customdata', 'availability', 'completionview',
                             'completionexpected', 'score', 'showdescription', 'deletioninprogress'] as $property) {
-                            if (property_exists($mods[$cmid], $property) &&
-                                empty($mods[$cmid]->{$property})) {
-                                unset($mods[$cmid]->{$property});
+                            if (property_exists($mod[$seq], $property) &&
+                                empty($mod[$seq]->{$property})) {
+                                unset($mod[$seq]->{$property});
                             }
                         }
-                        // Special case: this value is usually set to null, but may be 0.
-                        if (property_exists($mods[$cmid], 'completiongradeitemnumber') &&
-                            is_null($mods[$cmid]->completiongradeitemnumber)) {
-                            unset($mods[$cmid]->completiongradeitemnumber);
+                        // Special case: this value is usually set to null, but may be 0
+                        if (property_exists($mod[$seq], 'completiongradeitemnumber') &&
+                            is_null($mod[$seq]->completiongradeitemnumber)) {
+                            unset($mod[$seq]->completiongradeitemnumber);
                         }
                     }
                 }
             }
         }
-        return $mods;
+        return $mod;
     }
 
     /**
@@ -1003,9 +850,8 @@ class course_modinfo {
      * @param int $courseid Course id
      */
     public static function purge_course_cache(int $courseid): void {
-        increment_revision_number('course', 'cacherev', 'id = :id', array('id' => $courseid));
-        // Because this is a versioned cache, there is no need to actually delete the cache item,
-        // only increase the required version number.
+        $cachemodinfo = cache::make('core', 'coursemodinfo');
+        $cachemodinfo->delete($courseid);
     }
 }
 
@@ -1147,8 +993,6 @@ class course_modinfo {
  * @property-read string $afterlink Extra HTML code to display after link - calculated on request
  * @property-read string $afterediticons Extra HTML code to display after editing icons (e.g. more icons) - calculated on request
  * @property-read bool $deletioninprogress True if this course module is scheduled for deletion, false otherwise.
- * @property-read bool $downloadcontent True if content download is enabled for this course module, false otherwise.
- * @property-read bool $lang the forced language for this activity (language pack name). Null means not forced.
  */
 class cm_info implements IteratorAggregate {
     /**
@@ -1275,12 +1119,6 @@ class cm_info implements IteratorAggregate {
      * @var mixed
      */
     private $completiongradeitemnumber;
-
-    /**
-     * 1 if pass grade completion is enabled, 0 otherwise - from course_modules table
-     * @var int
-     */
-    private $completionpassgrade;
 
     /**
      * 1 if 'on view' completion is enabled, 0 otherwise - from course_modules table
@@ -1428,11 +1266,6 @@ class cm_info implements IteratorAggregate {
     private $contentisformatted;
 
     /**
-     * @var bool True if the content has a special course item display like labels.
-     */
-    private $customcmlistitem;
-
-    /**
      * @var string
      */
     private $extraclasses;
@@ -1468,21 +1301,11 @@ class cm_info implements IteratorAggregate {
     private $deletioninprogress;
 
     /**
-     * @var int enable/disable download content for this course module
-     */
-    private $downloadcontent;
-
-    /**
-     * @var string|null the forced language for this activity (language pack name). Null means not forced.
-     */
-    private $lang;
-
-    /**
      * List of class read-only properties and their getter methods.
      * Used by magic functions __get(), __isset(), __empty()
      * @var array
      */
-    private static $standardproperties = [
+    private static $standardproperties = array(
         'url' => 'get_url',
         'content' => 'get_content',
         'extraclasses' => 'get_extra_classes',
@@ -1500,7 +1323,6 @@ class cm_info implements IteratorAggregate {
         'completion' => false,
         'completionexpected' => false,
         'completiongradeitemnumber' => false,
-        'completionpassgrade' => false,
         'completionview' => false,
         'conditionscompletion' => false,
         'conditionsfield' => false,
@@ -1509,7 +1331,6 @@ class cm_info implements IteratorAggregate {
         'course' => 'get_course_id',
         'coursegroupmode' => 'get_course_groupmode',
         'coursegroupmodeforce' => 'get_course_groupmodeforce',
-        'customcmlistitem' => 'has_custom_cmlist_item',
         'effectivegroupmode' => 'get_effective_groupmode',
         'extra' => false,
         'groupingid' => false,
@@ -1531,10 +1352,8 @@ class cm_info implements IteratorAggregate {
         'visible' => false,
         'visibleoncoursepage' => false,
         'visibleold' => false,
-        'deletioninprogress' => false,
-        'downloadcontent' => false,
-        'lang' => false,
-    ];
+        'deletioninprogress' => false
+    );
 
     /**
      * List of methods with no arguments that were public prior to Moodle 2.6.
@@ -1605,7 +1424,7 @@ class cm_info implements IteratorAggregate {
      *
      * @return ArrayIterator
      */
-    public function getIterator(): Traversable {
+    public function getIterator() {
         // Make sure dynamic properties are retrieved prior to view properties.
         $this->obtain_dynamic_data();
         $ret = array();
@@ -1723,19 +1542,6 @@ class cm_info implements IteratorAggregate {
     }
 
     /**
-     * Return the module custom cmlist item flag.
-     *
-     * Activities like label uses this flag to indicate that it should be
-     * displayed as a custom course item instead of a tipical activity card.
-     *
-     * @return bool
-     */
-    public function has_custom_cmlist_item(): bool {
-        $this->obtain_view_data();
-        return $this->customcmlistitem ?? false;
-    }
-
-    /**
      * Getter method for property $name, ensures that dynamic data is obtained.
      *
      * This method is normally called by the property ->name, but can be called directly if there
@@ -1812,28 +1618,6 @@ class cm_info implements IteratorAggregate {
     }
 
     /**
-     * Get the activity badge data associated to this course module (if the module supports it).
-     * Modules can use this method to provide additional data to be displayed in the activity badge.
-     *
-     * @param renderer_base $output Output render to use, or null for default (global)
-     * @return stdClass|null The activitybadge data (badgecontent, badgestyle...) or null if the module doesn't implement it.
-     */
-    public function get_activitybadge(?renderer_base $output = null): ?stdClass {
-        global $OUTPUT;
-
-        $activibybadgeclass = activitybadge::create_instance($this);
-        if (empty($activibybadgeclass)) {
-            return null;
-        }
-
-        if (!isset($output)) {
-            $output = $OUTPUT;
-        }
-
-        return $activibybadgeclass->export_for_template($output);
-    }
-
-    /**
      * Note: Will collect view data, if not already obtained.
      * @return string Extra HTML code to display after editing icons (e.g. more icons)
      */
@@ -1843,15 +1627,7 @@ class cm_info implements IteratorAggregate {
     }
 
     /**
-     * Fetch the module's icon URL.
-     *
-     * This function fetches the course module instance's icon URL.
-     * This method adds a `filtericon` parameter in the URL when rendering the monologo version of the course module icon or when
-     * the plugin declares, via its `filtericon` custom data, that the icon needs to be filtered.
-     * This additional information can be used by plugins when rendering the module icon to determine whether to apply
-     * CSS filtering to the icon.
-     *
-     * @param core_renderer $output Output render to use, or null for default (global)
+     * @param moodle_core_renderer $output Output render to use, or null for default (global)
      * @return moodle_url Icon URL for a suitable icon to put beside this cm
      */
     public function get_icon_url($output = null) {
@@ -1860,39 +1636,26 @@ class cm_info implements IteratorAggregate {
         if (!$output) {
             $output = $OUTPUT;
         }
-
-        $ismonologo = false;
+        // Support modules setting their own, external, icon image
         if (!empty($this->iconurl)) {
-            // Support modules setting their own, external, icon image.
             $icon = $this->iconurl;
+
+        // Fallback to normal local icon + component procesing
         } else if (!empty($this->icon)) {
-            // Fallback to normal local icon + component processing.
             if (substr($this->icon, 0, 4) === 'mod/') {
                 list($modname, $iconname) = explode('/', substr($this->icon, 4), 2);
                 $icon = $output->image_url($iconname, $modname);
             } else {
                 if (!empty($this->iconcomponent)) {
-                    // Icon has specified component.
+                    // Icon  has specified component
                     $icon = $output->image_url($this->icon, $this->iconcomponent);
                 } else {
-                    // Icon does not have specified component, use default.
+                    // Icon does not have specified component, use default
                     $icon = $output->image_url($this->icon);
                 }
             }
         } else {
-            $icon = $output->image_url('monologo', $this->modname);
-            // Activity modules may only have an `icon` icon instead of a `monologo` icon.
-            // So we need to determine if the module really has a `monologo` icon.
-            $ismonologo = core_component::has_monologo_icon('mod', $this->modname);
-        }
-
-        // Determine whether the icon will be filtered in the CSS.
-        // This can be controlled by the module by declaring a 'filtericon' custom data.
-        // If the 'filtericon' custom data is not set, icon filtering will be determined whether the module has a `monologo` icon.
-        // Additionally, we need to cast custom data to array as some modules may treat it as an object.
-        $filtericon = ((array)$this->customdata)['filtericon'] ?? $ismonologo;
-        if ($filtericon) {
-            $icon->param('filtericon', 1);
+            $icon = $output->image_url('icon', $this->modname);
         }
         return $icon;
     }
@@ -2035,9 +1798,8 @@ class cm_info implements IteratorAggregate {
         // Standard fields from table course_modules.
         static $cmfields = array('id', 'course', 'module', 'instance', 'section', 'idnumber', 'added',
             'score', 'indent', 'visible', 'visibleoncoursepage', 'visibleold', 'groupmode', 'groupingid',
-            'completion', 'completiongradeitemnumber', 'completionview', 'completionexpected', 'completionpassgrade',
-            'showdescription', 'availability', 'deletioninprogress', 'downloadcontent', 'lang');
-
+            'completion', 'completiongradeitemnumber', 'completionview', 'completionexpected',
+            'showdescription', 'availability', 'deletioninprogress');
         foreach ($cmfields as $key) {
             $cmrecord->$key = $this->$key;
         }
@@ -2167,18 +1929,6 @@ class cm_info implements IteratorAggregate {
     }
 
     /**
-     * Sets the 'customcmlistitem' flag
-     *
-     * This can be used (by setting true) to prevent the course from rendering the
-     * activity item as a regular activity card. This is applied to activities like labels.
-     *
-     * @param bool $customcmlistitem if the cmlist item of that activity has a special dysplay other than a card.
-     */
-    public function set_custom_cmlist_item(bool $customcmlistitem) {
-        $this->customcmlistitem = $customcmlistitem;
-    }
-
-    /**
      * Sets the 'available' flag and related details. This flag is normally used to make
      * course modules unavailable until a certain date or condition is met. (When a course
      * module is unavailable, it is still visible to users who have viewhiddenactivities
@@ -2262,14 +2012,11 @@ class cm_info implements IteratorAggregate {
         $this->score = isset($mod->score) ? $mod->score : 0;
         $this->visibleold = isset($mod->visibleold) ? $mod->visibleold : 0;
         $this->deletioninprogress = isset($mod->deletioninprogress) ? $mod->deletioninprogress : 0;
-        $this->downloadcontent = $mod->downloadcontent ?? null;
-        $this->lang = $mod->lang ?? null;
 
         // Note: it saves effort and database space to always include the
         // availability and completion fields, even if availability or completion
         // are actually disabled
         $this->completion = isset($mod->completion) ? $mod->completion : 0;
-        $this->completionpassgrade = isset($mod->completionpassgrade) ? $mod->completionpassgrade : 0;
         $this->completiongradeitemnumber = isset($mod->completiongradeitemnumber)
                 ? $mod->completiongradeitemnumber : null;
         $this->completionview = isset($mod->completionview)
@@ -2707,7 +2454,7 @@ function get_course_and_cm_from_cmid($cmorid, $modulename = '', $courseorid = 0,
     $modinfo = get_fast_modinfo($course, $userid);
     $cm = $modinfo->get_cm($cmid);
     if ($modulename && $cm->modname !== $modulename) {
-        throw new moodle_exception('invalidcoursemoduleid', 'error', '', $cmid);
+        throw new moodle_exception('invalidcoursemodule', 'error');
     }
     return array($course, $cm);
 }
@@ -2786,7 +2533,7 @@ function get_course_and_cm_from_instance($instanceorid, $modulename, $courseorid
     $modinfo = get_fast_modinfo($course, $userid);
     $instances = $modinfo->get_instances_of($modulename);
     if (!array_key_exists($instanceid, $instances)) {
-        throw new moodle_exception('invalidmoduleid', 'error', '', $instanceid);
+        throw new moodle_exception('invalidmoduleid', 'error', $instanceid);
     }
     return array($course, $instances[$instanceid]);
 }
@@ -2810,21 +2557,9 @@ function get_course_and_cm_from_instance($instanceorid, $modulename, $courseorid
  * @param int $courseid id of course to rebuild, empty means all
  * @param boolean $clearonly only clear the cache, gets rebuild automatically on the fly.
  *     Recommended to set to true to avoid unnecessary multiple rebuilding.
- * @param boolean $partialrebuild will not delete the whole cache when it's true.
- *     use purge_module_cache() or purge_section_cache() must be
- *         called before when partialrebuild is true.
- *     use purge_module_cache() to invalidate mod cache.
- *     use purge_section_cache() to invalidate section cache.
- *
- * @return void
- * @throws coding_exception
  */
-function rebuild_course_cache(int $courseid = 0, bool $clearonly = false, bool $partialrebuild = false): void {
-    global $COURSE, $SITE, $DB;
-
-    if ($courseid == 0 and $partialrebuild) {
-        throw new coding_exception('partialrebuild only works when a valid course id is provided.');
-    }
+function rebuild_course_cache($courseid=0, $clearonly=false) {
+    global $COURSE, $SITE, $DB, $CFG;
 
     // Function rebuild_course_cache() can not be called during upgrade unless it's clear only.
     if (!$clearonly && !upgrade_ensure_not_running(true)) {
@@ -2834,16 +2569,16 @@ function rebuild_course_cache(int $courseid = 0, bool $clearonly = false, bool $
     // Destroy navigation caches
     navigation_cache::destroy_volatile_caches();
 
-    core_courseformat\base::reset_course_cache($courseid);
+    if (class_exists('format_base')) {
+        // if file containing class is not loaded, there is no cache there anyway
+        format_base::reset_course_cache($courseid);
+    }
 
     $cachecoursemodinfo = cache::make('core', 'coursemodinfo');
     if (empty($courseid)) {
         // Clearing caches for all courses.
         increment_revision_number('course', 'cacherev', '');
-        if (!$partialrebuild) {
-            $cachecoursemodinfo->purge();
-        }
-        // Clear memory static cache.
+        $cachecoursemodinfo->purge();
         course_modinfo::clear_instance_cache();
         // Update global values too.
         $sitecacherev = $DB->get_field('course', 'cacherev', array('id' => SITEID));
@@ -2855,19 +2590,17 @@ function rebuild_course_cache(int $courseid = 0, bool $clearonly = false, bool $
         }
     } else {
         // Clearing cache for one course, make sure it is deleted from user request cache as well.
-        // Because this is a versioned cache, there is no need to actually delete the cache item,
-        // only increase the required version number.
         increment_revision_number('course', 'cacherev', 'id = :id', array('id' => $courseid));
-        $cacherev = $DB->get_field('course', 'cacherev', ['id' => $courseid]);
-        // Clear memory static cache.
-        course_modinfo::clear_instance_cache($courseid, $cacherev);
+        $cachecoursemodinfo->delete($courseid);
+        course_modinfo::clear_instance_cache($courseid);
         // Update global values too.
         if ($courseid == $COURSE->id || $courseid == $SITE->id) {
+            $cacherev = $DB->get_field('course', 'cacherev', array('id' => $courseid));
             if ($courseid == $COURSE->id) {
                 $COURSE->cacherev = $cacherev;
             }
             if ($courseid == $SITE->id) {
-                $SITE->cacherev = $cacherev;
+                $SITE->cachrev = $cacherev;
             }
         }
     }
@@ -2883,13 +2616,10 @@ function rebuild_course_cache(int $courseid = 0, bool $clearonly = false, bool $
         core_php_time_limit::raise();  // this could take a while!   MDL-10954
     }
 
-    $fields = 'id,' . join(',', course_modinfo::$cachedfields);
-    $sort = '';
-    $rs = $DB->get_recordset("course", $select, $sort, $fields);
-
+    $rs = $DB->get_recordset("course", $select,'','id,'.join(',', course_modinfo::$cachedfields));
     // Rebuild cache for each course.
     foreach ($rs as $course) {
-        course_modinfo::build_course_cache($course, $partialrebuild);
+        course_modinfo::build_course_cache($course);
     }
     $rs->close();
 }
@@ -3123,12 +2853,6 @@ class section_info implements IteratorAggregate {
     private $modinfo;
 
     /**
-     * True if has activities, otherwise false.
-     * @var bool
-     */
-    public $hasactivites;
-
-    /**
      * Constructs object from database information plus extra required data.
      * @param object $data Array entry from cached sectioncache
      * @param int $number Section number (array key)
@@ -3291,7 +3015,7 @@ class section_info implements IteratorAggregate {
      *
      * @return ArrayIterator
      */
-    public function getIterator(): Traversable {
+    public function getIterator() {
         $ret = array();
         foreach (get_object_vars($this) as $key => $value) {
             if (substr($key, 0, 1) == '_') {

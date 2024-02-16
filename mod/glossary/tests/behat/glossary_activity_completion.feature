@@ -27,10 +27,9 @@ Feature: View activity completion in the glossary activity
       | Aggregate type           | Average of ratings                                |
       | scale[modgrade_type]     | Point                                             |
       | scale[modgrade_point]    | 100                                               |
-      | Add requirements         | 1                  |
-      | View the activity        | 1                                                 |
-      | Receive a grade          | 1                                                 |
-      | Any grade                | 1                                                 |
+      | Completion tracking      | Show activity as complete when conditions are met |
+      | Require view             | 1                                                 |
+      | Require grade            | 1                                                 |
       | completionentriesenabled | 1                                                 |
       | completionentries        | 1                                                 |
     And I press "Save and display"
@@ -48,7 +47,7 @@ Feature: View activity completion in the glossary activity
     And the "Make entries: 1" completion condition of "Music history" is displayed as "todo"
     And the "Receive a grade" completion condition of "Music history" is displayed as "todo"
     And I am on the "Music history" "glossary activity" page
-    And I press "Add entry"
+    And I press "Add a new entry"
     And I set the following fields to these values:
       | Concept    | Blast beats                                               |
       | Definition | Repeated fast tempo hits combining bass, snare and cymbal |
@@ -70,7 +69,7 @@ Feature: View activity completion in the glossary activity
   Scenario: Use manual completion
     Given I am on the "Music history" "glossary activity editing" page logged in as teacher1
     And I expand all fieldsets
-    And I set the field "Students must manually mark the activity as done" to "1"
+    And I set the field "Completion tracking" to "Students can manually mark the activity as completed"
     And I press "Save and display"
     # Teacher view.
     And the manual completion button for "Music history" should be disabled

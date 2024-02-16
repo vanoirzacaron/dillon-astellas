@@ -24,153 +24,154 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$capabilities = [
+$capabilities = array(
 
-    'mod/customcert:addinstance' => [
+    'mod/customcert:addinstance' => array(
         'riskbitmask' => RISK_XSS,
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSE,
-        'archetypes' => [
+        'archetypes' => array(
             'editingteacher' => CAP_ALLOW,
             'manager' => CAP_ALLOW
-        ],
+        ),
         'clonepermissionsfrom' => 'moodle/course:manageactivities'
-    ],
+    ),
 
-    'mod/customcert:view' => [
+    'mod/customcert:view' => array(
 
         'captype' => 'read',
         'contextlevel' => CONTEXT_MODULE,
-        'archetypes' => [
+        'archetypes' => array(
             'student' => CAP_ALLOW,
             'teacher' => CAP_ALLOW,
             'editingteacher' => CAP_ALLOW,
             'manager' => CAP_ALLOW
-        ]
-    ],
+        )
+    ),
 
-    'mod/customcert:manage' => [
+    'mod/customcert:manage' => array(
 
         'captype' => 'write',
         'contextlevel' => CONTEXT_MODULE,
-        'archetypes' => [
+        'archetypes' => array(
+            'teacher' => CAP_ALLOW,
             'editingteacher' => CAP_ALLOW,
             'manager' => CAP_ALLOW
-        ]
-    ],
+        )
+    ),
 
-    'mod/customcert:receiveissue' => [
+    'mod/customcert:receiveissue' => array(
         'captype' => 'read',
         'contextlevel' => CONTEXT_MODULE,
-        'archetypes' => [
+        'archetypes' => array(
             'student' => CAP_ALLOW
-        ]
-    ],
+        )
+    ),
 
-    'mod/customcert:viewreport' => [
+    'mod/customcert:viewreport' => array(
 
         'captype' => 'read',
         'contextlevel' => CONTEXT_MODULE,
-        'archetypes' => [
+        'archetypes' => array(
             'teacher' => CAP_ALLOW,
             'editingteacher' => CAP_ALLOW,
             'manager' => CAP_ALLOW
-        ]
-    ],
+        )
+    ),
 
-    'mod/customcert:viewallcertificates' => [
+    'mod/customcert:viewallcertificates' => array(
         'captype' => 'read',
         'contextlevel' => CONTEXT_SYSTEM,
-        'archetypes' => [
+        'archetypes' => array(
             'manager' => CAP_ALLOW
-        ]
-    ],
+        )
+    ),
 
-    'mod/customcert:verifycertificate' => [
+    'mod/customcert:verifycertificate' => array(
         'captype' => 'read',
         'contextlevel' => CONTEXT_MODULE,
-        'archetypes' => [
+        'archetypes' => array(
             'teacher' => CAP_ALLOW,
             'editingteacher' => CAP_ALLOW,
             'manager' => CAP_ALLOW
-        ]
-    ],
+        )
+    ),
 
-    'mod/customcert:verifyallcertificates' => [
+    'mod/customcert:verifyallcertificates' => array(
         'captype' => 'read',
         'contextlevel' => CONTEXT_SYSTEM,
-        'archetypes' => [
+        'archetypes' => array(
             'manager' => CAP_ALLOW
-        ]
-    ],
+        )
+    ),
 
-    'mod/customcert:manageemailstudents' => [
+    'mod/customcert:manageemailstudents' => array(
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSE,
-        'archetypes' => [
+        'archetypes' => array(
             'editingteacher' => CAP_ALLOW,
             'manager' => CAP_ALLOW
-        ],
+        ),
         'clonepermissionsfrom' => 'moodle/course:manageactivities'
-    ],
+    ),
 
-    'mod/customcert:manageemailteachers' => [
+    'mod/customcert:manageemailteachers' => array(
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSE,
-        'archetypes' => [
+        'archetypes' => array(
             'editingteacher' => CAP_ALLOW,
             'manager' => CAP_ALLOW
-        ],
+        ),
         'clonepermissionsfrom' => 'moodle/course:manageactivities'
-    ],
+    ),
 
-    'mod/customcert:manageemailothers' => [
+    'mod/customcert:manageemailothers' => array(
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSE,
-        'archetypes' => [
+        'archetypes' => array(
             'editingteacher' => CAP_ALLOW,
             'manager' => CAP_ALLOW
-        ],
+        ),
         'clonepermissionsfrom' => 'moodle/course:manageactivities'
-    ],
+    ),
 
-    'mod/customcert:manageverifyany' => [
+    'mod/customcert:manageverifyany' => array(
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSE,
-        'archetypes' => [
+        'archetypes' => array(
             'editingteacher' => CAP_ALLOW,
             'manager' => CAP_ALLOW
-        ],
+        ),
         'clonepermissionsfrom' => 'moodle/course:manageactivities'
-    ],
+    ),
 
-    'mod/customcert:managerequiredtime' => [
+    'mod/customcert:managerequiredtime' => array(
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSE,
-        'archetypes' => [
+        'archetypes' => array(
             'editingteacher' => CAP_ALLOW,
             'manager' => CAP_ALLOW
-        ],
+        ),
         'clonepermissionsfrom' => 'moodle/course:manageactivities'
-    ],
+    ),
 
-    'mod/customcert:manageprotection' => [
+    'mod/customcert:manageprotection' => array(
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSE,
-        'archetypes' => [
+        'archetypes' => array(
             'editingteacher' => CAP_ALLOW,
             'manager' => CAP_ALLOW
-        ],
+        ),
         'clonepermissionsfrom' => 'moodle/course:manageactivities'
-    ],
+    ),
 
-    'mod/customcert:managelanguages' => [
+    'mod/customcert:managelanguages' => array(
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSE,
-        'archetypes' => [
+        'archetypes' => array(
             'editingteacher' => CAP_ALLOW,
             'manager' => CAP_ALLOW
-        ],
+        ),
         'clonepermissionsfrom' => 'moodle/course:manageactivities'
-    ],
-];
+    ),
+);

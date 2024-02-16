@@ -56,62 +56,48 @@ class dates_test extends advanced_testcase {
             ],
             'only with opening time' => [
                 $after, null, null, null, null, null, [
-                    ['label' => get_string('activitydate:submissionsopen', 'mod_assign'), 'timestamp' => $after,
-                        'dataid' => 'allowsubmissionsfromdate'],
+                    ['label' => get_string('activitydate:submissionsopen', 'mod_assign'), 'timestamp' => $after],
                 ]
             ],
             'only with closing time' => [
                 null, $after, null, null, null, null, [
-                    ['label' => get_string('activitydate:submissionsdue', 'mod_assign'), 'timestamp' => $after,
-                        'dataid' => 'duedate'],
+                    ['label' => get_string('activitydate:submissionsdue', 'mod_assign'), 'timestamp' => $after],
                 ]
             ],
             'with both times' => [
                 $after, $later, null, null, null, null, [
-                    ['label' => get_string('activitydate:submissionsopen', 'mod_assign'), 'timestamp' => $after,
-                        'dataid' => 'allowsubmissionsfromdate'],
-                    ['label' => get_string('activitydate:submissionsdue', 'mod_assign'), 'timestamp' => $later,
-                        'dataid' => 'duedate'],
+                    ['label' => get_string('activitydate:submissionsopen', 'mod_assign'), 'timestamp' => $after],
+                    ['label' => get_string('activitydate:submissionsdue', 'mod_assign'), 'timestamp' => $later],
                 ]
             ],
             'between the dates' => [
                 $before, $after, null, null, null, null, [
-                    ['label' => get_string('activitydate:submissionsopened', 'mod_assign'), 'timestamp' => $before,
-                        'dataid' => 'allowsubmissionsfromdate'],
-                    ['label' => get_string('activitydate:submissionsdue', 'mod_assign'), 'timestamp' => $after,
-                        'dataid' => 'duedate'],
+                    ['label' => get_string('activitydate:submissionsopened', 'mod_assign'), 'timestamp' => $before],
+                    ['label' => get_string('activitydate:submissionsdue', 'mod_assign'), 'timestamp' => $after],
                 ]
             ],
             'dates are past' => [
                 $earlier, $before, null, null, null, null, [
-                    ['label' => get_string('activitydate:submissionsopened', 'mod_assign'), 'timestamp' => $earlier,
-                        'dataid' => 'allowsubmissionsfromdate'],
-                    ['label' => get_string('activitydate:submissionsdue', 'mod_assign'), 'timestamp' => $before,
-                        'dataid' => 'duedate'],
+                    ['label' => get_string('activitydate:submissionsopened', 'mod_assign'), 'timestamp' => $earlier],
+                    ['label' => get_string('activitydate:submissionsdue', 'mod_assign'), 'timestamp' => $before],
                 ]
             ],
             'with user override' => [
                 $before, $after, $earlier, $later, null, null, [
-                    ['label' => get_string('activitydate:submissionsopened', 'mod_assign'), 'timestamp' => $earlier,
-                        'dataid' => 'allowsubmissionsfromdate'],
-                    ['label' => get_string('activitydate:submissionsdue', 'mod_assign'), 'timestamp' => $later,
-                        'dataid' => 'duedate'],
+                    ['label' => get_string('activitydate:submissionsopened', 'mod_assign'), 'timestamp' => $earlier],
+                    ['label' => get_string('activitydate:submissionsdue', 'mod_assign'), 'timestamp' => $later],
                 ]
             ],
             'with group override' => [
                 $before, $after, null, null, $earlier, $later, [
-                    ['label' => get_string('activitydate:submissionsopened', 'mod_assign'), 'timestamp' => $earlier,
-                        'dataid' => 'allowsubmissionsfromdate'],
-                    ['label' => get_string('activitydate:submissionsdue', 'mod_assign'), 'timestamp' => $later,
-                        'dataid' => 'duedate'],
+                    ['label' => get_string('activitydate:submissionsopened', 'mod_assign'), 'timestamp' => $earlier],
+                    ['label' => get_string('activitydate:submissionsdue', 'mod_assign'), 'timestamp' => $later],
                 ]
             ],
             'with both user and group overrides' => [
                 $before, $after, $earlier, $later, $earlier - DAYSECS, $later + DAYSECS, [
-                    ['label' => get_string('activitydate:submissionsopened', 'mod_assign'), 'timestamp' => $earlier,
-                        'dataid' => 'allowsubmissionsfromdate'],
-                    ['label' => get_string('activitydate:submissionsdue', 'mod_assign'), 'timestamp' => $later,
-                        'dataid' => 'duedate'],
+                    ['label' => get_string('activitydate:submissionsopened', 'mod_assign'), 'timestamp' => $earlier],
+                    ['label' => get_string('activitydate:submissionsdue', 'mod_assign'), 'timestamp' => $later],
                 ]
             ],
         ];

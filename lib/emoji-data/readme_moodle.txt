@@ -1,6 +1,6 @@
 Description of emoji data import into Moodle.
 
-1. Download the latest release of emoji data from https://github.com/iamcal/emoji-data/tags
+1. Download the latest release of emoji data from https://github.com/iamcal/emoji-data/releases
 
 2. Copy emoji_pretty.json into lib/emoji-data/
 

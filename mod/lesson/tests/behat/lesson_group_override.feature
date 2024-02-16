@@ -32,19 +32,25 @@ Feature: Lesson group override
     And the following "activities" exist:
       | activity | name             | groupmode  | course | idnumber |
       | lesson   | Test lesson name | 1          | C1     | lesson1  |
-    And the following "mod_lesson > page" exist:
-      | lesson           | qtype     | title                 | content             |
-      | Test lesson name | truefalse | True/false question 1 | Cat is an amphibian |
-    And the following "mod_lesson > answers" exist:
-      | page                  | answer        | response | jumpto        | score |
-      | True/false question 1 | False         | Correct  | Next page     | 1     |
-      | True/false question 1 | True          | Wrong    | This page     | 0     |
+    And I am on the "Test lesson name" "lesson activity" page logged in as teacher1
+    And I follow "Add a question page"
+    And I set the field "Select a question type" to "True/false"
+    And I press "Add a question page"
+    And I set the following fields to these values:
+      | Page title           | True/false question 1 |
+      | Page contents        | Cat is an amphibian |
+      | id_answer_editor_0   | False |
+      | id_response_editor_0 | Correct |
+      | id_jumpto_0          | Next page |
+      | id_answer_editor_1   | True |
+      | id_response_editor_1 | Wrong |
+      | id_jumpto_1          | This page |
+    And I press "Save page"
 
   Scenario: Add, modify then delete a group override
     Given I am on the "Test lesson name" "lesson activity" page logged in as teacher1
-    And I navigate to "Overrides" in current page administration
-    And I select "Group overrides" from the "jump" singleselect
-    And I follow "Add group override"
+    And I navigate to "Group overrides" in current page administration
+    And I press "Add group override"
     And I set the following fields to these values:
       | Override group      | Group 1 |
       | id_deadline_enabled | 1 |
@@ -66,9 +72,8 @@ Feature: Lesson group override
 
   Scenario: Duplicate a user override
     Given I am on the "Test lesson name" "lesson activity" page logged in as teacher1
-    When I navigate to "Overrides" in current page administration
-    And I select "Group overrides" from the "jump" singleselect
-    And I follow "Add group override"
+    And I navigate to "Group overrides" in current page administration
+    And I press "Add group override"
     And I set the following fields to these values:
       | Override group      | Group 1 |
       | id_deadline_enabled | 1 |
@@ -92,9 +97,8 @@ Feature: Lesson group override
     And I set the following fields to these values:
       | Re-takes allowed | 0 |
     And I press "Save and display"
-    And I navigate to "Overrides" in current page administration
-    And I select "Group overrides" from the "jump" singleselect
-    And I follow "Add group override"
+    And I navigate to "Group overrides" in current page administration
+    And I press "Add group override"
     And I set the following fields to these values:
       | Override group   | Group 1 |
       | Re-takes allowed | 1 |
@@ -126,9 +130,8 @@ Feature: Lesson group override
       | Password protected lesson | Yes |
       | id_password               | moodle_rules |
     And I press "Save and display"
-    And I navigate to "Overrides" in current page administration
-    And I select "Group overrides" from the "jump" singleselect
-    And I follow "Add group override"
+    And I navigate to "Group overrides" in current page administration
+    And I press "Add group override"
     And I set the following fields to these values:
       | Override group            | Group 1 |
       | Password protected lesson | 12345 |
@@ -169,9 +172,8 @@ Feature: Lesson group override
       | deadline[hour]      | 08 |
       | deadline[minute]    | 00 |
     And I press "Save and display"
-    And I navigate to "Overrides" in current page administration
-    And I select "Group overrides" from the "jump" singleselect
-    And I follow "Add group override"
+    And I navigate to "Group overrides" in current page administration
+    And I press "Add group override"
     And I set the following fields to these values:
       | Override group      | Group 1 |
       | id_deadline_enabled | 1 |
@@ -198,9 +200,8 @@ Feature: Lesson group override
       | available[hour]      | 08 |
       | available[minute]    | 00 |
     And I press "Save and display"
-    And I navigate to "Overrides" in current page administration
-    And I select "Group overrides" from the "jump" singleselect
-    And I follow "Add group override"
+    And I navigate to "Group overrides" in current page administration
+    And I press "Add group override"
     And I set the following fields to these values:
       | Override group       | Group 1 |
       | id_available_enabled | 1 |
@@ -222,9 +223,8 @@ Feature: Lesson group override
     And I set the following fields to these values:
       | Re-takes allowed | 1 |
     And I press "Save and display"
-    And I navigate to "Overrides" in current page administration
-    And I select "Group overrides" from the "jump" singleselect
-    And I follow "Add group override"
+    And I navigate to "Group overrides" in current page administration
+    And I press "Add group override"
     And I set the following fields to these values:
       | Override group             | Group 1 |
       | Maximum number of attempts per question | 2 |
@@ -262,9 +262,8 @@ Feature: Lesson group override
       | available[minute]    | 00 |
     And I press "Save and display"
     And I am on the "Test lesson name" "lesson activity" page
-    And I navigate to "Overrides" in current page administration
-    And I select "Group overrides" from the "jump" singleselect
-    And I follow "Add group override"
+    And I navigate to "Group overrides" in current page administration
+    And I press "Add group override"
     And I set the following fields to these values:
       | Override group       | Group 1 |
       | id_available_enabled | 1 |
@@ -276,8 +275,8 @@ Feature: Lesson group override
     And I press "Save"
     And I should see "Tuesday, 1 January 2030, 8:00"
     And I am on the "Test lesson name" "lesson activity" page
-    And I navigate to "Overrides" in current page administration
-    And I follow "Add user override"
+    And I navigate to "User overrides" in current page administration
+    And I press "Add user override"
     And I set the following fields to these values:
       | Override user        | Student1 |
       | id_available_enabled | 1 |
@@ -300,28 +299,26 @@ Feature: Lesson group override
       | capability                  | permission | role           | contextlevel | reference |
       | moodle/site:accessallgroups | Prevent    | editingteacher | Course       | C1        |
     And the following "activities" exist:
-      | activity | name     | course | idnumber | groupmode |
-      | lesson   | Lesson 2 | C1     | lesson2  | 1         |
+      | activity | name     | intro                | course | idnumber | groupmode |
+      | lesson   | Lesson 2 | Lesson 2 description | C1     | lesson2  | 1         |
     When I am on the "Lesson 2" "lesson activity" page logged in as teacher1
-    And I navigate to "Overrides" in current page administration
-    And I select "Group overrides" from the "jump" singleselect
+    And I navigate to "Group overrides" in current page administration
     Then I should see "No groups you can access."
-    And I should not see "Add group override"
+    And the "Add group override" "button" should be disabled
 
   Scenario: A teacher without accessallgroups permission should only be able to add group override for their groups, when the activity's group mode is 'separate groups'
     Given the following "permission overrides" exist:
       | capability                  | permission | role           | contextlevel | reference |
       | moodle/site:accessallgroups | Prevent    | editingteacher | Course       | C1        |
     And the following "activities" exist:
-      | activity | name     | course | idnumber | groupmode |
-      | lesson   | Lesson 2 | C1     | lesson2  | 1         |
+      | activity | name     | intro                | course | idnumber | groupmode |
+      | lesson   | Lesson 2 | Lesson 2 description | C1     | lesson2  | 1         |
     And the following "group members" exist:
       | user     | group |
       | teacher1 | G1    |
-    When I am on the "Lesson 2" "lesson activity" page logged in as teacher1
-    And I navigate to "Overrides" in current page administration
-    And I select "Group overrides" from the "jump" singleselect
-    And I follow "Add group override"
+    And I am on the "Lesson 2" "lesson activity" page logged in as teacher1
+    And I navigate to "Group overrides" in current page administration
+    And I press "Add group override"
     Then the "Override group" select box should contain "Group 1"
     And the "Override group" select box should not contain "Group 2"
 
@@ -330,15 +327,14 @@ Feature: Lesson group override
       | capability                  | permission | role           | contextlevel | reference |
       | moodle/site:accessallgroups | Prevent    | editingteacher | Course       | C1        |
     And the following "activities" exist:
-      | activity | name     | course | idnumber | groupmode |
-      | lesson   | Lesson 2 | C1     | lesson2  | 1         |
+      | activity | name     | intro                | course | idnumber | groupmode |
+      | lesson   | Lesson 2 | Lesson 2 description | C1     | lesson2  | 1         |
     And the following "group members" exist:
       | user     | group |
       | teacher1 | G1    |
     And I am on the "Lesson 2" "lesson activity" page logged in as admin
-    And I navigate to "Overrides" in current page administration
-    And I select "Group overrides" from the "jump" singleselect
-    And I follow "Add group override"
+    And I navigate to "Group overrides" in current page administration
+    And I press "Add group override"
     And I set the following fields to these values:
       | Override group       | Group 1 |
       | id_available_enabled | 1       |
@@ -357,28 +353,7 @@ Feature: Lesson group override
       | available[hour]      | 08      |
       | available[minute]    | 00      |
     And I press "Save"
-    When I am on the "Lesson 2" "lesson activity" page logged in as teacher1
-    And I navigate to "Overrides" in current page administration
-    And I select "Group overrides" from the "jump" singleselect
+    And I am on the "Lesson 2" "lesson activity" page logged in as teacher1
+    And I navigate to "Group overrides" in current page administration
     Then I should see "Group 1" in the ".generaltable" "css_element"
     And I should not see "Group 2" in the ".generaltable" "css_element"
-
-  Scenario: "Not visible" groups should not be available for group overrides
-    Given the following "groups" exist:
-      | name                                 | course | idnumber | visibility | participation |
-      | Visible to everyone/Participation         | C1     | VP       | 0          | 1             |
-      | Only Only visible to members/Participation     | C1     | MP       | 1          | 1             |
-      | Only see own membership                   | C1     | O        | 2          | 0             |
-      | Not visible                          | C1     | N        | 3          | 0             |
-      | Visible to everyone/Non-Participation     | C1     | VN       | 0          | 0             |
-      | Only visible to members/Non-Participation | C1     | MN       | 1          | 0             |
-    When I am on the "lesson1" Activity page logged in as teacher1
-    And I navigate to "Overrides" in current page administration
-    And I select "Group overrides" from the "jump" singleselect
-    And I follow "Add group override"
-    Then I should see "Visible to everyone/Participation" in the "Override group" "select"
-    And I should see "Visible to everyone/Non-Participation" in the "Override group" "select"
-    And I should see "Only visible to members" in the "Override group" "select"
-    And I should see "Only visible to members/Non-Participation" in the "Override group" "select"
-    And I should see "Only see own membership" in the "Override group" "select"
-    And I should not see "Not visible" in the "Override group" "select"

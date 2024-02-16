@@ -21,13 +21,11 @@ use ScssPhp\ScssPhp\Type;
  * @author Leaf Corcoran <leafot@gmail.com>
  *
  * @deprecated since 1.4.0. Use the Expanded formatter instead.
- *
- * @internal
  */
 class Nested extends Formatter
 {
     /**
-     * @var int
+     * @var integer
      */
     private $depth;
 
@@ -68,9 +66,7 @@ class Nested extends Formatter
 
         foreach ($block->lines as $index => $line) {
             if (substr($line, 0, 2) === '/*') {
-                $replacedLine = preg_replace('/\r\n?|\n|\f/', $this->break, $line);
-                assert($replacedLine !== null);
-                $block->lines[$index] = $replacedLine;
+                $block->lines[$index] = preg_replace('/\r\n?|\n|\f/', $this->break, $line);
             }
         }
 
@@ -223,7 +219,7 @@ class Nested extends Formatter
      *
      * @param \ScssPhp\ScssPhp\Formatter\OutputBlock $block
      *
-     * @return bool
+     * @return boolean
      */
     private function hasFlatChild($block)
     {

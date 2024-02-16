@@ -21,20 +21,18 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 define([
-    'jquery',
-    'core/templates',
-    'core/notification',
-    'mod_forum/repository',
-    'mod_forum/selectors',
-    'core_form/changechecker',
-], function(
-    $,
-    Templates,
-    Notification,
-    Repository,
-    Selectors,
-    FormChangeChecker
-) {
+        'jquery',
+        'core/templates',
+        'core/notification',
+        'mod_forum/repository',
+        'mod_forum/selectors',
+    ], function(
+        $,
+        Templates,
+        Notification,
+        Repository,
+        Selectors
+    ) {
 
     var DISPLAYCONSTANTS = {
         NESTED_V2: 4,
@@ -85,7 +83,7 @@ define([
     };
 
     /**
-     * Register the event listeners for the submit/cancel buttons of the in page reply.
+     * Register the event listeners for the submit button of the in page reply.
      *
      * @param {Object} root The discussion container element.
      */
@@ -172,13 +170,14 @@ define([
                         allButtons.prop('disabled', false);
 
                         // Tell formchangechecker we submitted the form.
-                        FormChangeChecker.resetFormDirtyState(submitButton[0]);
+                        if (typeof M.core_formchangechecker !== 'undefined') {
+                            M.core_formchangechecker.reset_form_dirty_state();
+                        }
 
                         return currentRoot.find(Selectors.post.inpageReplyContent).hide();
                     })
                     .then(function() {
                         location.href = "#p" + newid;
-
                         // Reload the page, say if threshold is being set by user those would get reflected through the templates.
                         location.reload();
                     })
@@ -188,11 +187,6 @@ define([
                         return Notification.exception(error);
                     });
             }
-        });
-
-        root.on('click', Selectors.post.inpageCancelButton, function(e) {
-            // Tell formchangechecker to reset the form state.
-            FormChangeChecker.resetFormDirtyState(e.currentTarget);
         });
     };
 

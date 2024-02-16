@@ -22,22 +22,21 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-use mod_quiz\quiz_settings;
-
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot.'/mod/quiz/lib.php');
 require_once($CFG->dirroot.'/mod/quiz/locallib.php');
+require_once($CFG->dirroot.'/mod/quiz/override_form.php');
+
 
 $cmid = required_param('cmid', PARAM_INT);
 $mode = optional_param('mode', '', PARAM_ALPHA); // One of 'user' or 'group', default is 'group'.
 
-$quizobj = quiz_settings::create_for_cmid($cmid);
-$quiz = $quizobj->get_quiz();
-$cm = $quizobj->get_cm();
-$course = $quizobj->get_course();
-$context = $quizobj->get_context();
+list($course, $cm) = get_course_and_cm_from_cmid($cmid, 'quiz');
+$quiz = $DB->get_record('quiz', ['id' => $cm->instance], '*', MUST_EXIST);
 
 require_login($course, false, $cm);
+
+$context = context_module::instance($cm->id);
 
 // Check the user has the required capabilities to list overrides.
 $canedit = has_capability('mod/quiz:manageoverrides', $context);
@@ -67,13 +66,8 @@ $title = get_string('overridesforquiz', 'quiz',
         format_string($quiz->name, true, ['context' => $context]));
 $PAGE->set_url($url);
 $PAGE->set_pagelayout('admin');
-$PAGE->add_body_class('limitedwidth');
 $PAGE->set_title($title);
 $PAGE->set_heading($course->fullname);
-$PAGE->activityheader->disable();
-
-// Activate the secondary nav tab.
-$PAGE->set_secondary_active_tab("mod_quiz_useroverrides");
 
 // Delete orphaned group overrides.
 $sql = 'SELECT o.id
@@ -114,16 +108,17 @@ if ($groupmode) {
     // User overrides.
     $colclasses[] = 'colname';
     $headers[] = get_string('user');
-    $userfieldsapi = \core_user\fields::for_identity($context)->with_name()->with_userpic();
+    // TODO Does not support custom user profile fields (MDL-70456).
+    $userfieldsapi = \core_user\fields::for_identity($context, false)->with_name()->with_userpic();
     $extrauserfields = $userfieldsapi->get_required_fields([\core_user\fields::PURPOSE_IDENTITY]);
-    $userfieldssql = $userfieldsapi->get_sql('u', true, '', 'userid', false);
     foreach ($extrauserfields as $field) {
         $colclasses[] = 'col' . $field;
         $headers[] = \core_user\fields::get_display_name($field);
     }
 
-    list($sort, $params) = users_order_by_sql('u', null, $context, $extrauserfields);
+    list($sort, $params) = users_order_by_sql('u');
     $params['quizid'] = $quiz->id;
+    $userfields = $userfieldsapi->get_sql('u', true, '', 'userid', false)->selects;
 
     if ($showallgroups) {
         $groupsjoin = '';
@@ -142,15 +137,14 @@ if ($groupmode) {
     }
 
     $overrides = $DB->get_records_sql("
-            SELECT o.*, {$userfieldssql->selects}
+            SELECT o.*, $userfields
               FROM {quiz_overrides} o
               JOIN {user} u ON o.userid = u.id
-                  {$userfieldssql->joins}
               $groupsjoin
              WHERE o.quiz = :quizid
                $groupswhere
              ORDER BY $sort
-            ", array_merge($params, $userfieldssql->params));
+            ", $params);
 }
 
 // Initialise table.
@@ -236,7 +230,7 @@ foreach ($overrides as $override) {
         $groupcell = new html_table_cell();
         $groupcell->rowspan = count($fields);
         $groupcell->text = html_writer::link(new moodle_url($groupurl, ['group' => $override->groupid]),
-            format_string($override->name, true, ['context' => $context]) . $extranamebit);
+                $override->name . $extranamebit);
         $usercells[] = $groupcell;
     } else {
         $usercell = new html_table_cell();
@@ -304,50 +298,9 @@ foreach ($overrides as $override) {
     }
 }
 
-// Work out what else needs to be displayed.
-$addenabled = true;
-$warningmessage = '';
-if ($canedit) {
-    if ($groupmode) {
-        if (empty($groups)) {
-            // There are no groups.
-            $warningmessage = get_string('groupsnone', 'quiz');
-            $addenabled = false;
-        }
-    } else {
-        // See if there are any students in the quiz.
-        if ($showallgroups) {
-            $users = get_users_by_capability($context, 'mod/quiz:attempt', 'u.id');
-            $nousermessage = get_string('usersnone', 'quiz');
-        } else if ($groups) {
-            $users = get_users_by_capability($context, 'mod/quiz:attempt', 'u.id', '', '', '', array_keys($groups));
-            $nousermessage = get_string('usersnone', 'quiz');
-        } else {
-            $users = [];
-            $nousermessage = get_string('groupsnone', 'quiz');
-        }
-        $info = new \core_availability\info_module($cm);
-        $users = $info->filter_user_list($users);
-
-        if (empty($users)) {
-            // There are no students.
-            $warningmessage = $nousermessage;
-            $addenabled = false;
-        }
-    }
-}
-
-// Tertiary navigation.
+// Display a list of overrides.
 echo $OUTPUT->header();
-$renderer = $PAGE->get_renderer('mod_quiz');
-$tertiarynav = new \mod_quiz\output\overrides_actions($cmid, $mode, $canedit, $addenabled);
-echo $renderer->render($tertiarynav);
-
-if ($mode === 'user') {
-    echo $OUTPUT->heading(get_string('useroverrides', 'quiz'));
-} else {
-    echo $OUTPUT->heading(get_string('groupoverrides', 'quiz'));
-}
+echo $OUTPUT->heading($title);
 
 // Output the table and button.
 echo html_writer::start_tag('div', ['id' => 'quizoverrides']);
@@ -364,8 +317,43 @@ if ($hasinactive) {
     echo $OUTPUT->notification(get_string('inactiveoverridehelp', 'quiz'), 'info', false);
 }
 
-if ($warningmessage) {
-    echo $OUTPUT->notification($warningmessage, 'error');
+if ($canedit) {
+    echo html_writer::start_tag('div', ['class' => 'buttons']);
+    $options = [];
+    if ($groupmode) {
+        if (empty($groups)) {
+            // There are no groups.
+            echo $OUTPUT->notification(get_string('groupsnone', 'quiz'), 'error');
+            $options['disabled'] = true;
+        }
+        echo $OUTPUT->single_button($overrideediturl->out(true,
+                ['action' => 'addgroup', 'cmid' => $cm->id]),
+                get_string('addnewgroupoverride', 'quiz'), 'post', $options);
+    } else {
+        $users = [];
+        // See if there are any students in the quiz.
+        if ($showallgroups) {
+            $users = get_users_by_capability($context, 'mod/quiz:attempt', 'u.id');
+            $nousermessage = get_string('usersnone', 'quiz');
+        } else if ($groups) {
+            $users = get_users_by_capability($context, 'mod/quiz:attempt', 'u.id', '', '', '', array_keys($groups));
+            $nousermessage = get_string('usersnone', 'quiz');
+        } else {
+            $nousermessage = get_string('groupsnone', 'quiz');
+        }
+        $info = new \core_availability\info_module($cm);
+        $users = $info->filter_user_list($users);
+
+        if (empty($users)) {
+            // There are no students.
+            echo $OUTPUT->notification($nousermessage, 'error');
+            $options['disabled'] = true;
+        }
+        echo $OUTPUT->single_button($overrideediturl->out(true,
+                ['action' => 'adduser', 'cmid' => $cm->id]),
+                get_string('addnewuseroverride', 'quiz'), 'get', $options);
+    }
+    echo html_writer::end_tag('div');
 }
 
 echo html_writer::end_tag('div');

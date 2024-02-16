@@ -60,10 +60,8 @@
 </div>
 {{#js}}
 (function() {
-    if (typeof H5PEmbedCommunicator !== 'undefined') {
-        H5PEmbedCommunicator.send('resize', {
-            scrollHeight: document.body.scrollHeight
-        });
-    }
+   H5PEmbedCommunicator.send('resize', {
+      scrollHeight: document.body.scrollHeight
+   });
 })();
 {{/js}}

@@ -336,7 +336,7 @@ class core_course_list_element implements IteratorAggregate {
      *
      * @return ArrayIterator
      */
-    public function getIterator(): Traversable {
+    public function getIterator() {
         $ret = array('id' => $this->record->id);
         foreach ($this->record as $property => $value) {
             $ret[$property] = $value;
@@ -349,11 +349,7 @@ class core_course_list_element implements IteratorAggregate {
      * @return string
      */
     public function get_formatted_name() {
-        return format_string(
-            get_course_display_name_for_list($this),
-            true,
-            ['context' => $this->get_context()],
-        );
+        return format_string(get_course_display_name_for_list($this), true, $this->get_context());
     }
 
     /**
@@ -361,11 +357,7 @@ class core_course_list_element implements IteratorAggregate {
      * @return string
      */
     public function get_formatted_fullname() {
-        return format_string(
-            $this->__get('fullname'),
-            true,
-            ['context' => $this->get_context()],
-        );
+        return format_string($this->__get('fullname'), true, $this->get_context());
     }
 
     /**
@@ -373,11 +365,7 @@ class core_course_list_element implements IteratorAggregate {
      * @return string
      */
     public function get_formatted_shortname() {
-        return format_string(
-            $this->__get('shortname'),
-            true,
-            ['context' => $this->get_context()],
-        );
+        return format_string($this->__get('shortname'), true, $this->get_context());
     }
 
     /**

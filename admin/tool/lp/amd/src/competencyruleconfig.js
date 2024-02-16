@@ -169,10 +169,7 @@ define(['jquery',
             self._popup = new Dialogue(
                 title,
                 render[0],
-                self._afterRender.bind(self),
-                null,
-                false,
-                '515px'
+                self._afterRender.bind(self)
             );
             return;
         }).fail(Notification.exception);

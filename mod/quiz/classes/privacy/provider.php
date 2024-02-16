@@ -34,7 +34,6 @@ use core_privacy\local\metadata\collection;
 use core_privacy\local\request\userlist;
 use core_privacy\local\request\writer;
 use core_privacy\manager;
-use mod_quiz\quiz_attempt;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -70,17 +69,16 @@ class provider implements
         // The table 'quiz_attempts' stores a record of each quiz attempt.
         // It contains a userid which links to the user making the attempt and contains information about that attempt.
         $items->add_database_table('quiz_attempts', [
-                'attempt'                    => 'privacy:metadata:quiz_attempts:attempt',
-                'currentpage'                => 'privacy:metadata:quiz_attempts:currentpage',
-                'preview'                    => 'privacy:metadata:quiz_attempts:preview',
-                'state'                      => 'privacy:metadata:quiz_attempts:state',
-                'timestart'                  => 'privacy:metadata:quiz_attempts:timestart',
-                'timefinish'                 => 'privacy:metadata:quiz_attempts:timefinish',
-                'timemodified'               => 'privacy:metadata:quiz_attempts:timemodified',
-                'timemodifiedoffline'        => 'privacy:metadata:quiz_attempts:timemodifiedoffline',
-                'timecheckstate'             => 'privacy:metadata:quiz_attempts:timecheckstate',
-                'sumgrades'                  => 'privacy:metadata:quiz_attempts:sumgrades',
-                'gradednotificationsenttime' => 'privacy:metadata:quiz_attempts:gradednotificationsenttime',
+                'attempt'               => 'privacy:metadata:quiz_attempts:attempt',
+                'currentpage'           => 'privacy:metadata:quiz_attempts:currentpage',
+                'preview'               => 'privacy:metadata:quiz_attempts:preview',
+                'state'                 => 'privacy:metadata:quiz_attempts:state',
+                'timestart'             => 'privacy:metadata:quiz_attempts:timestart',
+                'timefinish'            => 'privacy:metadata:quiz_attempts:timefinish',
+                'timemodified'          => 'privacy:metadata:quiz_attempts:timemodified',
+                'timemodifiedoffline'   => 'privacy:metadata:quiz_attempts:timemodifiedoffline',
+                'timecheckstate'        => 'privacy:metadata:quiz_attempts:timecheckstate',
+                'sumgrades'             => 'privacy:metadata:quiz_attempts:sumgrades',
             ], 'privacy:metadata:quiz_attempts');
 
         // The table 'quiz_feedback' contains the feedback responses which will be shown to users depending upon the
@@ -277,7 +275,7 @@ class provider implements
         $quizzes = $DB->get_recordset_sql($sql, $params);
         foreach ($quizzes as $quiz) {
             list($course, $cm) = get_course_and_cm_from_cmid($quiz->cmid, 'quiz');
-            $quizobj = new \mod_quiz\quiz_settings($quiz, $cm, $course);
+            $quizobj = new \quiz($quiz, $cm, $course);
             $context = $quizobj->get_context();
 
             $quizdata = \core_privacy\local\request\helper::get_context_data($context, $contextlist->get_user());
@@ -354,7 +352,7 @@ class provider implements
             return;
         }
 
-        $quizobj = \mod_quiz\quiz_settings::create($cm->instance);
+        $quizobj = \quiz::create($cm->instance);
         $quiz = $quizobj->get_quiz();
 
         // Handle the 'quizaccess' subplugin.
@@ -393,7 +391,7 @@ class provider implements
             }
 
             // Fetch the details of the data to be removed.
-            $quizobj = \mod_quiz\quiz_settings::create($cm->instance);
+            $quizobj = \quiz::create($cm->instance);
             $quiz = $quizobj->get_quiz();
             $user = $contextlist->get_user();
 
@@ -441,7 +439,7 @@ class provider implements
             return;
         }
 
-        $quizobj = \mod_quiz\quiz_settings::create($cm->instance);
+        $quizobj = \quiz::create($cm->instance);
         $quiz = $quizobj->get_quiz();
 
         $userids = $userlist->get_userids();
@@ -527,7 +525,7 @@ class provider implements
 
                 // Store the quiz attempt data.
                 $data = (object) [
-                    'state' => quiz_attempt::state_name($attempt->state),
+                    'state' => \quiz_attempt::state_name($attempt->state),
                 ];
 
                 if (!empty($attempt->timestart)) {
@@ -544,9 +542,6 @@ class provider implements
                 }
                 if (!empty($attempt->timecheckstate)) {
                     $data->timecheckstate = transform::datetime($attempt->timecheckstate);
-                }
-                if (!empty($attempt->gradednotificationsenttime)) {
-                    $data->gradednotificationsenttime = transform::datetime($attempt->gradednotificationsenttime);
                 }
 
                 if ($options->marks == \question_display_options::MARK_AND_MAX) {

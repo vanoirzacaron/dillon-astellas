@@ -26,7 +26,6 @@ namespace mod_forum\local\vaults;
 
 defined('MOODLE_INTERNAL') || die();
 
-use mod_forum\local\container;
 use mod_forum\local\entities\forum as forum_entity;
 use mod_forum\local\entities\discussion as discussion_entity;
 
@@ -94,23 +93,9 @@ class discussion extends db_table_vault {
      * @return  array
      */
     public function get_all_discussions_in_forum(forum_entity $forum, string $sort = null): ?array {
-        global $USER;
-        $options = ['forum' => $forum->get_id()];
-
-        $managerfactory = container::get_manager_factory();
-        $capabilitymanager = $managerfactory->get_capability_manager($forum);
-
-        $select = "forum = :forum";
-
-        if ($forum->is_in_group_mode() && !$capabilitymanager->can_access_all_groups($USER)) {
-            $allowedgroups = groups_get_activity_allowed_groups($forum->get_course_module_record());
-            $allowedgroups = implode(",", array_keys($allowedgroups));
-            if (!$allowedgroups) {
-                return [];
-            }
-            $select .= " AND groupid IN ($allowedgroups)";
-        }
-        $records = $this->get_db()->get_records_select(self::TABLE, $select, $options, $sort ?? '');
+        $records = $this->get_db()->get_records(self::TABLE, [
+            'forum' => $forum->get_id(),
+        ], $sort ?? '');
 
         return $this->transform_db_records_to_entities($records);
     }

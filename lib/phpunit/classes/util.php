@@ -104,9 +104,6 @@ class phpunit_util extends testing_util {
     public static function reset_all_data($detectchanges = false) {
         global $DB, $CFG, $USER, $SITE, $COURSE, $PAGE, $OUTPUT, $SESSION, $FULLME, $FILTERLIB_PRIVATE;
 
-        // Stop all hook redirections.
-        \core\hook\manager::get_instance()->phpunit_stop_redirections();
-
         // Stop any message redirection.
         self::stop_message_redirection();
 
@@ -219,6 +216,7 @@ class phpunit_util extends testing_util {
         accesslib_reset_role_cache();
         get_string_manager()->reset_caches(true);
         reset_text_filters_cache(true);
+        core_text::reset_caches();
         get_message_processors(false, true, true);
         filter_manager::reset_caches();
         core_filetypes::reset_caches();
@@ -245,7 +243,10 @@ class phpunit_util extends testing_util {
         //TODO MDL-25290: add more resets here and probably refactor them to new core function
 
         // Reset course and module caches.
-        core_courseformat\base::reset_course_cache(0);
+        if (class_exists('format_base')) {
+            // If file containing class is not loaded, there is no cache there anyway.
+            format_base::reset_course_cache(0);
+        }
         get_fast_modinfo(0, 0, true);
 
         // Reset other singletons.
@@ -257,18 +258,6 @@ class phpunit_util extends testing_util {
         }
         if (class_exists('\core_course\customfield\course_handler')) {
             \core_course\customfield\course_handler::reset_caches();
-        }
-        if (class_exists('\core_reportbuilder\manager')) {
-            \core_reportbuilder\manager::reset_caches();
-        }
-        if (class_exists('\core_cohort\customfield\cohort_handler')) {
-            \core_cohort\customfield\cohort_handler::reset_caches();
-        }
-        if (class_exists('\core_group\customfield\group_handler')) {
-            \core_group\customfield\group_handler::reset_caches();
-        }
-        if (class_exists('\core_group\customfield\grouping_handler')) {
-            \core_group\customfield\grouping_handler::reset_caches();
         }
 
         // Clear static cache within restore.
@@ -320,13 +309,7 @@ class phpunit_util extends testing_util {
     public static function reset_database() {
         global $DB;
 
-        if (defined('PHPUNIT_ISOLATED_TEST') && PHPUNIT_ISOLATED_TEST && self::$lastdbwrites === null) {
-            // This is an isolated test and the lastdbwrites has not yet been initialised.
-            // Isolated test runs are reset by the test runner before the run starts.
-            self::$lastdbwrites = $DB->perf_get_writes();
-        }
-
-        if (!is_null(self::$lastdbwrites) && self::$lastdbwrites == $DB->perf_get_writes()) {
+        if (!is_null(self::$lastdbwrites) and self::$lastdbwrites == $DB->perf_get_writes()) {
             return false;
         }
 
@@ -490,16 +473,6 @@ class phpunit_util extends testing_util {
 
         // Disable all logging for performance and sanity reasons.
         set_config('enabled_stores', '', 'tool_log');
-
-        // Remove any default blocked hosts and port restrictions, to avoid blocking tests (eg those using local files).
-        set_config('curlsecurityblockedhosts', '');
-        set_config('curlsecurityallowedport', '');
-
-        // Execute all the adhoc tasks.
-        while ($task = \core\task\manager::get_next_adhoc_task(time())) {
-            $task->execute();
-            \core\task\manager::adhoc_task_complete($task);
-        }
 
         // We need to keep the installed dataroot filedir files.
         // So each time we reset the dataroot before running a test, the default files are still installed.
@@ -967,8 +940,8 @@ class phpunit_util extends testing_util {
     /**
      * Get the coverage config for the supplied includelist and excludelist configuration.
      *
-     * @param   string[] $includelists The list of files/folders in the includelist.
-     * @param   string[] $excludelists The list of files/folders in the excludelist.
+     * @param   array[] $includelists The list of files/folders in the includelist.
+     * @param   array[] $excludelists The list of files/folders in the excludelist.
      * @return  string
      */
     protected static function get_coverage_config(array $includelists, array $excludelists) : string {
@@ -997,7 +970,7 @@ class phpunit_util extends testing_util {
      * @param   string  $fulldir The directory to find the coverage info file in.
      * @return  phpunit_coverage_info
      */
-    protected static function get_coverage_info(string $fulldir): phpunit_coverage_info {
+    protected static function get_coverage_info(string $fulldir): ?phpunit_coverage_info {
         $coverageconfig = "{$fulldir}/tests/coverage.php";
         if (file_exists($coverageconfig)) {
             $coverageinfo = require($coverageconfig);
@@ -1008,7 +981,7 @@ class phpunit_util extends testing_util {
             return $coverageinfo;
         }
 
-        return new phpunit_coverage_info();;
+        return null;
     }
 
     /**

@@ -42,8 +42,7 @@ class mod_assign_grading_options_form extends moodleform {
     public function definition() {
         $mform = $this->_form;
         $instance = $this->_customdata;
-
-        $mform->disable_form_change_checker();
+        $dirtyclass = array('class' => 'ignoredirty');
 
         $mform->addElement('header', 'general', get_string('gradingoptions', 'assign'));
         // Visible elements.
@@ -57,7 +56,7 @@ class mod_assign_grading_options_form extends moodleform {
                 }
             }
         }
-        $mform->addElement('select', 'perpage', get_string('assignmentsperpage', 'assign'), $options);
+        $mform->addElement('select', 'perpage', get_string('assignmentsperpage', 'assign'), $options, $dirtyclass);
         $options = array('' => get_string('filternone', 'assign'),
                          ASSIGN_FILTER_NOT_SUBMITTED => get_string('filternotsubmitted', 'assign'),
                          ASSIGN_FILTER_DRAFT => get_string('filterdraft', 'assign'),
@@ -65,33 +64,33 @@ class mod_assign_grading_options_form extends moodleform {
                          ASSIGN_FILTER_REQUIRE_GRADING => get_string('filterrequiregrading', 'assign'),
                          ASSIGN_FILTER_GRANTED_EXTENSION => get_string('filtergrantedextension', 'assign'));
         if ($instance['submissionsenabled']) {
-            $mform->addElement('select', 'filter', get_string('filter', 'assign'), $options);
+            $mform->addElement('select', 'filter', get_string('filter', 'assign'), $options, $dirtyclass);
         }
         if (!empty($instance['markingallocationopt'])) {
             $markingfilter = get_string('markerfilter', 'assign');
-            $mform->addElement('select', 'markerfilter', $markingfilter, $instance['markingallocationopt']);
+            $mform->addElement('select', 'markerfilter', $markingfilter, $instance['markingallocationopt'], $dirtyclass);
         }
         if (!empty($instance['markingworkflowopt'])) {
             $workflowfilter = get_string('workflowfilter', 'assign');
-            $mform->addElement('select', 'workflowfilter', $workflowfilter, $instance['markingworkflowopt']);
+            $mform->addElement('select', 'workflowfilter', $workflowfilter, $instance['markingworkflowopt'], $dirtyclass);
         }
         // Quickgrading.
         if ($instance['showquickgrading']) {
-            $mform->addElement('checkbox', 'quickgrading', get_string('quickgrading', 'assign'));
+            $mform->addElement('checkbox', 'quickgrading', get_string('quickgrading', 'assign'), '', $dirtyclass);
             $mform->addHelpButton('quickgrading', 'quickgrading', 'assign');
             $mform->setDefault('quickgrading', $instance['quickgrading']);
         }
 
         // Show active/suspended user option.
         if ($instance['showonlyactiveenrolopt']) {
-            $mform->addElement('checkbox', 'showonlyactiveenrol', get_string('showonlyactiveenrol', 'grades'));
+            $mform->addElement('checkbox', 'showonlyactiveenrol', get_string('showonlyactiveenrol', 'grades'), '', $dirtyclass);
             $mform->addHelpButton('showonlyactiveenrol', 'showonlyactiveenrol', 'grades');
             $mform->setDefault('showonlyactiveenrol', $instance['showonlyactiveenrol']);
         }
 
         // Place student downloads in seperate folders.
         if ($instance['submissionsenabled']) {
-            $mform->addElement('checkbox', 'downloadasfolders', get_string('downloadasfolders', 'assign'));
+            $mform->addElement('checkbox', 'downloadasfolders', get_string('downloadasfolders', 'assign'), '', $dirtyclass);
             $mform->addHelpButton('downloadasfolders', 'downloadasfolders', 'assign');
             $mform->setDefault('downloadasfolders', $instance['downloadasfolders']);
         }

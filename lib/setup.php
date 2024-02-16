@@ -141,27 +141,7 @@ if (defined('BEHAT_SITE_RUNNING')) {
         $CFG->wwwroot = $CFG->behat_wwwroot;
         $CFG->prefix = $CFG->behat_prefix;
         $CFG->dataroot = $CFG->behat_dataroot;
-
-        // And we do the same with the optional ones.
-        $allowedconfigoverride = ['dbname', 'dbuser', 'dbpass', 'dbhost'];
-        foreach ($allowedconfigoverride as $config) {
-            $behatconfig = 'behat_' . $config;
-            if (!isset($CFG->$behatconfig)) {
-                continue;
-            }
-            $CFG->$config = $CFG->$behatconfig;
-        }
     }
-}
-
-// Set default warn runtime.
-if (!isset($CFG->taskruntimewarn)) {
-    $CFG->taskruntimewarn = 12 * 60 * 60;
-}
-
-// Set default error runtime.
-if (!isset($CFG->taskruntimeerror)) {
-    $CFG->taskruntimeerror = 24 * 60 * 60;
 }
 
 // Normalise dataroot - we do not want any symbolic links, trailing / or any other weirdness there
@@ -211,7 +191,7 @@ $CFG->libdir = $CFG->dirroot .'/lib';
 
 // Allow overriding of tempdir but be backwards compatible
 if (!isset($CFG->tempdir)) {
-    $CFG->tempdir = $CFG->dataroot . DIRECTORY_SEPARATOR . "temp";
+    $CFG->tempdir = "$CFG->dataroot/temp";
 }
 
 // Allow overriding of backuptempdir but be backwards compatible
@@ -281,25 +261,21 @@ if (!defined('PHPUNIT_TEST')) {
     define('PHPUNIT_TEST', false);
 }
 
-// Performance tests needs to always display performance info, even in redirections;
-// MDL_PERF_TEST is used in https://github.com/moodlehq/moodle-performance-comparison scripts.
+// Performance tests needs to always display performance info, even in redirections.
 if (!defined('MDL_PERF_TEST')) {
     define('MDL_PERF_TEST', false);
+} else {
+    // We force the ones we need.
+    if (!defined('MDL_PERF')) {
+        define('MDL_PERF', true);
+    }
+    if (!defined('MDL_PERFDB')) {
+        define('MDL_PERFDB', true);
+    }
+    if (!defined('MDL_PERFTOFOOT')) {
+        define('MDL_PERFTOFOOT', true);
+    }
 }
-// Make sure all MDL_PERF* constants are always defined.
-if (!defined('MDL_PERF')) {
-    define('MDL_PERF', MDL_PERF_TEST);
-}
-if (!defined('MDL_PERFTOFOOT')) {
-    define('MDL_PERFTOFOOT', MDL_PERF_TEST);
-}
-if (!defined('MDL_PERFTOLOG')) {
-    define('MDL_PERFTOLOG', false);
-}
-if (!defined('MDL_PERFINC')) {
-    define('MDL_PERFINC', false);
-}
-// Note that PHPUnit and Behat tests should pass with both MDL_PERF true and false.
 
 // When set to true MUC (Moodle caching) will be disabled as much as possible.
 // A special cache factory will be used to handle this situation and will use special "disabled" equivalents objects.
@@ -392,9 +368,10 @@ if (!defined('AJAX_SCRIPT')) {
 
 // Exact version of currently used yui2 and 3 library.
 $CFG->yui2version = '2.9.0';
-$CFG->yui3version = '3.18.1';
+$CFG->yui3version = '3.17.2';
 
 // Patching the upstream YUI release.
+// For important information on patching YUI modules, please see http://docs.moodle.org/dev/YUI/Patching.
 // If we need to patch a YUI modules between official YUI releases, the yuipatchlevel will need to be manually
 // incremented here. The module will also need to be listed in the yuipatchedmodules.
 // When upgrading to a subsequent version of YUI, these should be reset back to 0 and an empty array.
@@ -582,7 +559,7 @@ init_performance_info();
 // Put $OUTPUT in place, so errors can be displayed.
 $OUTPUT = new bootstrap_renderer();
 
-// Set handler for uncaught exceptions - equivalent to throw new \moodle_exception() call.
+// set handler for uncaught exceptions - equivalent to print_error() call
 if (!PHPUNIT_TEST or PHPUNIT_UTIL) {
     set_exception_handler('default_exception_handler');
     set_error_handler('default_error_handler', E_ALL | E_STRICT);
@@ -674,23 +651,6 @@ if (PHPUNIT_TEST and !PHPUNIT_UTIL) {
     unset($dbhash);
 }
 
-// Load any immutable bootstrap config from local cache.
-$bootstrapcachefile = $CFG->localcachedir . '/bootstrap.php';
-if (is_readable($bootstrapcachefile)) {
-    try {
-        require_once($bootstrapcachefile);
-        // Verify the file is not stale.
-        if (!isset($CFG->bootstraphash) || $CFG->bootstraphash !== hash_local_config_cache()) {
-            // Something has changed, the bootstrap.php file is stale.
-            unset($CFG->siteidentifier);
-            @unlink($bootstrapcachefile);
-        }
-    } catch (Throwable $e) {
-        // If it is corrupted then attempt to delete it and it will be rebuilt.
-        @unlink($bootstrapcachefile);
-    }
-}
-
 // Load up any configuration from the config table or MUC cache.
 if (PHPUNIT_TEST) {
     phpunit_util::initialise_cfg();
@@ -735,7 +695,7 @@ if (!defined('NO_UPGRADE_CHECK') and isset($CFG->upgraderunning)) {
     if ($CFG->upgraderunning < time()) {
         unset_config('upgraderunning');
     } else {
-        throw new \moodle_exception('upgraderunning');
+        print_error('upgraderunning');
     }
 }
 
@@ -747,7 +707,7 @@ if (function_exists('gc_enable')) {
 
 // detect unsupported upgrade jump as soon as possible - do not change anything, do not use system functions
 if (!empty($CFG->version) and $CFG->version < 2007101509) {
-    throw new \moodle_exception('upgraderequires19', 'error');
+    print_error('upgraderequires19', 'error');
     die;
 }
 
@@ -768,6 +728,11 @@ ini_set('arg_separator.output', '&amp;');
 // Work around for a PHP bug   see MDL-11237
 ini_set('pcre.backtrack_limit', 20971520);  // 20 MB
 
+// Work around for PHP7 bug #70110. See MDL-52475 .
+if (ini_get('pcre.jit')) {
+    ini_set('pcre.jit', 0);
+}
+
 // Set PHP default timezone to server timezone.
 core_date::set_default_server_timezone();
 
@@ -787,7 +752,8 @@ if (isset($_SERVER['PHP_SELF'])) {
 // initialise ME's - this must be done BEFORE starting of session!
 initialise_fullme();
 
-// SYSCONTEXTID is cached in local cache to eliminate 1 query per page.
+// define SYSCONTEXTID in config.php if you want to save some queries,
+// after install it must match the system context record id.
 if (!defined('SYSCONTEXTID')) {
     context_system::instance();
 }
@@ -839,51 +805,9 @@ if (empty($CFG->sessiontimeout)) {
 if (empty($CFG->sessiontimeoutwarning)) {
     $CFG->sessiontimeoutwarning = 20 * 60;
 }
-
-// Allow plugins to callback just before the session is started.
-$pluginswithfunction = get_plugins_with_function('before_session_start', 'lib.php');
-foreach ($pluginswithfunction as $plugins) {
-    foreach ($plugins as $function) {
-        try {
-            $function();
-        } catch (Throwable $e) {
-            debugging("Exception calling '$function'", DEBUG_DEVELOPER, $e->getTrace());
-        }
-    }
-}
-
 \core\session\manager::start();
 // Prevent ignoresesskey hack from getting carried over to a next page.
 unset($USER->ignoresesskey);
-
-if (!empty($CFG->proxylogunsafe) || !empty($CFG->proxyfixunsafe)) {
-    if (!empty($CFG->proxyfixunsafe)) {
-        require_once($CFG->libdir.'/filelib.php');
-
-        $proxyurl = get_moodle_proxy_url();
-        // This fixes stream handlers inside php.
-        $defaults = stream_context_set_default([
-            'http' => [
-                'user_agent' => \core_useragent::get_moodlebot_useragent(),
-                'proxy' => $proxyurl
-            ],
-        ]);
-
-        // Attempt to tell other web clients to use the proxy too. This only
-        // works for clients written in php in the same process, it will not
-        // work for with requests done in another process from an exec call.
-        putenv('http_proxy=' . $proxyurl);
-        putenv('https_proxy=' . $proxyurl);
-        putenv('HTTPS_PROXY=' . $proxyurl);
-    } else {
-        $defaults = stream_context_get_default();
-    }
-
-    if (!empty($CFG->proxylogunsafe)) {
-        stream_context_set_params($defaults, ['notification' => 'proxy_log_callback']);
-    }
-
-}
 
 // Set default content type and encoding, developers are still required to use
 // echo $OUTPUT->header() everywhere, anything that gets set later should override these headers.
@@ -952,7 +876,6 @@ if (!isset($CFG->theme)) {
 if (isset($_GET['lang']) and ($lang = optional_param('lang', '', PARAM_SAFEDIR))) {
     if (get_string_manager()->translation_exists($lang, false)) {
         $SESSION->lang = $lang;
-        \core_courseformat\base::session_cache_reset_all();
     }
 }
 unset($lang);
@@ -1134,9 +1057,6 @@ if (false) {
     $OUTPUT = new core_renderer(null, null);
     $PAGE = new moodle_page();
 }
-
-// Cache any immutable config locally to avoid constant DB lookups.
-initialise_local_config_cache();
 
 // Allow plugins to callback as soon possible after setup.php is loaded.
 $pluginswithfunction = get_plugins_with_function('after_config', 'lib.php');

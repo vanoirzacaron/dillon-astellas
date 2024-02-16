@@ -24,6 +24,8 @@
 
 namespace customcertelement_digitalsignature;
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * The customcert element digital signature's core interaction API.
  *
@@ -36,7 +38,7 @@ class element extends \customcertelement_image\element {
     /**
      * @var array The file manager options for the certificate.
      */
-    protected $signaturefilemanageroptions = [];
+    protected $signaturefilemanageroptions = array();
 
     /**
      * Constructor.
@@ -88,9 +90,15 @@ class element extends \customcertelement_image\element {
         $mform->setType('signaturecontactinfo', PARAM_TEXT);
         $mform->setDefault('signaturecontactinfo', '');
 
-        \mod_customcert\element_helper::render_form_element_width($mform);
+        $mform->addElement('text', 'width', get_string('width', 'customcertelement_image'), array('size' => 10));
+        $mform->setType('width', PARAM_INT);
+        $mform->setDefault('width', 0);
+        $mform->addHelpButton('width', 'width', 'customcertelement_image');
 
-        \mod_customcert\element_helper::render_form_element_height($mform);
+        $mform->addElement('text', 'height', get_string('height', 'customcertelement_image'), array('size' => 10));
+        $mform->setType('height', PARAM_INT);
+        $mform->setDefault('height', 0);
+        $mform->addHelpButton('height', 'height', 'customcertelement_image');
 
         if (get_config('customcert', 'showposxy')) {
             \mod_customcert\element_helper::render_form_element_position($mform);
@@ -292,7 +300,7 @@ class element extends \customcertelement_image\element {
         $fs = get_file_storage();
 
         // The array used to store the digital signatures.
-        $arrfiles = [];
+        $arrfiles = array();
         // Loop through the files uploaded in the system context.
         if ($files = $fs->get_area_files(\context_system::instance()->id, 'mod_customcert', 'signature', false,
                 'filename', false)) {
@@ -309,7 +317,7 @@ class element extends \customcertelement_image\element {
         }
 
         \core_collator::asort($arrfiles);
-        $arrfiles = ['0' => get_string('nosignature', 'customcertelement_digitalsignature')] + $arrfiles;
+        $arrfiles = array('0' => get_string('nosignature', 'customcertelement_digitalsignature')) + $arrfiles;
 
         return $arrfiles;
     }

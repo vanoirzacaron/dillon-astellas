@@ -26,6 +26,8 @@ namespace mod_customcert;
 
 use core_user\fields;
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * Class helper.
  *

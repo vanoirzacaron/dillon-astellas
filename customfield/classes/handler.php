@@ -117,7 +117,7 @@ abstract class handler {
             return $classname::create($itemid);
         }
         $a = ['component' => s($component), 'area' => s($area)];
-        throw new \moodle_exception('unknownhandler', 'core_customfield', '', $a);
+        throw new \moodle_exception('unknownhandler', 'core_customfield', (object)$a);
     }
 
     /**
@@ -638,7 +638,7 @@ abstract class handler {
         foreach ($fieldswithdata as $data) {
             $categoryid = $data->get_field()->get_category()->get('id');
             if ($categoryid != $lastcategoryid) {
-                $categoryname = $data->get_field()->get_category()->get_formatted_name();
+                $categoryname = format_string($data->get_field()->get_category()->get('name'));
 
                 // Load category header lang string if specified.
                 if (!empty($headerlangidentifier)) {
@@ -650,7 +650,7 @@ abstract class handler {
             }
             $data->instance_form_definition($mform);
             $field = $data->get_field()->to_record();
-            if (strlen((string)$field->description)) {
+            if (strlen($field->description)) {
                 // Add field description.
                 $context = $this->get_configuration_context();
                 $value = file_rewrite_pluginfile_urls($field->description, 'pluginfile.php',

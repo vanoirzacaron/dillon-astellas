@@ -24,8 +24,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2023100900;        // The current plugin version (Date: YYYYMMDDXX).
-$plugin->requires  = 2023100400;        // Requires this Moodle version.
+$plugin->version   = 2021051700;        // The current plugin version (Date: YYYYMMDDXX).
+$plugin->requires  = 2021051100;        // Requires this Moodle version.
 $plugin->component = 'block_search_forums'; // Full name of the plugin (used for diagnostics)
 
-$plugin->dependencies = ['mod_forum' => 2023100400];
+$plugin->dependencies = array('mod_forum' => 2021051100);

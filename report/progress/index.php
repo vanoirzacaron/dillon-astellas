@@ -33,7 +33,7 @@ require_once($CFG->libdir . '/completionlib.php');
 $id = required_param('course',PARAM_INT);
 $course = $DB->get_record('course',array('id'=>$id));
 if (!$course) {
-    throw new \moodle_exception('invalidcourseid');
+    print_error('invalidcourseid');
 }
 $context = context_course::instance($course->id);
 
@@ -53,11 +53,10 @@ $silast  = optional_param('silast', 'all', PARAM_NOTAGS);
 $groupid = optional_param('group', 0, PARAM_INT);
 $activityinclude = optional_param('activityinclude', 'all', PARAM_TEXT);
 $activityorder = optional_param('activityorder', 'orderincourse', PARAM_TEXT);
-$activitysection = optional_param('activitysection', -1, PARAM_INT);
 
 // Whether to show extra user identity information
-$userfields = \core_user\fields::for_identity($context);
-$extrafields = $userfields->get_required_fields([\core_user\fields::PURPOSE_IDENTITY]);
+// TODO Does not support custom user profile fields (MDL-70456).
+$extrafields = \core_user\fields::get_identity_fields($context, false);
 $leftcols = 1 + count($extrafields);
 
 function csv_quote($value) {
@@ -94,9 +93,6 @@ if ($activityinclude !== '') {
 if ($activityorder !== '') {
     $url->param('activityorder', $activityorder);
 }
-if ($activitysection !== '') {
-    $url->param('activitysection', $activitysection);
-}
 
 $PAGE->set_url($url);
 $PAGE->set_pagelayout('report');
@@ -115,7 +111,7 @@ if ($group===0 && $course->groupmode==SEPARATEGROUPS) {
 // Get data on activities and progress of all users, and give error if we've
 // nothing to display (no users or no activities).
 $completion = new completion_info($course);
-list($activitytypes, $activities) = helper::get_activities_to_show($completion, $activityinclude, $activityorder, $activitysection);
+list($activitytypes, $activities) = helper::get_activities_to_show($completion, $activityinclude, $activityorder);
 $output = $PAGE->get_renderer('report_progress');
 
 if ($sifirst !== 'all') {
@@ -159,6 +155,8 @@ $grandtotal = $completion->get_num_tracked_users('', array(), $group);
 
 // Get user data
 $progress = array();
+
+report_helper::save_selected_report($id, $url);
 
 if ($total) {
     $progress = $completion->get_progress_all(
@@ -212,21 +210,6 @@ if ($csv && $grandtotal && count($activities)>0) { // Only show CSV if there are
     // Display activity order options.
     echo $output->render_activity_order_select($url, $activityorder);
 
-    // Display section selector.
-    $modinfo = get_fast_modinfo($course);
-    $sections = [];
-    $cmids = array_keys($completion->get_activities());
-    foreach ($modinfo->get_sections() as $sectionnum => $section) {
-        if (empty(array_intersect($section, $cmids))) {
-            continue;
-        }
-        $sectionname = get_section_name($course, $sectionnum);
-        if (empty($sectionname)) {
-            $sectionname = get_string('section') . ' ' . $sectionnum;
-        }
-        $sections[$sectionnum] = $sectionname;
-    }
-    echo $output->render_activity_section_select($url, $activitysection, $sections);
 }
 
 if (count($activities)==0) {
@@ -278,7 +261,7 @@ if (!$csv) {
     }
 
     print '<div id="completion-progress-wrapper" class="no-overflow">';
-    print '<table id="completion-progress" class="generaltable flexible boxaligncenter"><thead><tr style="vertical-align:top">';
+    print '<table id="completion-progress" class="generaltable flexible boxaligncenter" style="text-align:left"><thead><tr style="vertical-align:top">';
 
     // User heading / sort option
     print '<th scope="col" class="completion-sortchoice">';
@@ -335,7 +318,7 @@ foreach($activities as $activity) {
             '/view.php?id='.$activity->id.'" title="' . s($displayname) . '">'.
             '<div class="rotated-text-container"><span class="rotated-text">'.$shortenedname.'</span></div>'.
             '<div class="modicon">'.
-            $OUTPUT->image_icon('monologo', get_string('modulename', $activity->modname), $activity->modname) .
+            $OUTPUT->image_icon('icon', get_string('modulename', $activity->modname), $activity->modname) .
             '</div>'.
             '</a>';
         if ($activity->completionexpected) {

@@ -135,7 +135,7 @@ trait behat_session_trait {
         }
 
         // How much we will be waiting for the element to appear.
-        if ($timeout === false) {
+        if (!$timeout) {
             $timeout = self::get_timeout();
             $microsleep = false;
         } else {
@@ -346,7 +346,7 @@ trait behat_session_trait {
      * an exception.
      *
      * @throws Exception If it timeouts without receiving something != false from the closure
-     * @param callable $lambda The function to execute or an array passed to call_user_func (maps to a class method)
+     * @param Function|array|string $lambda The function to execute or an array passed to call_user_func (maps to a class method)
      * @param mixed $args Arguments to pass to the closure
      * @param int $timeout Timeout in seconds
      * @param Exception $exception The exception to throw in case it time outs.
@@ -356,7 +356,7 @@ trait behat_session_trait {
     protected function spin($lambda, $args = false, $timeout = false, $exception = false, $microsleep = false) {
 
         // Using default timeout which is pretty high.
-        if ($timeout === false) {
+        if (!$timeout) {
             $timeout = self::get_timeout();
         }
 
@@ -528,7 +528,7 @@ trait behat_session_trait {
      * @return boolean
      */
     protected static function running_javascript_in_session(Session $session): bool {
-        return get_class($session->getDriver()) !== 'Behat\Mink\Driver\BrowserKitDriver';
+        return get_class($session->getDriver()) !== 'Behat\Mink\Driver\GoutteDriver';
     }
 
     /**
@@ -727,6 +727,23 @@ trait behat_session_trait {
     }
 
     /**
+     * Ensures that all the page's editors are loaded.
+     *
+     * @deprecated since Moodle 2.7 MDL-44084 - please do not use this function any more.
+     * @throws ElementNotFoundException
+     * @throws ExpectationException
+     * @return void
+     */
+    protected function ensure_editors_are_loaded() {
+        global $CFG;
+
+        if (empty($CFG->behat_usedeprecated)) {
+            debugging('Function behat_base::ensure_editors_are_loaded() is deprecated. It is no longer required.');
+        }
+        return;
+    }
+
+    /**
      * Checks if the current scenario, or its feature, has a specified tag.
      *
      * @param string $tag Tag to check
@@ -738,10 +755,8 @@ trait behat_session_trait {
 
     /**
      * Change browser window size.
-     *   - mobile: 425x750
-     *   - tablet: 768x1024
-     *   - small: 1024x768
-     *   - medium: 1366x768
+     *   - small: 640x480
+     *   - medium: 1024x768
      *   - large: 2560x1600
      *
      * @param string $windowsize size of window.
@@ -757,14 +772,6 @@ trait behat_session_trait {
         }
 
         switch ($windowsize) {
-            case "mobile":
-                $width = 425;
-                $height = 750;
-                break;
-            case "tablet":
-                $width = 768;
-                $height = 1024;
-                break;
             case "small":
                 $width = 1024;
                 $height = 768;
@@ -923,7 +930,7 @@ EOF;
                         $msgs[] = $errnostring . ": " .$error['message'] . " at " . $error['file'] . ": " . $error['line'];
                     }
                     $msg = "PHP errors found:\n" . implode("\n", $msgs);
-                    throw new \Exception(htmlentities($msg, ENT_COMPAT));
+                    throw new \Exception(htmlentities($msg));
                 }
 
                 return;
@@ -961,7 +968,7 @@ EOF;
                 }
 
                 $msg = "Moodle exception: " . $errormsg->getText() . "\n" . $errorinfo;
-                throw new \Exception(html_entity_decode($msg, ENT_COMPAT));
+                throw new \Exception(html_entity_decode($msg));
             }
 
             // Debugging messages.
@@ -971,7 +978,7 @@ EOF;
                     $msgs[] = $this->get_debug_text($debuggingmessage->getHtml());
                 }
                 $msg = "debugging() message/s found:\n" . implode("\n", $msgs);
-                throw new \Exception(html_entity_decode($msg, ENT_COMPAT));
+                throw new \Exception(html_entity_decode($msg));
             }
 
             // PHP debug messages.
@@ -982,7 +989,7 @@ EOF;
                     $msgs[] = $this->get_debug_text($phpmessage->getHtml());
                 }
                 $msg = "PHP debug message/s found:\n" . implode("\n", $msgs);
-                throw new \Exception(html_entity_decode($msg, ENT_COMPAT));
+                throw new \Exception(html_entity_decode($msg));
             }
 
             // Any other backtrace.
@@ -996,7 +1003,7 @@ EOF;
                         $msgs[] = $backtrace . '()';
                     }
                     $msg = "Other backtraces found:\n" . implode("\n", $msgs);
-                    throw new \Exception(htmlentities($msg, ENT_COMPAT));
+                    throw new \Exception(htmlentities($msg));
                 }
             }
 
@@ -1024,7 +1031,7 @@ EOF;
      * Helper function to execute api in a given context.
      *
      * @param string $contextapi context in which api is defined.
-     * @param array|mixed $params list of params to pass or a single parameter
+     * @param array $params list of params to pass.
      * @throws Exception
      */
     protected function execute($contextapi, $params = array()) {
@@ -1131,12 +1138,53 @@ EOF;
      * @return context
      */
     public static function get_context(string $levelname, string $contextref): context {
-        $context = \core\context_helper::resolve_behat_reference($levelname, $contextref);
-        if ($context) {
-            return $context;
+        global $DB;
+
+        // Getting context levels and names (we will be using the English ones as it is the test site language).
+        $contextlevels = context_helper::get_all_levels();
+        $contextnames = array();
+        foreach ($contextlevels as $level => $classname) {
+            $contextnames[context_helper::get_level_name($level)] = $level;
         }
 
-        throw new Exception("The specified context \"$levelname, $contextref\" does not exist");
+        if (empty($contextnames[$levelname])) {
+            throw new Exception('The specified "' . $levelname . '" context level does not exist');
+        }
+        $contextlevel = $contextnames[$levelname];
+
+        // Return it, we don't need to look for other internal ids.
+        if ($contextlevel == CONTEXT_SYSTEM) {
+            return context_system::instance();
+        }
+
+        switch ($contextlevel) {
+
+            case CONTEXT_USER:
+                $instanceid = $DB->get_field('user', 'id', array('username' => $contextref));
+                break;
+
+            case CONTEXT_COURSECAT:
+                $instanceid = $DB->get_field('course_categories', 'id', array('idnumber' => $contextref));
+                break;
+
+            case CONTEXT_COURSE:
+                $instanceid = $DB->get_field('course', 'id', array('shortname' => $contextref));
+                break;
+
+            case CONTEXT_MODULE:
+                $instanceid = $DB->get_field('course_modules', 'id', array('idnumber' => $contextref));
+                break;
+
+            default:
+                break;
+        }
+
+        $contextclass = $contextlevels[$contextlevel];
+        if (!$context = $contextclass::instance($instanceid, IGNORE_MISSING)) {
+            throw new Exception('The specified "' . $contextref . '" context reference does not exist');
+        }
+
+        return $context;
     }
 
     /**

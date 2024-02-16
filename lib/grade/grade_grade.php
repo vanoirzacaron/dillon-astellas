@@ -189,36 +189,6 @@ class grade_grade extends grade_object {
     public $feedbackfiles = [];
 
     /**
-     * Feedback content.
-     * @var string $feedback
-     */
-    public $feedback;
-
-    /**
-     * Feedback format.
-     * @var int $feedbackformat
-     */
-    public $feedbackformat = FORMAT_PLAIN;
-
-    /**
-     * Information text.
-     * @var string $information
-     */
-    public $information;
-
-    /**
-     * Information text format.
-     * @var int $informationformat
-     */
-    public $informationformat = FORMAT_PLAIN;
-
-    /**
-     * label text.
-     * @var string $label
-     */
-    public $label;
-
-    /**
      * Returns array of grades for given grade_item+users
      *
      * @param grade_item $grade_item
@@ -472,12 +442,12 @@ class grade_grade extends grade_object {
     public function set_overridden($state, $refresh = true) {
         if (empty($this->overridden) and $state) {
             $this->overridden = time();
-            $this->update(null, true);
+            $this->update();
             return true;
 
         } else if (!empty($this->overridden) and !$state) {
             $this->overridden = 0;
-            $this->update(null, true);
+            $this->update();
 
             if ($refresh) {
                 //refresh when unlocking
@@ -798,7 +768,7 @@ class grade_grade extends grade_object {
         global $CFG;
 
         if (count($grade_grades) !== count($grade_items)) {
-            throw new \moodle_exception('invalidarraysize', 'debug', '', 'grade_grade::get_hiding_affected()!');
+            print_error('invalidarraysize', 'debug', '', 'grade_grade::get_hiding_affected()!');
         }
 
         $dependson = array();
@@ -1060,19 +1030,30 @@ class grade_grade extends grade_object {
     }
 
     /**
+     * Insert the grade_grade instance into the database.
+     *
+     * @param string $source From where was the object inserted (mod/forum, manual, etc.)
+     * @return int The new grade_grade ID if successful, false otherwise
+     */
+    public function insert($source=null) {
+        // TODO: dategraded hack - do not update times, they are used for submission and grading (MDL-31379)
+        //$this->timecreated = $this->timemodified = time();
+        return parent::insert($source);
+    }
+
+    /**
      * In addition to update() as defined in grade_object rounds the float numbers using php function,
      * the reason is we need to compare the db value with computed number to skip updates if possible.
      *
      * @param string $source from where was the object inserted (mod/forum, manual, etc.)
-     * @param bool $isbulkupdate If bulk grade update is happening.
      * @return bool success
      */
-    public function update($source=null, $isbulkupdate = false) {
+    public function update($source=null) {
         $this->rawgrade = grade_floatval($this->rawgrade);
         $this->finalgrade = grade_floatval($this->finalgrade);
         $this->rawgrademin = grade_floatval($this->rawgrademin);
         $this->rawgrademax = grade_floatval($this->rawgrademax);
-        return parent::update($source, $isbulkupdate);
+        return parent::update($source);
     }
 
 
@@ -1147,18 +1128,16 @@ class grade_grade extends grade_object {
      */
     public function delete($source = null) {
         global $DB;
-        try {
-            $transaction = $DB->start_delegated_transaction();
-            $success = parent::delete($source);
-            // If the grade was deleted successfully trigger a grade_deleted event.
-            if ($success && !empty($this->grade_item)) {
-                $this->load_grade_item();
-                \core\event\grade_deleted::create_from_grade($this)->trigger();
-            }
-            $transaction->allow_commit();
-        } catch (Exception $e) {
-            $transaction->rollback($e);
+
+        $transaction = $DB->start_delegated_transaction();
+        $success = parent::delete($source);
+
+        // If the grade was deleted successfully trigger a grade_deleted event.
+        if ($success && !empty($this->grade_item)) {
+            \core\event\grade_deleted::create_from_grade($this)->trigger();
         }
+
+        $transaction->allow_commit();
         return $success;
     }
 
@@ -1167,9 +1146,8 @@ class grade_grade extends grade_object {
      * has changed, and clear up a possible score cache.
      *
      * @param bool $deleted True if grade was actually deleted
-     * @param bool $isbulkupdate If bulk grade update is happening.
      */
-    protected function notify_changed($deleted, $isbulkupdate = false) {
+    protected function notify_changed($deleted) {
         global $CFG;
 
         // Condition code may cache the grades for conditional availability of
@@ -1230,7 +1208,7 @@ class grade_grade extends grade_object {
         }
 
         // Pass information on to completion system
-        $completion->inform_grade_changed($cm, $this->grade_item, $this, $deleted, $isbulkupdate);
+        $completion->inform_grade_changed($cm, $this->grade_item, $this, $deleted);
     }
 
     /**

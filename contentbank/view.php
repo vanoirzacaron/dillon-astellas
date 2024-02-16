@@ -37,16 +37,13 @@ $record = $DB->get_record('contentbank_content', ['id' => $id], '*', MUST_EXIST)
 $context = context::instance_by_id($record->contextid, MUST_EXIST);
 require_capability('moodle/contentbank:access', $context);
 
-// If notifications had been sent we don't pay attention to message parameter.
-if (empty($SESSION->notifications)) {
-    $statusmsg = optional_param('statusmsg', '', PARAM_ALPHANUMEXT);
-    $errormsg = optional_param('errormsg', '', PARAM_ALPHANUMEXT);
-}
+$statusmsg = optional_param('statusmsg', '', PARAM_ALPHANUMEXT);
+$errormsg = optional_param('errormsg', '', PARAM_ALPHANUMEXT);
 
 $returnurl = new \moodle_url('/contentbank/index.php', ['contextid' => $context->id]);
 $plugin = core_plugin_manager::instance()->get_plugin_info($record->contenttype);
 if (!$plugin || !$plugin->is_enabled()) {
-    throw new \moodle_exception('unsupported', 'core_contentbank', $returnurl);
+    print_error('unsupported', 'core_contentbank', $returnurl);
 }
 
 $title = get_string('contentbank');
@@ -58,36 +55,129 @@ if ($PAGE->course) {
 $cb = new \core_contentbank\contentbank();
 $content = $cb->get_content_from_id($record->id);
 $contenttype = $content->get_content_type_instance();
+$pageheading = $record->name;
 
 if (!$content->is_view_allowed()) {
     $cburl = new \moodle_url('/contentbank/index.php', ['contextid' => $context->id, 'errormsg' => 'notavailable']);
     redirect($cburl);
 }
 
-if ($context->contextlevel == CONTEXT_COURSECAT) {
-    $PAGE->set_primary_active_tab('home');
+if ($content->get_visibility() == content::VISIBILITY_UNLISTED) {
+    $pageheading = get_string('visibilitytitleunlisted', 'contentbank', $record->name);
 }
 
 $PAGE->set_url(new \moodle_url('/contentbank/view.php', ['id' => $id]));
-if ($context->id == \context_system::instance()->id) {
-    $PAGE->set_context(context_course::instance($context->id));
-} else {
-    $PAGE->set_context($context);
-}
+$PAGE->set_context($context);
 $PAGE->navbar->add($record->name);
+$PAGE->set_heading($pageheading);
 $title .= ": ".$record->name;
 $PAGE->set_title($title);
 $PAGE->set_pagetype('contentbank');
-$PAGE->set_pagelayout('incourse');
-$PAGE->set_secondary_active_tab('contentbank');
+
+// Create the cog menu with all the secondary actions, such as delete, rename...
+$actionmenu = new action_menu();
+$actionmenu->set_alignment(action_menu::TR, action_menu::BR);
+if ($contenttype->can_manage($content)) {
+    // Add the visibility item to the menu.
+    switch($content->get_visibility()) {
+        case content::VISIBILITY_UNLISTED:
+            $visibilitylabel = get_string('visibilitysetpublic', 'core_contentbank');
+            $newvisibility = content::VISIBILITY_PUBLIC;
+            $visibilityicon = 't/hide';
+            break;
+        case content::VISIBILITY_PUBLIC:
+            $visibilitylabel = get_string('visibilitysetunlisted', 'core_contentbank');
+            $newvisibility = content::VISIBILITY_UNLISTED;
+            $visibilityicon = 't/show';
+            break;
+        default:
+            print_error('contentvisibilitynotfound', 'error', $returnurl, $content->get_visibility());
+            break;
+    }
+
+    $attributes = [
+        'data-action' => 'setcontentvisibility',
+        'data-visibility' => $newvisibility,
+        'data-contentid' => $content->get_id(),
+    ];
+    $actionmenu->add_secondary_action(new action_menu_link(
+        new moodle_url('#'),
+        new pix_icon($visibilityicon, $visibilitylabel),
+        $visibilitylabel,
+        false,
+        $attributes
+    ));
+
+    // Add the rename content item to the menu.
+    $attributes = [
+        'data-action' => 'renamecontent',
+        'data-contentname' => $content->get_name(),
+        'data-contentid' => $content->get_id(),
+    ];
+    $actionmenu->add_secondary_action(new action_menu_link(
+        new moodle_url('#'),
+        new pix_icon('e/styleparagraph', get_string('rename')),
+        get_string('rename'),
+        false,
+        $attributes
+    ));
+
+    if ($contenttype->can_upload()) {
+        $actionmenu->add_secondary_action(new action_menu_link(
+            new moodle_url('/contentbank/view.php', ['contextid' => $context->id, 'id' => $content->get_id()]),
+            new pix_icon('i/upload', get_string('upload')),
+            get_string('replacecontent', 'contentbank'),
+            false,
+            ['data-action' => 'upload']
+        ));
+        $PAGE->requires->js_call_amd(
+            'core_contentbank/upload',
+            'initModal',
+            ['[data-action=upload]', \core_contentbank\form\upload_files::class, $context->id, $content->get_id()]
+        );
+    }
+}
+if ($contenttype->can_download($content)) {
+    // Add the download content item to the menu.
+    $actionmenu->add_secondary_action(new action_menu_link(
+        new moodle_url($contenttype->get_download_url($content)),
+        new pix_icon('t/download', get_string('download')),
+        get_string('download'),
+        false
+    ));
+}
+if ($contenttype->can_delete($content)) {
+    // Add the delete content item to the menu.
+    $attributes = [
+                'data-action' => 'deletecontent',
+                'data-contentname' => $content->get_name(),
+                'data-uses' => count($content->get_uses()),
+                'data-contentid' => $content->get_id(),
+                'data-contextid' => $context->id,
+            ];
+    $actionmenu->add_secondary_action(new action_menu_link(
+        new moodle_url('#'),
+        new pix_icon('t/delete', get_string('delete')),
+        get_string('delete'),
+        false,
+        $attributes
+    ));
+}
+
+// Add the cog menu to the header.
+$PAGE->add_header_action(html_writer::div(
+    $OUTPUT->render($actionmenu),
+    'd-print-none',
+    ['id' => 'region-main-settings-menu']
+));
 
 echo $OUTPUT->header();
 
 // If needed, display notifications.
-if (!empty($errormsg) && get_string_manager()->string_exists($errormsg, 'core_contentbank')) {
+if ($errormsg !== '' && get_string_manager()->string_exists($errormsg, 'core_contentbank')) {
     $errormsg = get_string($errormsg, 'core_contentbank');
     echo $OUTPUT->notification($errormsg);
-} else if (!empty($statusmsg) && get_string_manager()->string_exists($statusmsg, 'core_contentbank')) {
+} else if ($statusmsg !== '' && get_string_manager()->string_exists($statusmsg, 'core_contentbank')) {
     if ($statusmsg == 'contentvisibilitychanged') {
         switch ($content->get_visibility()) {
             case content::VISIBILITY_PUBLIC:
@@ -97,7 +187,7 @@ if (!empty($errormsg) && get_string_manager()->string_exists($errormsg, 'core_co
                 $visibilitymsg = get_string('unlisted', 'core_contentbank');
                 break;
             default:
-                throw new \moodle_exception('contentvisibilitynotfound', 'error', $returnurl, $content->get_visibility());
+                print_error('contentvisibilitynotfound', 'error', $returnurl, $content->get_visibility());
                 break;
         }
         $statusmsg = get_string($statusmsg, 'core_contentbank', $visibilitymsg);

@@ -51,13 +51,14 @@ Feature: Settings form fields disabled if not required
     # And the "id_delay2_enabled" "field" should be enabled
 
     And I press "Save and display"
-    And I navigate to "Overrides" in current page administration
+    And I navigate to "User overrides" in current page administration
     And I press "Add user override"
     And I set the following fields to these values:
         | Override user    | Student1 |
         | Attempts allowed | 3        |
     And I press "Save"
-    And I navigate to "Settings" in current page administration
+    And I follow "Test quiz"
+    And I navigate to "Edit settings" in current page administration
     And I expand all fieldsets
     And I set the field "Attempts allowed" to "1"
     And the "Grading method" "field" should be enabled
@@ -66,11 +67,12 @@ Feature: Settings form fields disabled if not required
     And the "id_delay2_enabled" "field" should be enabled
 
     And I press "Save and display"
-    And I navigate to "Overrides" in current page administration
+    And I navigate to "User overrides" in current page administration
     And I click on "Edit" "link" in the "region-main" "region"
     And I set the field "Attempts allowed" to "2"
     And I press "Save"
-    And I navigate to "Settings" in current page administration
+    And I follow "Test quiz"
+    And I navigate to "Edit settings" in current page administration
     And I expand all fieldsets
     And I set the field "Attempts allowed" to "1"
     And the "Grading method" "field" should be enabled
@@ -79,13 +81,14 @@ Feature: Settings form fields disabled if not required
     And the "id_delay2_enabled" "field" should be disabled
 
     And I press "Save and display"
-    And I navigate to "Overrides" in current page administration
+    And I navigate to "User overrides" in current page administration
     And I press "Add user override"
     And I set the following fields to these values:
         | Override user    | Student2  |
         | Attempts allowed | Unlimited |
     And I press "Save"
-    And I navigate to "Settings" in current page administration
+    And I follow "Test quiz"
+    And I navigate to "Edit settings" in current page administration
     And I expand all fieldsets
     And I set the field "Attempts allowed" to "1"
     And the "Grading method" "field" should be enabled
@@ -102,7 +105,6 @@ Feature: Settings form fields disabled if not required
     And I set the field "Name" to "Test quiz"
     Then the "id_attemptclosed" "checkbox" should be disabled
     And the "id_correctnessclosed" "checkbox" should be disabled
-    And the "id_maxmarksclosed" "checkbox" should be disabled
     And the "id_marksclosed" "checkbox" should be disabled
     And the "id_specificfeedbackclosed" "checkbox" should be disabled
     And the "id_generalfeedbackclosed" "checkbox" should be disabled
@@ -111,16 +113,11 @@ Feature: Settings form fields disabled if not required
     And I set the field "id_timeclose_enabled" to "1"
     And the "id_attemptclosed" "checkbox" should be enabled
     And the "id_correctnessclosed" "checkbox" should be enabled
-    And the "id_maxmarksclosed" "checkbox" should be enabled
     And the "id_marksclosed" "checkbox" should be enabled
-    And I set the field "id_maxmarksclosed" to "0"
-    And the "id_marksclosed" "checkbox" should be disabled
     And the "id_specificfeedbackclosed" "checkbox" should be enabled
     And the "id_generalfeedbackclosed" "checkbox" should be enabled
     And the "id_rightanswerclosed" "checkbox" should be enabled
     And the "id_overallfeedbackclosed" "checkbox" should be enabled
-    And I set the field "id_maxmarksduring" to "0"
-    And the "id_marksduring" "checkbox" should be disabled
     And I should not see "Repaginate now"
 
   @javascript

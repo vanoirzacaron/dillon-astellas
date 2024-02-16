@@ -26,6 +26,8 @@
 
 namespace theme_adaptable;
 
+defined('MOODLE_INTERNAL') || die;
+
 /**
  *
  * Class definition for toolbox.
@@ -73,22 +75,16 @@ class toolbox {
      * Finds the given setting in the theme using the get_config core function for when the
      * theme_config object has not been created.
      *
-     * @param string $settingname Setting name.
+     * @param string $setting Setting name.
      * @param themename $themename null(default of 'adaptable' used)|theme name.
      *
-     * @return any null|value of setting.
+     * @return any false|value of setting.
      */
-    public static function get_config_setting($settingname, $settingdefault = null, $themename = null) {
-        static $themeconfigs = array();
-
+    public static function get_config_setting($setting, $themename = null) {
         if (empty($themename)) {
             $themename = 'adaptable';
         }
-        if (empty($themeconfig[$themename])) {
-            $themeconfig[$themename] = \theme_config::load($themename);
-        }
-
-        return (!empty($themeconfig[$themename]->settings->$settingname)) ? $themeconfig[$themename]->settings->$settingname : $settingdefault;
+        return \get_config('theme_'.$themename, $setting);
     }
 
 

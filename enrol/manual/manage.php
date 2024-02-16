@@ -63,15 +63,13 @@ if (!$enrol_manual = enrol_get_plugin('manual')) {
     throw new coding_exception('Can not instantiate enrol_manual');
 }
 
-$url = new moodle_url('/enrol/manual/manage.php', ['enrolid' => $instance->id]);
-$title = get_string('managemanualenrolements', 'enrol_manual');
+$instancename = $enrol_manual->get_instance_name($instance);
 
-$PAGE->set_url($url);
+$PAGE->set_url('/enrol/manual/manage.php', array('enrolid'=>$instance->id));
 $PAGE->set_pagelayout('admin');
-$PAGE->set_title($title);
+$PAGE->set_title($enrol_manual->get_instance_name($instance));
 $PAGE->set_heading($course->fullname);
-navigation_node::override_active_url(new moodle_url('/enrol/instances.php', ['id' => $course->id]));
-$PAGE->navbar->add($title, $url);
+navigation_node::override_active_url(new moodle_url('/user/index.php', array('id'=>$course->id)));
 
 // Create the user selector objects.
 $options = array('enrolid' => $enrolid, 'accesscontext' => $context);
@@ -170,7 +168,7 @@ if ($canunenrol && optional_param('remove', false, PARAM_BOOL) && confirm_sesske
 
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading($title);
+echo $OUTPUT->heading($instancename);
 
 $addenabled = $canenrol ? '' : 'disabled="disabled"';
 $removeenabled = $canunenrol ? '' : 'disabled="disabled"';

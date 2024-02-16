@@ -14,11 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * License manager helper class.
+ *
+ * @package    tool_licensemanager
+ * @copyright  2019 Tom Dickman <tomdickman@catalyst-au.net>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
 
 namespace tool_licensemanager;
 
 use moodle_url;
 
+defined('MOODLE_INTERNAL') || die();
 
 /**
  * License manager helper class.
@@ -40,7 +48,12 @@ class helper {
      * @return \moodle_url
      */
     public static function get_licensemanager_url() : moodle_url {
-        return new moodle_url(self::MANAGER_PATH);
+        global $CFG;
+
+        $url = new moodle_url($CFG->wwwroot . self::MANAGER_PATH,
+            ['sesskey' => sesskey()]);
+
+        return $url;
     }
 
     /**
@@ -77,8 +90,9 @@ class helper {
      * @return \moodle_url
      */
     public static function get_create_license_url() : moodle_url {
-        $url = self::get_licensemanager_url();
-        $url->params(['action' => manager::ACTION_CREATE]);
+        $url = new moodle_url(self::MANAGER_PATH,
+            ['action' => manager::ACTION_CREATE, 'sesskey' => sesskey()]);
+
         return $url;
     }
 
@@ -90,8 +104,9 @@ class helper {
      * @return \moodle_url
      */
     public static function get_update_license_url(string $licenseshortname) : moodle_url {
-        $url = self::get_licensemanager_url();
-        $url->params(['action' => manager::ACTION_UPDATE, 'license' => $licenseshortname]);
+        $url = new moodle_url(self::MANAGER_PATH,
+            ['action' => manager::ACTION_UPDATE, 'license' => $licenseshortname, 'sesskey' => sesskey()]);
+
         return $url;
     }
 

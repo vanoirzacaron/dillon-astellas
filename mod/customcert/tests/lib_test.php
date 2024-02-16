@@ -23,10 +23,6 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace mod_customcert;
-
-use advanced_testcase;
-
 defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
@@ -52,8 +48,6 @@ class lib_test extends advanced_testcase {
 
     /**
      * Tests force custom language for current session.
-     *
-     * @covers ::mod_customcert_force_current_language
      */
     public function test_mod_customcert_force_current_language() {
         global $USER;
@@ -92,7 +86,7 @@ class lib_test extends advanced_testcase {
      * @return bool
      */
     private function install_languagues(): bool {
-        \core_php_time_limit::raise();
+        core_php_time_limit::raise();
 
         $langcodes = [
             'es' => 'es_mx',
@@ -114,4 +108,5 @@ class lib_test extends advanced_testcase {
 
         return false;
     }
+
 }

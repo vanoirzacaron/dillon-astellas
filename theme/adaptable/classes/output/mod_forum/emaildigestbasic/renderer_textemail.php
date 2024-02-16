@@ -25,6 +25,8 @@
 
 namespace theme_adaptable\output\mod_forum\emaildigestbasic;
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * Forum post renderable.
  *

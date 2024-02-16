@@ -48,9 +48,10 @@ Feature: Include responses from inactive users
       | student1 | C1 | student | 1 |
     When I log in as "teacher1"
     And I am on "Course 1" course homepage
-    And I click on "Choice name" "link" in the "region-main" "region"
-    And I navigate to "Responses" in current page administration
-    Then I should see "Student 1"
+    And I follow "Choice name"
+    Then I should see "View 3 responses"
+    And I follow "View 3 responses"
+    And I should see "Student 1"
     And I should see "Student 2"
     And I should see "Student 3"
     And I log out
@@ -59,8 +60,9 @@ Feature: Include responses from inactive users
       | student2 | C1 | student | 2145830400 |
     When I log in as "teacher1"
     And I am on "Course 1" course homepage
-    And I click on "Choice name" "link" in the "region-main" "region"
-    Then I navigate to "Responses" in current page administration
+    And I follow "Choice name"
+    Then I should see "View 3 responses"
+    And I follow "View 3 responses"
     And I should see "Student 1"
     And I should see "Student 2"
     And I should see "Student 3"
@@ -70,8 +72,9 @@ Feature: Include responses from inactive users
       | student3 | C1 | student | 1425168000 |
     When I log in as "teacher1"
     And I am on "Course 1" course homepage
-    And I click on "Choice name" "link" in the "region-main" "region"
-    Then I navigate to "Responses" in current page administration
+    And I follow "Choice name"
+    Then I should see "View 3 responses"
+    And I follow "View 3 responses"
     And I should see "Student 1"
     And I should see "Student 2"
     And I should see "Student 3"
@@ -104,8 +107,9 @@ Feature: Include responses from inactive users
       | student1 | C1 | student | 1 |
     When I log in as "teacher1"
     And I am on "Course 1" course homepage
-    And I click on "Choice name" "link" in the "region-main" "region"
-    Then I navigate to "Responses" in current page administration
+    And I follow "Choice name"
+    Then I should see "View 2 responses"
+    And I follow "View 2 responses"
     And I should not see "Student 1"
     And I should see "Student 2"
     And I should see "Student 3"
@@ -115,8 +119,9 @@ Feature: Include responses from inactive users
       | student2 | C1 | student | 2145830400 |
     When I log in as "teacher1"
     And I am on "Course 1" course homepage
-    And I click on "Choice name" "link" in the "region-main" "region"
-    Then I navigate to "Responses" in current page administration
+    And I follow "Choice name"
+    Then I should see "View 1 responses"
+    And I follow "View 1 responses"
     And I should not see "Student 1"
     And I should not see "Student 2"
     And I should see "Student 3"
@@ -126,8 +131,9 @@ Feature: Include responses from inactive users
       | student3 | C1 | student | 1425168000 |
     When I log in as "teacher1"
     And I am on "Course 1" course homepage
-    And I click on "Choice name" "link" in the "region-main" "region"
-    Then I navigate to "Responses" in current page administration
+    And I follow "Choice name"
+    Then I should see "View 0 responses"
+    And I follow "View 0 responses"
     And I should not see "Student 1"
     And I should not see "Student 2"
     And I should not see "Student 3"

@@ -16,7 +16,6 @@
 
 namespace mod_label;
 
-use core_external\external_api;
 use externallib_advanced_testcase;
 use mod_label_external;
 
@@ -79,7 +78,7 @@ class externallib_test extends externallib_advanced_testcase {
 
         // Create what we expect to be returned when querying the two courses.
         $expectedfields = array('id', 'coursemodule', 'course', 'name', 'intro', 'introformat', 'introfiles', 'timemodified',
-                                'section', 'visible', 'groupmode', 'groupingid', 'lang');
+                                'section', 'visible', 'groupmode', 'groupingid');
 
         // Add expected coursemodule and data.
         $label1->coursemodule = $label1->cmid;
@@ -89,7 +88,6 @@ class externallib_test extends externallib_advanced_testcase {
         $label1->groupmode = 0;
         $label1->groupingid = 0;
         $label1->introfiles = [];
-        $label1->lang = '';
 
         $label2->coursemodule = $label2->cmid;
         $label2->introformat = 1;
@@ -98,7 +96,6 @@ class externallib_test extends externallib_advanced_testcase {
         $label2->groupmode = 0;
         $label2->groupingid = 0;
         $label2->introfiles = [];
-        $label2->lang = '';
 
         foreach ($expectedfields as $field) {
             $expected1[$field] = $label1->{$field};
@@ -109,14 +106,14 @@ class externallib_test extends externallib_advanced_testcase {
 
         // Call the external function passing course ids.
         $result = mod_label_external::get_labels_by_courses(array($course2->id, $course1->id));
-        $result = external_api::clean_returnvalue($returndescription, $result);
+        $result = \external_api::clean_returnvalue($returndescription, $result);
 
         $this->assertEquals($expectedlabels, $result['labels']);
         $this->assertCount(0, $result['warnings']);
 
         // Call the external function without passing course id.
         $result = mod_label_external::get_labels_by_courses();
-        $result = external_api::clean_returnvalue($returndescription, $result);
+        $result = \external_api::clean_returnvalue($returndescription, $result);
         $this->assertEquals($expectedlabels, $result['labels']);
         $this->assertCount(0, $result['warnings']);
 
@@ -135,7 +132,7 @@ class externallib_test extends externallib_advanced_testcase {
         $fs->create_file_from_string($filerecordinline, 'image contents (not really)');
 
         $result = mod_label_external::get_labels_by_courses(array($course2->id, $course1->id));
-        $result = external_api::clean_returnvalue($returndescription, $result);
+        $result = \external_api::clean_returnvalue($returndescription, $result);
 
         $this->assertCount(1, $result['labels'][0]['introfiles']);
         $this->assertEquals($filename, $result['labels'][0]['introfiles'][0]['filename']);
@@ -146,7 +143,7 @@ class externallib_test extends externallib_advanced_testcase {
 
         // Call the external function without passing course id.
         $result = mod_label_external::get_labels_by_courses();
-        $result = external_api::clean_returnvalue($returndescription, $result);
+        $result = \external_api::clean_returnvalue($returndescription, $result);
         $this->assertEquals($expectedlabels, $result['labels']);
 
         // Call for the second course we unenrolled the user from, expected warning.

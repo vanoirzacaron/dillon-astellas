@@ -96,15 +96,7 @@ class step_list extends \flexible_table {
      * @return  string
      */
     protected function col_content(step $step) {
-        $content = $step->get_content();
-        $systemcontext = \context_system::instance();
-        $content = file_rewrite_pluginfile_urls($content, 'pluginfile.php', $systemcontext->id,
-            'tool_usertours', 'stepcontent', $step->get_id());
-
-        $content = helper::get_string_from_input($content);
-        $content = step::get_step_image_from_input($content);
-
-        return format_text($content, $step->get_contentformat());
+        return format_text(step::get_string_from_input($step->get_content()), FORMAT_HTML);
     }
 
     /**

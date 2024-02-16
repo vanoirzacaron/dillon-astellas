@@ -30,6 +30,8 @@ use context_course;
 use advanced_testcase;
 use mod_customcert\task\email_certificate_task;
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * Unit tests for the email certificate task.
  *
@@ -37,7 +39,6 @@ use mod_customcert\task\email_certificate_task;
  * @category   test
  * @copyright  2017 Mark Nelson <markn@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @coversDefaultClass \mod_customcert\task\email_certificate_task
  */
 class email_certificate_task_test extends advanced_testcase {
 
@@ -50,8 +51,6 @@ class email_certificate_task_test extends advanced_testcase {
 
     /**
      * Tests the email certificate task when there are no elements.
-     *
-     * @covers \mod_customcert\task\email_certificate_task
      */
     public function test_email_certificates_no_elements() {
         // Create a course.
@@ -78,8 +77,6 @@ class email_certificate_task_test extends advanced_testcase {
 
     /**
      * Tests the email certificate task for users without a capability to receive a certificate.
-     *
-     * @covers \mod_customcert\task\email_certificate_task
      */
     public function test_email_certificates_no_cap() {
         global $DB;
@@ -129,8 +126,6 @@ class email_certificate_task_test extends advanced_testcase {
 
     /**
      * Tests the email certificate task for students.
-     *
-     * @covers \mod_customcert\task\email_certificate_task
      */
     public function test_email_certificates_students() {
         global $CFG, $DB;
@@ -141,7 +136,7 @@ class email_certificate_task_test extends advanced_testcase {
         // Create some users.
         $user1 = $this->getDataGenerator()->create_user();
         $user2 = $this->getDataGenerator()->create_user();
-        $user3 = $this->getDataGenerator()->create_user(['firstname' => 'Teacher', 'lastname' => 'One']);
+        $user3 = $this->getDataGenerator()->create_user(array('firstname' => 'Teacher', 'lastname' => 'One'));
 
         // Enrol two of them in the course as students.
         $roleids = $DB->get_records_menu('role', null, '', 'shortname, id');
@@ -152,8 +147,8 @@ class email_certificate_task_test extends advanced_testcase {
         $this->getDataGenerator()->enrol_user($user3->id, $course->id, $roleids['editingteacher']);
 
         // Create a custom certificate.
-        $customcert = $this->getDataGenerator()->create_module('customcert', ['course' => $course->id,
-            'emailstudents' => 1]);
+        $customcert = $this->getDataGenerator()->create_module('customcert', array('course' => $course->id,
+            'emailstudents' => 1));
 
         // Create template object.
         $template = new stdClass();
@@ -216,8 +211,6 @@ class email_certificate_task_test extends advanced_testcase {
 
     /**
      * Tests the email certificate task for teachers.
-     *
-     * @covers \mod_customcert\task\email_certificate_task
      */
     public function test_email_certificates_teachers() {
         global $CFG, $DB;
@@ -228,7 +221,7 @@ class email_certificate_task_test extends advanced_testcase {
         // Create some users.
         $user1 = $this->getDataGenerator()->create_user();
         $user2 = $this->getDataGenerator()->create_user();
-        $user3 = $this->getDataGenerator()->create_user(['firstname' => 'Teacher', 'lastname' => 'One']);
+        $user3 = $this->getDataGenerator()->create_user(array('firstname' => 'Teacher', 'lastname' => 'One'));
 
         // Enrol two of them in the course as students.
         $roleids = $DB->get_records_menu('role', null, '', 'shortname, id');
@@ -239,8 +232,8 @@ class email_certificate_task_test extends advanced_testcase {
         $this->getDataGenerator()->enrol_user($user3->id, $course->id, $roleids['editingteacher']);
 
         // Create a custom certificate.
-        $customcert = $this->getDataGenerator()->create_module('customcert', ['course' => $course->id,
-            'emailteachers' => 1]);
+        $customcert = $this->getDataGenerator()->create_module('customcert', array('course' => $course->id,
+            'emailteachers' => 1));
 
         // Create template object.
         $template = new stdClass();
@@ -276,8 +269,6 @@ class email_certificate_task_test extends advanced_testcase {
 
     /**
      * Tests the email certificate task for others.
-     *
-     * @covers \mod_customcert\task\email_certificate_task
      */
     public function test_email_certificates_others() {
         global $CFG, $DB;
@@ -294,8 +285,8 @@ class email_certificate_task_test extends advanced_testcase {
         $this->getDataGenerator()->enrol_user($user2->id, $course->id);
 
         // Create a custom certificate.
-        $customcert = $this->getDataGenerator()->create_module('customcert', ['course' => $course->id,
-            'emailothers' => 'testcustomcert@example.com, doo@dah']);
+        $customcert = $this->getDataGenerator()->create_module('customcert', array('course' => $course->id,
+            'emailothers' => 'testcustomcert@example.com, doo@dah'));
 
         // Create template object.
         $template = new stdClass();
@@ -331,8 +322,6 @@ class email_certificate_task_test extends advanced_testcase {
 
     /**
      * Tests the email certificate task when the certificate is not visible.
-     *
-     * @covers \mod_customcert\task\email_certificate_task
      */
     public function test_email_certificates_students_not_visible() {
         global $DB;
@@ -385,8 +374,6 @@ class email_certificate_task_test extends advanced_testcase {
 
     /**
      * Tests the email certificate task when the student has not met the required time for the course.
-     *
-     * @covers \mod_customcert\task\email_certificate_task
      */
     public function test_email_certificates_students_havent_met_required_time() {
         global $DB;
@@ -404,8 +391,8 @@ class email_certificate_task_test extends advanced_testcase {
         $this->getDataGenerator()->enrol_user($user1->id, $course->id);
 
         // Create a custom certificate.
-        $customcert = $this->getDataGenerator()->create_module('customcert', ['course' => $course->id, 'emailstudents' => 1,
-            'requiredtime' => '60']);
+        $customcert = $this->getDataGenerator()->create_module('customcert', array('course' => $course->id, 'emailstudents' => 1,
+            'requiredtime' => '60'));
 
         // Create template object.
         $template = new stdClass();

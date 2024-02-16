@@ -25,6 +25,12 @@
  * @copyright  2011 David Mudrak <david@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
+defined('MOODLE_INTERNAL') || die();
+
+/**
+ * Singleton class providing general plugins management functionality.
+ */
 class core_plugin_manager {
 
     /** the plugin is shipped with standard Moodle distribution */
@@ -106,7 +112,7 @@ class core_plugin_manager {
     /**
      * Factory method for this class
      *
-     * @return static the singleton instance
+     * @return core_plugin_manager the singleton instance
      */
     public static function instance() {
         if (is_null(static::$singletoninstance)) {
@@ -1314,7 +1320,7 @@ class core_plugin_manager {
             return false;
         }
 
-        $ok = get_string('statusok', 'core');
+        $ok = get_string('ok', 'core');
 
         // Let admins know they can expect more verbose output.
         $silent or $this->mtrace(get_string('packagesdebug', 'core_plugin'), PHP_EOL, DEBUG_NORMAL);
@@ -1550,7 +1556,7 @@ class core_plugin_manager {
 
         $provider = \core\update\checker::instance();
 
-        if (!$provider->enabled() || $component === '' || during_initial_install()) {
+        if (!$provider->enabled() or during_initial_install()) {
             return null;
         }
 
@@ -1645,7 +1651,7 @@ class core_plugin_manager {
         }
 
         // To be able to remove the plugin folder, its parent must be writable, too.
-        if (!isset($pluginfo->rootdir) || !is_writable(dirname($pluginfo->rootdir))) {
+        if (!is_writable(dirname($pluginfo->rootdir))) {
             return false;
         }
 
@@ -1720,34 +1726,21 @@ class core_plugin_manager {
         // branch, listed should be no plugins that were removed at 1.9.x - 2.1.x versions as
         // Moodle 2.3 supports upgrades from 2.2.x only.
         $plugins = array(
-            'qformat' => array('blackboard', 'learnwise', 'examview'),
-            'assignment' => array('offline', 'online', 'upload', 'uploadsingle'),
+            'qformat' => array('blackboard', 'learnwise'),
             'auth' => array('radius', 'fc', 'nntp', 'pam', 'pop3', 'imap'),
-            'block' => array('course_overview', 'messages', 'community', 'participants', 'quiz_results'),
-            'cachestore' => array('memcache', 'memcached', 'mongodb'),
-            'editor' => array('tinymce'),
+            'block' => array('course_overview', 'messages', 'community', 'participants'),
+            'cachestore' => array('memcache'),
             'enrol' => array('authorize'),
-            'filter' => array('censor'),
-            'h5plib' => array('v124'),
-            'media' => array('swf'),
-            'portfolio' => array('picasa', 'boxnet'),
-            'qformat' => array('webct'),
-            'message' => array('jabber'),
-            'mod' => array('assignment'),
             'quizaccess' => array('safebrowser'),
             'report' => array('search'),
-            'repository' => array('alfresco', 'picasa', 'skydrive', 'boxnet'),
-            'tinymce' => array('dragmath', 'ctrlhelp', 'managefiles', 'moodleemoticon', 'moodleimage',
-                'moodlemedia', 'moodlenolink', 'pdw', 'spellchecker', 'wrap'
-            ),
-
-            'tool' => array('bloglevelupgrade', 'qeupgradehelper', 'timezoneimport', 'assignmentupgrade', 'health'),
+            'repository' => array('alfresco'),
+            'tinymce' => array('dragmath'),
+            'tool' => array('bloglevelupgrade', 'qeupgradehelper', 'timezoneimport', 'assignmentupgrade'),
             'theme' => array('bootstrapbase', 'clean', 'more', 'afterburner', 'anomaly', 'arialist', 'base',
                 'binarius', 'boxxie', 'brick', 'canvas', 'formal_white', 'formfactor', 'fusion', 'leatherbound',
                 'magazine', 'mymobile', 'nimble', 'nonzero', 'overlay', 'serenity', 'sky_high', 'splash',
                 'standard', 'standardold'),
-            'logstore' => ['legacy'],
-            'webservice' => array('amf', 'xmlrpc'),
+            'webservice' => array('amf'),
         );
 
         if (!isset($plugins[$type])) {
@@ -1779,6 +1772,10 @@ class core_plugin_manager {
                 'title', 'underline', 'undo', 'unorderedlist', 'h5p', 'emojipicker',
             ),
 
+            'assignment' => array(
+                'offline', 'online', 'upload', 'uploadsingle'
+            ),
+
             'assignsubmission' => array(
                 'comments', 'file', 'onlinetext'
             ),
@@ -1804,7 +1801,7 @@ class core_plugin_manager {
                 'feedback', 'globalsearch', 'glossary_random', 'html',
                 'login', 'lp', 'mentees', 'mnet_hosts', 'myoverview', 'myprofile',
                 'navigation', 'news_items', 'online_users',
-                'private_files', 'recent_activity', 'recentlyaccesseditems',
+                'private_files', 'quiz_results', 'recent_activity', 'recentlyaccesseditems',
                 'recentlyaccessedcourses', 'rss_client', 'search_forums', 'section_links',
                 'selfcompletion', 'settings', 'site_main_menu',
                 'social_activities', 'starredcourses', 'tag_flickr', 'tag_youtube', 'tags', 'timeline'
@@ -1819,17 +1816,12 @@ class core_plugin_manager {
             ),
 
             'cachestore' => array(
-                'file', 'session', 'static', 'apcu', 'redis'
+                'file', 'memcached', 'mongodb', 'session', 'static', 'apcu', 'redis'
             ),
 
             'calendartype' => array(
                 'gregorian'
             ),
-
-            'communication' => [
-                'customlink',
-                'matrix',
-            ],
 
             'contenttype' => array(
                 'h5p'
@@ -1853,10 +1845,7 @@ class core_plugin_manager {
             ),
 
             'datapreset' => array(
-                'imagegallery',
-                'journal',
-                'proposals',
-                'resources',
+                'imagegallery'
             ),
 
             'fileconverter' => array(
@@ -1864,7 +1853,7 @@ class core_plugin_manager {
             ),
 
             'editor' => array(
-                'atto', 'textarea', 'tiny',
+                'atto', 'textarea', 'tinymce'
             ),
 
             'enrol' => array(
@@ -1873,15 +1862,10 @@ class core_plugin_manager {
                 'paypal', 'self', 'fee',
             ),
 
-            'factor' => [
-                'admin', 'auth', 'capability', 'cohort',  'email', 'grace', 'iprange', 'nosetup', 'role',
-                'token', 'totp', 'webauthn',
-            ],
-
             'filter' => array(
-                'activitynames', 'algebra', 'emailprotect',
+                'activitynames', 'algebra', 'censor', 'emailprotect',
                 'emoticon', 'displayh5p', 'mathjaxloader', 'mediaplugin', 'multilang', 'tex', 'tidy',
-                'urltolink', 'data', 'glossary', 'codehighlighter'
+                'urltolink', 'data', 'glossary'
             ),
 
             'format' => array(
@@ -1901,7 +1885,7 @@ class core_plugin_manager {
             ),
 
             'gradereport' => array(
-                'grader', 'history', 'outcomes', 'overview', 'user', 'singleview', 'summary'
+                'grader', 'history', 'outcomes', 'overview', 'user', 'singleview'
             ),
 
             'gradingform' => array(
@@ -1909,14 +1893,14 @@ class core_plugin_manager {
             ),
 
             'h5plib' => array(
-                'v126',
+                'v124'
             ),
 
             'local' => array(
             ),
 
             'logstore' => array(
-                'database', 'standard',
+                'database', 'legacy', 'standard',
             ),
 
             'ltiservice' => array(
@@ -1928,11 +1912,11 @@ class core_plugin_manager {
             ),
 
             'media' => array(
-                'html5audio', 'html5video', 'videojs', 'vimeo', 'youtube'
+                'html5audio', 'html5video', 'swf', 'videojs', 'vimeo', 'youtube'
             ),
 
             'message' => array(
-                'airnotifier', 'email', 'popup'
+                'airnotifier', 'email', 'jabber', 'popup'
             ),
 
             'mnetservice' => array(
@@ -1940,7 +1924,7 @@ class core_plugin_manager {
             ),
 
             'mod' => array(
-                'assign', 'bigbluebuttonbn', 'book', 'chat', 'choice', 'data', 'feedback', 'folder',
+                'assign', 'assignment', 'book', 'chat', 'choice', 'data', 'feedback', 'folder',
                 'forum', 'glossary', 'h5pactivity', 'imscp', 'label', 'lesson', 'lti', 'page',
                 'quiz', 'resource', 'scorm', 'survey', 'url', 'wiki', 'workshop'
             ),
@@ -1953,34 +1937,12 @@ class core_plugin_manager {
             ),
 
             'portfolio' => array(
-                'download', 'flickr', 'googledocs', 'mahara'
+                'boxnet', 'download', 'flickr', 'googledocs', 'mahara', 'picasa'
             ),
 
             'profilefield' => array(
                 'checkbox', 'datetime', 'menu', 'social', 'text', 'textarea'
             ),
-
-            'qbank' => [
-                'bulkmove',
-                'columnsortorder',
-                'comment',
-                'customfields',
-                'deletequestion',
-                'editquestion',
-                'exporttoxml',
-                'exportquestions',
-                'history',
-                'importquestions',
-                'managecategories',
-                'previewquestion',
-                'statistics',
-                'tagquestion',
-                'usage',
-                'viewcreator',
-                'viewquestionname',
-                'viewquestiontext',
-                'viewquestiontype',
-            ],
 
             'qbehaviour' => array(
                 'adaptive', 'adaptivenopenalty', 'deferredcbm',
@@ -1990,8 +1952,8 @@ class core_plugin_manager {
             ),
 
             'qformat' => array(
-                'aiken', 'blackboard_six', 'gift',
-                'missingword', 'multianswer',
+                'aiken', 'blackboard_six', 'examview', 'gift',
+                'missingword', 'multianswer', 'webct',
                 'xhtml', 'xml'
             ),
 
@@ -2019,9 +1981,9 @@ class core_plugin_manager {
             ),
 
             'repository' => array(
-                'areafiles', 'contentbank', 'coursefiles', 'dropbox', 'equella', 'filesystem',
+                'areafiles', 'boxnet', 'contentbank', 'coursefiles', 'dropbox', 'equella', 'filesystem',
                 'flickr', 'flickr_public', 'googledocs', 'local', 'merlot', 'nextcloud',
-                'onedrive', 'recent', 's3', 'upload', 'url', 'user', 'webdav',
+                'onedrive', 'picasa', 'recent', 'skydrive', 's3', 'upload', 'url', 'user', 'webdav',
                 'wikimedia', 'youtube'
             ),
 
@@ -2036,34 +1998,26 @@ class core_plugin_manager {
                 'objectives'
             ),
 
-            'tiny' => [
-                'accessibilitychecker',
-                'autosave',
-                'equation',
-                'h5p',
-                'media',
-                'recordrtc',
-                'link',
-                'html',
-                'noautolink',
-                'premium',
-            ],
+            'tinymce' => array(
+                'ctrlhelp', 'managefiles', 'moodleemoticon', 'moodleimage',
+                'moodlemedia', 'moodlenolink', 'pdw', 'spellchecker', 'wrap'
+            ),
 
             'theme' => array(
                 'boost', 'classic'
             ),
 
             'tool' => array(
-                'admin_presets', 'analytics', 'availabilityconditions', 'behat', 'brickfield', 'capability', 'cohortroles',
-                'componentlibrary', 'customlang', 'dataprivacy', 'dbtransfer', 'filetypes', 'generator', 'httpsreplace', 'innodb',
+                'analytics', 'availabilityconditions', 'behat', 'brickfield', 'capability', 'cohortroles', 'customlang',
+                'dataprivacy', 'dbtransfer', 'filetypes', 'generator', 'health', 'httpsreplace', 'innodb',
                 'installaddon', 'langimport', 'licensemanager', 'log', 'lp', 'lpimportcsv', 'lpmigrate', 'messageinbound',
                 'mobile', 'moodlenet', 'multilangupgrade', 'monitor', 'oauth2', 'phpunit', 'policy', 'profiling', 'recyclebin',
                 'replace', 'spamcleaner', 'task', 'templatelibrary', 'uploadcourse', 'uploaduser', 'unsuproles',
-                'usertours', 'xmldb', 'mfa'
+                'usertours', 'xmldb'
             ),
 
             'webservice' => array(
-                'rest', 'soap'
+                'rest', 'soap', 'xmlrpc'
             ),
 
             'workshopallocation' => array(
@@ -2293,7 +2247,6 @@ class core_plugin_manager {
         $fix['mod']        = $types['mod'];
         $fix['block']      = $types['block'];
         $fix['qtype']      = $types['qtype'];
-        $fix['qbank']      = $types['qbank'];
         $fix['qbehaviour'] = $types['qbehaviour'];
         $fix['qformat']    = $types['qformat'];
         $fix['filter']     = $types['filter'];
