@@ -33,9 +33,8 @@ defined('MOODLE_INTERNAL') || die;
  * @return bool Success.
  */
 function xmldb_theme_adaptable_upgrade($oldversion = 0) {
-    global $CFG;
 
-    if ($oldversion < 2019112605) {
+    if ($oldversion < 2020073101) {
         if (get_config('theme_adaptable', 'fontname') == 'default') {
             set_config('fontname', 'sans-serif', 'theme_adaptable');
         }
@@ -45,8 +44,24 @@ function xmldb_theme_adaptable_upgrade($oldversion = 0) {
         if (get_config('theme_adaptable', 'fonttitlename') == 'default') {
             set_config('fonttitlename', 'sans-serif', 'theme_adaptable');
         }
-        upgrade_plugin_savepoint(true, 2019112605, 'theme', 'adaptable');
+
+        upgrade_plugin_savepoint(true, 2020073101, 'theme', 'adaptable');
     }
+
+    if ($oldversion < 2020073107) {
+        $settings = get_config('theme_adaptable');
+        foreach ($settings as $settingname => $settingvalue) {
+            $settingvalue = trim($settingvalue);
+            $changedsettingvalue = preg_replace('/^0px|\b0px/', '0', $settingvalue);
+            if ((!is_null($changedsettingvalue)) && ($changedsettingvalue != $settingvalue)) {
+                // Not null and replacement(s) have happened.
+                set_config($settingname, $changedsettingvalue, 'theme_adaptable');
+            }
+        }
+
+        upgrade_plugin_savepoint(true, 2020073107, 'theme', 'adaptable');
+    }
+
     // Automatic 'Purge all caches'....
     purge_all_caches();
 

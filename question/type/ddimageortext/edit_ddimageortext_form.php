@@ -108,17 +108,7 @@ class qtype_ddimageortext_edit_form extends qtype_ddtoimage_edit_form_base {
 
     public function js_call() {
         global $PAGE;
-
-        $maxbgimagesize = [
-                'width' => QTYPE_DDIMAGEORTEXT_BGIMAGE_MAXWIDTH,
-                'height' => QTYPE_DDIMAGEORTEXT_BGIMAGE_MAXHEIGHT
-        ];
-        $maxdragimagesize = [
-                'width' => QTYPE_DDIMAGEORTEXT_DRAGIMAGE_MAXWIDTH,
-                'height' => QTYPE_DDIMAGEORTEXT_DRAGIMAGE_MAXHEIGHT
-        ];
-        $PAGE->requires->js_call_amd('qtype_ddimageortext/form', 'init',
-                [$maxbgimagesize, $maxdragimagesize]);
+        $PAGE->requires->js_call_amd('qtype_ddimageortext/form', 'init');
     }
 
     // Drag items.
@@ -126,9 +116,8 @@ class qtype_ddimageortext_edit_form extends qtype_ddtoimage_edit_form_base {
     protected function definition_draggable_items($mform, $itemrepeatsatstart) {
         $mform->addElement('header', 'draggableitemheader',
                                 get_string('draggableitems', 'qtype_ddimageortext'));
-        $mform->addElement('advcheckbox', 'shuffleanswers', ' ',
-                                get_string('shuffleimages', 'qtype_'.$this->qtype()));
-        $mform->setDefault('shuffleanswers', 0);
+        $mform->addElement('advcheckbox', 'shuffleanswers', get_string('shuffleimages', 'qtype_'.$this->qtype()));
+        $mform->setDefault('shuffleanswers', $this->get_default_value('shuffleanswers', 0));
         $this->repeat_elements($this->draggable_item($mform), $itemrepeatsatstart,
                 $this->draggable_items_repeated_options(),
                 'noitems', 'additems', self::ADD_NUM_ITEMS,
@@ -153,8 +142,7 @@ class qtype_ddimageortext_edit_form extends qtype_ddtoimage_edit_form_base {
                                                 get_string('group', 'qtype_gapselect'),
                                                 $options,
                                                 array('class' => 'draggroup'));
-        $grouparray[] = $mform->createElement('advcheckbox', 'infinite', ' ',
-                get_string('infinite', 'qtype_ddimageortext'));
+        $grouparray[] = $mform->createElement('advcheckbox', 'infinite', get_string('infinite', 'qtype_ddimageortext'));
         $draggableimageitem[] = $mform->createElement('group', 'drags',
                 get_string('draggableitemheader', 'qtype_ddimageortext', '{no}'), $grouparray);
 
@@ -217,9 +205,10 @@ class qtype_ddimageortext_edit_form extends qtype_ddtoimage_edit_form_base {
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
         if (!self::file_uploaded($data['bgimage'])) {
-            $errors["bgimage"] = get_string('formerror_nobgimage', 'qtype_'.$this->qtype());
+            $errors['bgimage'] = get_string('formerror_nobgimage', 'qtype_'.$this->qtype());
         }
 
+        $dropfound = false;
         $allchoices = array();
         for ($i = 0; $i < $data['nodropzone']; $i++) {
             $ytoppresent = (trim($data['drops'][$i]['ytop']) !== '');
@@ -231,6 +220,7 @@ class qtype_ddimageortext_edit_form extends qtype_ddtoimage_edit_form_base {
             $imagechoicepresent = ($choice !== '0');
 
             if ($imagechoicepresent) {
+                $dropfound = true;
                 if (!$ytoppresent) {
                     $errors["drops[$i]"] = get_string('formerror_noytop', 'qtype_ddimageortext');
                 } else if (!$ytopisint) {
@@ -259,25 +249,41 @@ class qtype_ddimageortext_edit_form extends qtype_ddtoimage_edit_form_base {
                 $allchoices[$choice] = $i;
             } else {
                 if ($ytoppresent || $xleftpresent || $labelpresent) {
+                    $dropfound = true;
                     $errors["drops[$i]"] =
                             get_string('formerror_noimageselected', 'qtype_ddimageortext');
                 }
             }
         }
+        if (!$dropfound) {
+            $errors['drops[0]'] = get_string('formerror_droprequired', 'qtype_ddimageortext');
+        }
+
+        $dragfound = false;
         for ($dragindex = 0; $dragindex < $data['noitems']; $dragindex++) {
             $label = $data['draglabel'][$dragindex];
             if ($data['drags'][$dragindex]['dragitemtype'] == 'word') {
+                if ($label !== '') {
+                    $dragfound = true;
+                }
                 $allowedtags = '<br><sub><sup><b><i><strong><em><span>';
                 $errormessage = get_string('formerror_disallowedtags', 'qtype_ddimageortext', s($allowedtags));
             } else {
+                if (self::file_uploaded($data['dragitem'][$dragindex])) {
+                    $dragfound = true;
+                }
                 $allowedtags = '';
                 $errormessage = get_string('formerror_noallowedtags', 'qtype_ddimageortext');
             }
             if ($label != strip_tags($label, $allowedtags)) {
-                $errors["drags[{$dragindex}]"] = $errormessage;
+                $errors["draglabel[{$dragindex}]"] = $errormessage;
             }
 
         }
+        if (!$dragfound) {
+            $errors['drags[0]'] = get_string('formerror_dragrequired', 'qtype_ddimageortext');
+        }
+
         return $errors;
     }
 }

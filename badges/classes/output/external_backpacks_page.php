@@ -39,6 +39,12 @@ use core_badges\external\backpack_exporter;
  */
 class external_backpacks_page implements \renderable {
 
+    /** @var \moodle_url Badges backpacks URL. */
+    protected $url;
+
+    /** @var array List the backpacks at site level. */
+    protected $backpacks = [];
+
     /**
      * Constructor.
      * @param \moodle_url $url
@@ -56,6 +62,11 @@ class external_backpacks_page implements \renderable {
      * @return stdClass
      */
     public function export_for_template(\renderer_base $output) {
+        global $PAGE;
+
+        $rownumber = 0;
+        $rowcount = count($this->backpacks);
+
         $data = new \stdClass();
         $data->baseurl = $this->url;
         $data->backpacks = array();
@@ -63,13 +74,12 @@ class external_backpacks_page implements \renderable {
         foreach ($this->backpacks as $backpack) {
             $exporter = new backpack_exporter($backpack);
             $backpack = $exporter->export($output);
-            if ($backpack->apiversion == OPEN_BADGES_V2) {
-                $backpack->canedit = true;
-            } else {
-                $backpack->canedit = false;
-            }
             $backpack->cantest = ($backpack->apiversion == OPEN_BADGES_V2);
+            $backpack->canmoveup = $rownumber > 0;
+            $backpack->canmovedown = $rownumber < $rowcount - 1;
+
             $data->backpacks[] = $backpack;
+            $rownumber++;
         }
 
         return $data;

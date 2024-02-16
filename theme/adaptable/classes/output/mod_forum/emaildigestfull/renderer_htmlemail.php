@@ -25,8 +25,6 @@
 
 namespace theme_adaptable\output\mod_forum\emaildigestfull;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Forum post renderable.
  *
@@ -57,5 +55,4 @@ class renderer_htmlemail extends \mod_forum\output\emaildigestfull\renderer {
 
         return $output;
     }
-
 }

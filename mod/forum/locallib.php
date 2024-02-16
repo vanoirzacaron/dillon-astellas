@@ -45,6 +45,9 @@ class forum_portfolio_caller extends portfolio_module_caller_base {
     private $posts;
     private $keyedfiles; // just using multifiles isn't enough if we're exporting a full thread
 
+    /** @var context_module context instance. */
+    private $modcontext;
+
     /**
      * @return array
      */
@@ -723,7 +726,8 @@ function forum_update_calendar($forum, $cmid) {
 
     if (!empty($forum->duedate)) {
         $event->name = get_string('calendardue', 'forum', $forum->name);
-        $event->description = format_module_intro('forum', $forum, $cmid);
+        $event->description = format_module_intro('forum', $forum, $cmid, false);
+        $event->format = FORMAT_HTML;
         $event->courseid = $forum->course;
         $event->modulename = 'forum';
         $event->instance = $forum->id;

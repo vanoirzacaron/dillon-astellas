@@ -237,6 +237,23 @@ class forum_gradeitem extends component_gradeitem {
     }
 
     /**
+     * Defines whether only active users in the course should be gradeable.
+     *
+     * @return bool Whether only active users in the course should be gradeable.
+     */
+    public function should_grade_only_active_users(): bool {
+        global $CFG;
+
+        $showonlyactiveenrolconfig = !empty($CFG->grade_report_showonlyactiveenrol);
+        // Grade only active users enrolled in the course either when the 'grade_report_showonlyactiveenrol' user
+        // preference is set to true or the current user does not have the capability to view suspended users in the
+        // course. In cases where the 'grade_report_showonlyactiveenrol' user preference is not set we are falling back
+        // to the set value for the 'grade_report_showonlyactiveenrol' config.
+        return get_user_preferences('grade_report_showonlyactiveenrol', $showonlyactiveenrolconfig) ||
+            !has_capability('moodle/course:viewsuspendedusers', \context_course::instance($this->forum->get_course_id()));
+    }
+
+    /**
      * Create or update the grade.
      *
      * @param stdClass $grade
@@ -265,9 +282,12 @@ class forum_gradeitem extends component_gradeitem {
 
         $DB->update_record($this->get_table_name(), $grade);
 
-        // Update in the gradebook.
+        // Update in the gradebook (note that 'cmidnumber' is required in order to update grades).
         $mapper = forum_container::get_legacy_data_mapper_factory()->get_forum_data_mapper();
-        forum_update_grades($mapper->to_legacy_object($this->forum), $grade->userid);
+        $forumrecord = $mapper->to_legacy_object($this->forum);
+        $forumrecord->cmidnumber = $this->forum->get_course_module_record()->idnumber;
+
+        forum_update_grades($forumrecord, $grade->userid);
 
         return true;
     }

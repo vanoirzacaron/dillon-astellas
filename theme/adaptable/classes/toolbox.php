@@ -26,8 +26,6 @@
 
 namespace theme_adaptable;
 
-defined('MOODLE_INTERNAL') || die;
-
 /**
  *
  * Class definition for toolbox.
@@ -51,7 +49,7 @@ class toolbox {
      *
      * @return string Setting url
      */
-    static public function get_setting_moodle_url($setting, $theconfig = null) {
+    public static function get_setting_moodle_url($setting, $theconfig = null) {
         $settingurl = null;
 
         if (empty($theconfig)) {
@@ -75,16 +73,22 @@ class toolbox {
      * Finds the given setting in the theme using the get_config core function for when the
      * theme_config object has not been created.
      *
-     * @param string $setting Setting name.
+     * @param string $settingname Setting name.
      * @param themename $themename null(default of 'adaptable' used)|theme name.
      *
-     * @return any false|value of setting.
+     * @return any null|value of setting.
      */
-    static public function get_config_setting($setting, $themename = null) {
+    public static function get_config_setting($settingname, $settingdefault = null, $themename = null) {
+        static $themeconfigs = array();
+
         if (empty($themename)) {
             $themename = 'adaptable';
         }
-        return \get_config('theme_'.$themename, $setting);
+        if (empty($themeconfig[$themename])) {
+            $themeconfig[$themename] = \theme_config::load($themename);
+        }
+
+        return (!empty($themeconfig[$themename]->settings->$settingname)) ? $themeconfig[$themename]->settings->$settingname : $settingdefault;
     }
 
 
@@ -109,7 +113,7 @@ class toolbox {
      *
      * @return int category id
      */
-    static public function get_current_top_level_catetgory() {
+    public static function get_current_top_level_catetgory() {
         global $PAGE;
         $catid = false;
 
@@ -135,7 +139,7 @@ class toolbox {
      *
      * @return array category list
      */
-    static public function get_top_categories_with_children() {
+    public static function get_top_categories_with_children() {
         static $catlist = null;
         static $dbcatlist = null;
 
@@ -174,7 +178,7 @@ class toolbox {
      *
      * @return array properties
      */
-    static public function compile_properties($themename, $array = true) {
+    public static function compile_properties($themename, $array = true) {
         global $CFG, $DB;
 
         $props = array();
@@ -229,7 +233,7 @@ class toolbox {
      * @param string $props Properties
      * @return string
      */
-    static public function put_properties($themename, $props) {
+    public static function put_properties($themename, $props) {
         global $DB;
 
         // Get the current properties as a reference and for theme version information.
@@ -327,7 +331,7 @@ class toolbox {
 
      * @return array matches
      */
-    static protected function to_add_property($propkey) {
+    protected static function to_add_property($propkey) {
         static $matches = '('.
              // Slider ....
             '^p[1-9][0-9]?url$|'.
@@ -380,7 +384,7 @@ class toolbox {
      * @param string $filestoreport
      *
      */
-    static private function put_prop_file_preprocess($key, &$props, &$filestoreport) {
+    private static function put_prop_file_preprocess($key, &$props, &$filestoreport) {
         if (!empty($props[$key])) {
             $filestoreport .= '\''.$key.'\' '.get_string('putpropertiesvalue', 'theme_adaptable').' \''.
                 \core_text::substr($props[$key], 1).'\'.'.PHP_EOL;
@@ -394,7 +398,7 @@ class toolbox {
      *
      * @return boolean true or false.
      */
-    static public function kalturaplugininstalled() {
+    public static function kalturaplugininstalled() {
         global $CFG;
 
         static $paths = array(
@@ -422,7 +426,7 @@ class toolbox {
      *
      * @return string markup or empty string if no icon specified.
      */
-    static public function getfontawesomemarkup($theicon, $classes = array(), $attributes = array(), $content = '') {
+    public static function getfontawesomemarkup($theicon, $classes = array(), $attributes = array(), $content = '') {
         $icon = '';
         if (!empty($theicon)) {
             $classes[] = 'fa fa-'.$theicon;
@@ -439,7 +443,7 @@ class toolbox {
      * @param string $hex
      * @return array
      */
-    static public function hex2rgb($hex) {
+    public static function hex2rgb($hex) {
         // From: http://bavotasan.com/2011/convert-hex-color-to-rgb-using-php/.
         $hex = str_replace("#", "", $hex);
 
@@ -463,7 +467,7 @@ class toolbox {
      * @param string $alpha
      * @return string
      */
-    static public function hex2rgba($hex, $alpha) {
+    public static function hex2rgba($hex, $alpha) {
         $rgba = self::hex2rgb($hex);
         $rgba[] = $alpha;
         return 'rgba('.implode(", ", $rgba).')'; // Returns the rgba values separated by commas.
@@ -475,7 +479,7 @@ class toolbox {
      * @param string $templatename
      * @return string or false if not overridden.
      */
-    static public function get_template_override($templatename) {
+    public static function get_template_override($templatename) {
         $template = false;
 
         $overridetemplates = get_config('theme_adaptable', 'templatessel');
@@ -509,7 +513,7 @@ class toolbox {
      * @param array|stdClass $data Context containing data for the template.
      * @return string or false if not overridden.
      */
-    static public function apply_template_override($templatename, $data) {
+    public static function apply_template_override($templatename, $data) {
         $output = false;
 
         $template = self::get_template_override($templatename);
@@ -537,7 +541,7 @@ class toolbox {
      *
      * @return array of the imgblder and totalblocks.
      */
-    static public function admin_settings_layout_builder($settingpage, $adminsettingname, $admindefaults, $adminchoices) {
+    public static function admin_settings_layout_builder($settingpage, $adminsettingname, $admindefaults, $adminchoices) {
         global $CFG, $PAGE;
 
         $totalblocks = 0;

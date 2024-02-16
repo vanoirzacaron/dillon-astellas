@@ -46,7 +46,7 @@ class registration {
         'contactemail', 'contactable', 'emailalert', 'emailalertemail', 'commnews', 'commnewsemail',
         'contactname', 'name', 'description', 'imageurl', 'contactphone', 'regioncode', 'geolocation', 'street'];
 
-    /** @var List of new FORM_FIELDS or siteinfo fields added indexed by the version when they were added.
+    /** @var array List of new FORM_FIELDS or siteinfo fields added indexed by the version when they were added.
      * If site was already registered, admin will be promted to confirm new registration data manually. Until registration is manually confirmed,
      * the scheduled task updating registration will be paused.
      * Keys of this array are not important as long as they increment, use current date to avoid confusions.
@@ -58,15 +58,19 @@ class registration {
         ],
         // Analytics stats added in Moodle 3.7.
         2019022200 => ['analyticsenabledmodels', 'analyticspredictions', 'analyticsactions', 'analyticsactionsnotuseful'],
+        // Active users stats added in Moodle 3.9.
+        2020022600 => ['activeusers', 'activeparticipantnumberaverage'],
+        // Database type, course date info, site theme, primary auth type added in Moodle 4.2.
+        2023021700 => ['dbtype', 'coursesnodates', 'sitetheme', 'primaryauthtype'],
     ];
 
-    /** @var Site privacy: not displayed */
+    /** @var string Site privacy: not displayed */
     const HUB_SITENOTPUBLISHED = 'notdisplayed';
 
-    /** @var Site privacy: public */
+    /** @var string Site privacy: public */
     const HUB_SITENAMEPUBLISHED = 'named';
 
-    /** @var Site privacy: public and global */
+    /** @var string Site privacy: public and global */
     const HUB_SITELINKPUBLISHED = 'linked';
 
     /** @var stdClass cached site registration information */
@@ -168,6 +172,7 @@ class registration {
         // Statistical data.
         $siteinfo['courses'] = $DB->count_records('course') - 1;
         $siteinfo['users'] = $DB->count_records('user', array('deleted' => 0));
+        $siteinfo['activeusers'] = $DB->count_records_select('user', 'deleted = ? AND lastlogin > ?', [0, time() - DAYSECS * 30]);
         $siteinfo['enrolments'] = $DB->count_records('role_assignments');
         $siteinfo['posts'] = $DB->count_records('forum_posts');
         $siteinfo['questions'] = $DB->count_records('question');
@@ -175,7 +180,15 @@ class registration {
         $siteinfo['badges'] = $DB->count_records_select('badge', 'status <> ' . BADGE_STATUS_ARCHIVED);
         $siteinfo['issuedbadges'] = $DB->count_records('badge_issued');
         $siteinfo['participantnumberaverage'] = average_number_of_participants();
+        $siteinfo['activeparticipantnumberaverage'] = average_number_of_participants(true, time() - DAYSECS * 30);
         $siteinfo['modulenumberaverage'] = average_number_of_courses_modules();
+        $siteinfo['dbtype'] = $CFG->dbtype;
+        $siteinfo['coursesnodates'] = $DB->count_records_select('course', 'enddate = ?', [0]) - 1;
+        $siteinfo['sitetheme'] = get_config('core', 'theme');
+
+        // Primary auth type.
+        $primaryauthsql = 'SELECT auth, count(auth) as tc FROM {user} GROUP BY auth ORDER BY tc DESC';
+        $siteinfo['primaryauthtype'] = $DB->get_field_sql($primaryauthsql, null, IGNORE_MULTIPLE);
 
         // Version and url.
         $siteinfo['moodlerelease'] = $CFG->release;
@@ -229,6 +242,7 @@ class registration {
             'moodlerelease' => get_string('sitereleasenum', 'hub', $moodlerelease),
             'courses' => get_string('coursesnumber', 'hub', $siteinfo['courses']),
             'users' => get_string('usersnumber', 'hub', $siteinfo['users']),
+            'activeusers' => get_string('activeusersnumber', 'hub', $siteinfo['activeusers']),
             'enrolments' => get_string('roleassignmentsnumber', 'hub', $siteinfo['enrolments']),
             'posts' => get_string('postsnumber', 'hub', $siteinfo['posts']),
             'questions' => get_string('questionsnumber', 'hub', $siteinfo['questions']),
@@ -237,6 +251,8 @@ class registration {
             'issuedbadges' => get_string('issuedbadgesnumber', 'hub', $siteinfo['issuedbadges']),
             'participantnumberaverage' => get_string('participantnumberaverage', 'hub',
                 format_float($siteinfo['participantnumberaverage'], 2)),
+            'activeparticipantnumberaverage' => get_string('activeparticipantnumberaverage', 'hub',
+                format_float($siteinfo['activeparticipantnumberaverage'], 2)),
             'modulenumberaverage' => get_string('modulenumberaverage', 'hub',
                 format_float($siteinfo['modulenumberaverage'], 2)),
             'mobileservicesenabled' => get_string('mobileservicesenabled', 'hub', $mobileservicesenabled),
@@ -247,6 +263,10 @@ class registration {
             'analyticspredictions' => get_string('analyticspredictions', 'hub', $siteinfo['analyticspredictions']),
             'analyticsactions' => get_string('analyticsactions', 'hub', $siteinfo['analyticsactions']),
             'analyticsactionsnotuseful' => get_string('analyticsactionsnotuseful', 'hub', $siteinfo['analyticsactionsnotuseful']),
+            'dbtype' => get_string('dbtype', 'hub', $siteinfo['dbtype']),
+            'coursesnodates' => get_string('coursesnodates', 'hub', $siteinfo['coursesnodates']),
+            'sitetheme' => get_string('sitetheme', 'hub', $siteinfo['sitetheme']),
+            'primaryauthtype' => get_string('primaryauthtype', 'hub', $siteinfo['primaryauthtype']),
         ];
 
         foreach ($senddata as $key => $str) {
@@ -354,6 +374,14 @@ class registration {
             // Update registration again because the initial request was too long and could have been truncated.
             api::update_registration($siteinfo);
             self::$registration = null;
+        }
+
+        // Finally, allow other plugins to perform actions once a site is registered for first time.
+        $pluginsfunction = get_plugins_with_function('post_site_registration_confirmed');
+        foreach ($pluginsfunction as $plugins) {
+            foreach ($plugins as $pluginfunction) {
+                $pluginfunction($registration->id);
+            }
         }
     }
 
@@ -563,7 +591,7 @@ class registration {
     }
 
     /**
-     * Redirect to the site registration form if it's a new install or registration needs updating
+     * Redirect to the site registration form if it's a new install, upgrade or registration needs updating.
      *
      * @param string|moodle_url $url
      */

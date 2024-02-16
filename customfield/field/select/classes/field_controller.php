@@ -14,17 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
- * Class field
- *
- * @package   customfield_select
- * @copyright 2018 David Matamoros <davidmc@moodle.com>
- * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-
 namespace customfield_select;
 
-defined('MOODLE_INTERNAL') || die;
+use coding_exception;
 
 /**
  * Class field
@@ -56,14 +48,21 @@ class field_controller extends \core_customfield\field_controller {
     }
 
     /**
-     * Returns the options available as an array.
+     * @deprecated since Moodle 3.10 - MDL-68569 please use $field->get_options
+     */
+    public static function get_options_array(): void {
+        throw new coding_exception('get_options_array() is deprecated, please use $field->get_options() instead');
+    }
+
+    /**
+     * Return configured field options
      *
-     * @param \core_customfield\field_controller $field
      * @return array
      */
-    public static function get_options_array(\core_customfield\field_controller $field) : array {
-        if ($field->get_configdata_property('options')) {
-            $options = preg_split("/\s*\n\s*/", trim($field->get_configdata_property('options')));
+    public function get_options(): array {
+        $optionconfig = $this->get_configdata_property('options');
+        if ($optionconfig) {
+            $options = preg_split("/\s*\n\s*/", trim($optionconfig));
         } else {
             $options = array();
         }
@@ -108,7 +107,7 @@ class field_controller extends \core_customfield\field_controller {
      * @return array
      */
     public function course_grouping_format_values($values): array {
-        $options = self::get_options_array($this);
+        $options = $this->get_options();
         $ret = [];
         foreach ($values as $value) {
             if (isset($options[$value])) {
@@ -118,5 +117,15 @@ class field_controller extends \core_customfield\field_controller {
         $ret[BLOCK_MYOVERVIEW_CUSTOMFIELD_EMPTY] = get_string('nocustomvalue', 'block_myoverview',
             $this->get_formatted_name());
         return $ret;
+    }
+
+    /**
+     * Locate the value parameter in the field options array, and return it's index
+     *
+     * @param string $value
+     * @return int
+     */
+    public function parse_value(string $value) {
+        return (int) array_search($value, $this->get_options());
     }
 }

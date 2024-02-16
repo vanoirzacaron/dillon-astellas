@@ -35,8 +35,6 @@ use moodle_url;
 use tool_dataprivacy\api;
 use tool_dataprivacy\data_request;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Class that processes an approved data request and prepares/deletes the user's data.
  *
@@ -82,6 +80,7 @@ class process_data_request_task extends adhoc_task {
 
         // Grab the manager.
         // We set an observer against it to handle failures.
+        $allowfiltering = get_config('tool_dataprivacy', 'allowfiltering');
         $manager = new \core_privacy\manager();
         $manager->set_observer(new \tool_dataprivacy\manager_observer());
 
@@ -94,8 +93,6 @@ class process_data_request_task extends adhoc_task {
         $contextlistcollection = $manager->get_contexts_for_userid($requestpersistent->get('userid'));
 
         mtrace('Fetching approved contextlists from collection');
-        $approvedclcollection = api::get_approved_contextlist_collection_for_collection(
-                $contextlistcollection, $foruser, $request->type);
 
         mtrace('Processing request...');
         $completestatus = api::DATAREQUEST_STATUS_COMPLETE;
@@ -103,6 +100,17 @@ class process_data_request_task extends adhoc_task {
 
         if ($request->type == api::DATAREQUEST_TYPE_EXPORT) {
             // Get the user context.
+            if ($allowfiltering) {
+                // Get the collection of approved_contextlist objects needed for core_privacy data export.
+                $approvedclcollection = api::get_approved_contextlist_collection_for_request($requestpersistent);
+            } else {
+                $approvedclcollection = api::get_approved_contextlist_collection_for_collection(
+                    $contextlistcollection,
+                    $foruser,
+                    $request->type,
+                );
+            }
+
             $usercontext = \context_user::instance($foruser->id, IGNORE_MISSING);
             if (!$usercontext) {
                 mtrace("Request {$requestid} cannot be processed due to a missing user context instance for the user
@@ -132,6 +140,11 @@ class process_data_request_task extends adhoc_task {
             if (is_primary_admin($foruser->id)) {
                 $completestatus = api::DATAREQUEST_STATUS_REJECTED;
             } else {
+                $approvedclcollection = api::get_approved_contextlist_collection_for_collection(
+                    $contextlistcollection,
+                    $foruser,
+                    $request->type,
+                );
                 $manager = new \core_privacy\manager();
                 $manager->set_observer(new \tool_dataprivacy\manager_observer());
 
@@ -146,14 +159,20 @@ class process_data_request_task extends adhoc_task {
         mtrace('The processing of the user data request has been completed...');
 
         // Create message to notify the user regarding the processing results.
-        $dpo = core_user::get_user($request->dpo);
         $message = new message();
         $message->courseid = $SITE->id;
         $message->component = 'tool_dataprivacy';
         $message->name = 'datarequestprocessingresults';
-        $message->userfrom = $dpo;
-        $message->replyto = $dpo->email;
-        $message->replytoname = fullname($dpo);
+        if (empty($request->dpo)) {
+            // Use the no-reply user as the sender if the privacy officer is not set. This is the case for automatically
+            // approved requests.
+            $fromuser = core_user::get_noreply_user();
+        } else {
+            $fromuser = core_user::get_user($request->dpo);
+            $message->replyto = $fromuser->email;
+            $message->replytoname = fullname($fromuser);
+        }
+        $message->userfrom = $fromuser;
 
         $typetext = null;
         // Prepare the context data for the email message body.
@@ -219,7 +238,7 @@ class process_data_request_task extends adhoc_task {
             if ($emailonly) {
                 // Do not sent an email if the user has been deleted. The user email has been previously deleted.
                 if (!$foruser->deleted) {
-                    $messagesent = email_to_user($foruser, $dpo, $subject, $message->fullmessage, $messagehtml);
+                    $messagesent = email_to_user($foruser, $fromuser, $subject, $message->fullmessage, $messagehtml);
                 }
             } else {
                 $messagesent = message_send($message);
@@ -265,7 +284,7 @@ class process_data_request_task extends adhoc_task {
 
                 // Send message.
                 if ($emailonly) {
-                    email_to_user($requestedby, $dpo, $subject, $message->fullmessage, $messagehtml);
+                    email_to_user($requestedby, $fromuser, $subject, $message->fullmessage, $messagehtml);
                 } else {
                     message_send($message);
                 }

@@ -56,6 +56,7 @@ class provider implements
     public static function get_metadata(collection $collection) : collection {
         $collection->add_subsystem_link('core_completion', [], 'privacy:metadata:completionsummary');
         $collection->add_subsystem_link('core_favourites', [], 'privacy:metadata:favouritessummary');
+        $collection->add_subsystem_link('core_favourites', [], 'privacy:metadata:activityfavouritessummary');
         $collection->add_user_preference('coursecat_management_perpage', 'privacy:perpage');
         return $collection;
     }
@@ -191,11 +192,17 @@ class provider implements
             $context = \context_course::instance($course->id);
             $courseformat = $course->format !== 'site' ? get_string('pluginname', 'format_' . $course->format) : get_string('site');
             $data = (object) [
-                'fullname' => $course->fullname,
+                'fullname' => format_string($course->fullname, true, ['context' => $context]),
                 'shortname' => $course->shortname,
                 'idnumber' => $course->idnumber,
-                'summary' => writer::with_context($context)->rewrite_pluginfile_urls([], 'course', 'summary', 0,
-                                                                                     format_string($course->summary)),
+                'summary' => format_text(
+                    writer::with_context($context)->rewrite_pluginfile_urls(
+                        [],
+                        'course',
+                        'summary',
+                        0,
+                        $course->summary
+                    ), $course->summaryformat, ['context' => $context]),
                 'format' => $courseformat,
                 'startdate' => transform::datetime($course->startdate),
                 'enddate' => transform::datetime($course->enddate)
@@ -226,7 +233,7 @@ class provider implements
     /**
      * Delete all data for all users in the specified context.
      *
-     * @param context $context The specific context to delete data for.
+     * @param \context $context The specific context to delete data for.
      */
     public static function delete_data_for_all_users_in_context(\context $context) {
         // Check what context we've been delivered.

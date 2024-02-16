@@ -232,7 +232,8 @@ abstract class info {
      * @return bool True if activity is available for all
      */
     public function is_available_for_all() {
-        if (is_null($this->availability)) {
+        global $CFG;
+        if (is_null($this->availability) || empty($CFG->enableavailability)) {
             return true;
         } else {
             try {
@@ -290,13 +291,14 @@ abstract class info {
      */
     protected function warn_about_invalid_availability(\coding_exception $e) {
         $name = $this->get_thing_name();
-        // If it occurs while building modinfo based on somebody calling $cm->name,
-        // we can't get $cm->name, and this line will cause a warning.
-        $htmlname = @$this->format_info($name, $this->course);
+        $htmlname = $this->format_info($name, $this->course);
+        // Because we call format_info here, likely in the middle of building dynamic data for the
+        // activity, there could be a chance that the name might not be available.
         if ($htmlname === '') {
             // So instead use the numbers (cmid) from the tag.
             $htmlname = preg_replace('~[^0-9]~', '', $name);
         }
+        $htmlname = html_to_text($htmlname, 75, false);
         $info = 'Error processing availability data for &lsquo;' . $htmlname
                  . '&rsquo;: ' . s($e->a);
         debugging($info, DEBUG_DEVELOPER);
@@ -718,14 +720,14 @@ abstract class info {
      * @return string Correctly formatted info string
      */
     public static function format_info($inforenderable, $courseorid) {
-        global $PAGE;
+        global $PAGE, $OUTPUT;
 
         // Use renderer if required.
         if (is_string($inforenderable)) {
             $info = $inforenderable;
         } else {
-            $renderer = $PAGE->get_renderer('core', 'availability');
-            $info = $renderer->render($inforenderable);
+            $renderable = new \core_availability\output\availability_info($inforenderable);
+            $info = $OUTPUT->render($renderable);
         }
 
         // Don't waste time if there are no special tags.
@@ -739,12 +741,35 @@ abstract class info {
         $info = preg_replace_callback('~<AVAILABILITY_CMNAME_([0-9]+)/>~',
                 function($matches) use($modinfo, $context) {
                     $cm = $modinfo->get_cm($matches[1]);
-                    if ($cm->has_view() and $cm->uservisible) {
+                    $modulename = format_string($cm->get_name(), true, ['context' => $context]);
+                    // We make sure that we add a data attribute to the name so we can change it later if the
+                    // original module name changes.
+                    if ($cm->has_view() && $cm->get_user_visible()) {
                         // Help student by providing a link to the module which is preventing availability.
-                        return \html_writer::link($cm->url, format_string($cm->name, true, array('context' => $context)));
+                        return \html_writer::link($cm->get_url(), $modulename, ['data-cm-name-for' => $cm->id]);
                     } else {
-                        return format_string($cm->name, true, array('context' => $context));
+                        return \html_writer::span($modulename, '', ['data-cm-name-for' => $cm->id]);
                     }
+                }, $info);
+        $info = preg_replace_callback('~<AVAILABILITY_FORMAT_STRING>(.*?)</AVAILABILITY_FORMAT_STRING>~s',
+                function($matches) use ($context) {
+                    $decoded = htmlspecialchars_decode($matches[1], ENT_NOQUOTES);
+                    return format_string($decoded, true, ['context' => $context]);
+                }, $info);
+        $info = preg_replace_callback('~<AVAILABILITY_CALLBACK type="([a-z0-9_]+)">(.*?)</AVAILABILITY_CALLBACK>~s',
+                function($matches) use ($modinfo, $context) {
+                    // Find the class, it must have already been loaded by now.
+                    $fullclassname = 'availability_' . $matches[1] . '\condition';
+                    if (!class_exists($fullclassname, false)) {
+                        return '<!-- Error finding class ' . $fullclassname .' -->';
+                    }
+                    // Load the parameters.
+                    $params = [];
+                    $encodedparams = preg_split('~<P/>~', $matches[2], 0);
+                    foreach ($encodedparams as $encodedparam) {
+                        $params[] = htmlspecialchars_decode($encodedparam, ENT_NOQUOTES);
+                    }
+                    return $fullclassname::get_description_callback_value($modinfo, $context, $params);
                 }, $info);
 
         return $info;

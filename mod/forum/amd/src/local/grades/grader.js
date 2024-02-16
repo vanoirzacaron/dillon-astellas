@@ -17,7 +17,6 @@
  * This module will tie together all of the different calls the gradable module will make.
  *
  * @module     mod_forum/local/grades/grader
- * @package    mod_forum
  * @copyright  2019 Mathew May <mathew.solutions>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -28,13 +27,12 @@ import {createLayout as createFullScreenWindow} from 'mod_forum/local/layout/ful
 import getGradingPanelFunctions from './local/grader/gradingpanel';
 import {add as addToast} from 'core/toast';
 import {addNotification} from 'core/notification';
-import {get_string as getString} from 'core/str';
+import {getString} from 'core/str';
 import {failedUpdate} from 'core_grades/grades/grader/gradingpanel/normalise';
 import {addIconToContainerWithPromise} from 'core/loadingicon';
 import {debounce} from 'core/utils';
 import {fillInitialValues} from 'core_grades/grades/grader/gradingpanel/comparison';
-import * as Modal from 'core/modal_factory';
-import * as ModalEvents from 'core/modal_events';
+import Modal from 'core/modal_cancel';
 import {subscribe} from 'core/pubsub';
 import DrawerEvents from 'core/drawer_events';
 
@@ -65,7 +63,7 @@ const displayUserPicker = (root, html) => {
  *
  * @param {String} html
  * @param {String} js
- * @return {[*, *]}
+ * @returns {array} An array containing the HTML, and JS.
  */
 const fetchContentFromRender = (html, js) => {
     return [html, js];
@@ -117,6 +115,7 @@ const getUpdateUserContentFunction = (root, getContentForUser, getGradeForUser, 
         if (spinner) {
             spinner.resolve();
         }
+        return userGrade;
     };
 };
 
@@ -379,7 +378,7 @@ const displayGradingError = async(root, user, err) => {
     ]);
 
     Templates.replaceNodeContents(root.querySelector(Selectors.regions.gradingPanelErrors), html, js);
-    addToast(errorString);
+    addToast(errorString, {type: 'warning'});
 };
 
 /**
@@ -389,7 +388,13 @@ const displayGradingError = async(root, user, err) => {
  * @param {Function} getContentForUser A function to get the content for a specific user
  * @param {Function} getGradeForUser A function get the grade details for a specific user
  * @param {Function} setGradeForUser A function to set the grade for a specific user
- * @param {Object} Preferences for the launch function
+ * @param {Object} preferences Preferences for the launch function
+ * @param {Number} preferences.initialUserId
+ * @param {string} preferences.moduleName
+ * @param {string} preferences.courseName
+ * @param {string} preferences.courseUrl
+ * @param {boolean} preferences.sendStudentNotifications
+ * @param {null|HTMLElement} preferences.focusOnClose
  */
 export const launch = async(getListOfUsers, getContentForUser, getGradeForUser, setGradeForUser, {
     initialUserId = null,
@@ -444,9 +449,10 @@ export const launch = async(getListOfUsers, getContentForUser, getGradeForUser, 
     // Fetch the userpicker for display.
     const userPicker = await getUserPicker(
         userList,
-        user => {
+        async(user) => {
+            const userGrade = await updateUserContent(user);
             const renderContext = {
-                status: null,
+                status: userGrade.hasgrade,
                 index: userIds.indexOf(user.id) + 1,
                 total: userList.length
             };
@@ -454,7 +460,6 @@ export const launch = async(getListOfUsers, getContentForUser, getGradeForUser, 
                 statusContainer.innerHTML = html;
                 return html;
             }).catch();
-            updateUserContent(user);
         },
         saveGradeFunction,
         {
@@ -475,53 +480,35 @@ export const launch = async(getListOfUsers, getContentForUser, getGradeForUser, 
  * @param {Function} getGradeForUser A function get the grade details for a specific user
  * @param {Number} userid The ID of a specific user
  * @param {String} moduleName the name of the module
+ * @param {object} param
+ * @param {null|HTMLElement} param.focusOnClose
  */
 export const view = async(getGradeForUser, userid, moduleName, {
     focusOnClose = null,
 } = {}) => {
 
+    const userGrade = await getGradeForUser(userid);
+
     const [
-        userGrade,
         modal,
+        gradeTemplateData
     ] = await Promise.all([
-        getGradeForUser(userid),
         Modal.create({
             title: moduleName,
             large: true,
-            type: Modal.types.CANCEL
+            removeOnClose: true,
+            returnElement: focusOnClose,
+            show: true,
+            body: Templates.render('mod_forum/local/grades/view_grade', userGrade),
         }),
+        renderGradeTemplate(userGrade)
     ]);
 
-    const spinner = addIconToContainerWithPromise(modal.getRoot());
-
-    // Handle hidden event.
-    modal.getRoot().on(ModalEvents.hidden, function() {
-        // Destroy when hidden.
-        modal.destroy();
-        if (focusOnClose) {
-            try {
-                focusOnClose.focus();
-            } catch (e) {
-                // eslint-disable-line
-            }
-        }
-    });
-
-    modal.show();
-    const output = document.createElement('div');
-    const {html, js} = await Templates.renderForPromise('mod_forum/local/grades/view_grade', userGrade);
-    Templates.replaceNodeContents(output, html, js);
-
-    // Note: We do not use await here because it messes with the Modal transitions.
-    const [gradeHTML, gradeJS] = await renderGradeTemplate(userGrade);
-    const gradeReplace = output.querySelector('[data-region="grade-template"]');
-    Templates.replaceNodeContents(gradeReplace, gradeHTML, gradeJS);
-    modal.setBody(output.outerHTML);
-    spinner.resolve();
+    const bodyPromise = await modal.getBodyPromise();
+    const gradeReplace = bodyPromise[0].querySelector('[data-region="grade-template"]');
+    Templates.replaceNodeContents(gradeReplace, gradeTemplateData.html, gradeTemplateData.js);
 };
 
-const renderGradeTemplate = async(userGrade) => {
-    const {html, js} = await Templates.renderForPromise(userGrade.templatename, userGrade.grade);
-    return [html, js];
-};
+const renderGradeTemplate = (userGrade) => Templates.renderForPromise(userGrade.templatename, userGrade.grade);
+
 export {getGradingPanelFunctions};

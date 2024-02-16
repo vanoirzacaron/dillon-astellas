@@ -14,36 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
-* Test class covering the h5p data generator class.
-*
-* @package    core_h5p
-* @category   test
-* @copyright  2019 Mihail Geshoski <mihail@moodle.com>
-* @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
-*/
-
 namespace core_h5p;
 
-use core_h5p\autoloader;
-
-defined('MOODLE_INTERNAL') || die();
+use core_h5p\local\library\autoloader;
 
 /**
-* Generator testcase for the core_grading generator.
-*
-* @package    core_h5p
-* @category   test
-* @copyright  2019 Mihail Geshoski <mihail@moodle.com>
-* @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
-* @runTestsInSeparateProcesses
+ * Test class covering the h5p data generator class.
+ *
+ * @package    core_h5p
+ * @category   test
+ * @copyright  2019 Mihail Geshoski <mihail@moodle.com>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @runTestsInSeparateProcesses
+ * @covers     \core_h5p_generator
 */
-class generator_testcase extends \advanced_testcase {
+class generator_test extends \advanced_testcase {
 
     /**
      * Tests set up.
      */
-    protected function setUp() {
+    protected function setUp(): void {
         parent::setUp();
 
         autoloader::register();
@@ -165,7 +155,7 @@ class generator_testcase extends \advanced_testcase {
      * Test the behaviour of generate_h5p_data(). Test whether library files are created or not
      * on filesystem depending what the method defines.
      *
-     * @dataProvider test_generate_h5p_data_files_creation_provider
+     * @dataProvider generate_h5p_data_files_creation_provider
      * @param bool $createlibraryfiles Whether to create library files on the filesystem
      * @param bool $expected The expectation whether the files have been created or not
      **/
@@ -205,7 +195,7 @@ class generator_testcase extends \advanced_testcase {
      *
      * @return array
      */
-    public function test_generate_h5p_data_files_creation_provider(): array {
+    public function generate_h5p_data_files_creation_provider(): array {
         return [
             'Do not create library related files on the filesystem' => [
                 false,
@@ -219,6 +209,120 @@ class generator_testcase extends \advanced_testcase {
     }
 
     /**
+     * Test the returned data of generate_h5p_data() when the method requests
+     * creation of H5P file and xAPI states.
+     *
+     * @dataProvider generate_h5p_data_xapistates_provider
+     * @param array|null $filerecord
+     */
+    public function test_generate_h5p_data_xapistates(?array $filerecord) {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        /** @var \core_h5p_generator $generator */
+        $generator = $this->getDataGenerator()->get_plugin_generator('core_h5p');
+        $course = $this->getDataGenerator()->create_course();
+        $user = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $this->setUser($user);
+        $activity = $this->getDataGenerator()->create_module('h5pactivity', ['course' => $course]);
+        $activitycontext = \context_module::instance($activity->cmid);
+        if ($filerecord) {
+            $filerecord['contextid'] = $activitycontext->id;
+            $filerecord['component'] = 'mod_h5pactivity';
+            $filerecord['filearea'] = 'package';
+            $filerecord['itemid'] = 0;
+            $filerecord['filepath'] = '/';
+            $filerecord['filepath'] = '/';
+            $filerecord['filename'] = 'dummy.h5p';
+        }
+
+        $data = $generator->generate_h5p_data(false, $filerecord);
+
+        $mainlib = $DB->get_record('h5p_libraries', ['machinename' => 'MainLibrary']);
+        $lib1 = $DB->get_record('h5p_libraries', ['machinename' => 'Library1']);
+        $lib2 = $DB->get_record('h5p_libraries', ['machinename' => 'Library2']);
+        $lib3 = $DB->get_record('h5p_libraries', ['machinename' => 'Library3']);
+        $lib4 = $DB->get_record('h5p_libraries', ['machinename' => 'Library4']);
+        $lib5 = $DB->get_record('h5p_libraries', ['machinename' => 'Library5']);
+
+        $h5p = $DB->get_record('h5p', ['mainlibraryid' => $mainlib->id]);
+
+        $expected = (object) [
+            'h5pcontent' => (object) [
+                 'h5pid' => $h5p->id,
+                 'contentdependencies' => [$mainlib, $lib1, $lib2, $lib3, $lib4],
+            ],
+            'mainlib' => (object) [
+                'data' => $mainlib,
+                'dependencies' => [$lib1, $lib2, $lib3],
+            ],
+            'lib1' => (object) [
+                'data' => $lib1,
+                'dependencies' => [$lib2, $lib3, $lib4],
+            ],
+            'lib2' => (object) [
+                'data' => $lib2,
+                'dependencies' => [],
+            ],
+            'lib3' => (object) [
+                'data' => $lib3,
+                'dependencies' => [$lib5],
+            ],
+            'lib4' => (object) [
+                'data' => $lib4,
+                'dependencies' => [],
+            ],
+            'lib5' => (object) [
+                'data' => $lib5,
+                'dependencies' => [],
+            ],
+        ];
+
+        $this->assertEquals($expected, $data);
+        if ($filerecord) {
+            // Confirm the H5P file has been created (when $filerecord is not empty).
+            $fs = get_file_storage();
+            $this->assertNotFalse($fs->get_file_by_hash($h5p->pathnamehash));
+            // Confirm xAPI state has been created when $filerecord['addxapistate'] is given.
+            if (array_key_exists('addxapistate', $filerecord) && $filerecord['addxapistate']) {
+                $this->assertEquals(1, $DB->count_records('xapi_states'));
+            } else {
+                $this->assertEquals(0, $DB->count_records('xapi_states'));
+            }
+        } else {
+            // Confirm the H5P file doesn't exist when $filerecord is null.
+            $fs = get_file_storage();
+            $this->assertFalse($fs->get_file_by_hash($h5p->pathnamehash));
+            // Confirm xAPI state hasn't been created when $filerecord is null.
+            $this->assertEquals(0, $DB->count_records('xapi_states'));
+        }
+    }
+
+    /**
+     * Data provider for test_generate_h5p_data_xapistates().
+     *
+     * @return array
+     */
+    public function generate_h5p_data_xapistates_provider(): array {
+        return [
+            'Do not create the file nor xAPI states' => [
+                'filerecord' => null,
+            ],
+            'Create the H5P file but not create any xAPI state' => [
+                'filerecord' => [
+                    'addxapistate' => false,
+                ],
+            ],
+            'Create the H5P file and the xAPI state' => [
+                'filerecord' => [
+                    'addxapistate' => true,
+                ],
+            ],
+        ];
+    }
+
+    /**
      * Test the behaviour of create_library_record(). Test whether the library data is properly
      * saved in the database.
      */
@@ -227,7 +331,9 @@ class generator_testcase extends \advanced_testcase {
 
         $generator = $this->getDataGenerator()->get_plugin_generator('core_h5p');
 
-        $data = $generator->create_library_record('Library', 'Lib', 1, 2, 3, 'Semantics example', '/regex11/');
+        $data = $generator->create_library_record(
+            'Library', 'Lib', 1, 2, 3, 'Semantics example', '/regex11/', 'http://tutorial.org/', 'http://example.org/'
+        );
         unset($data->id);
 
         $expected = (object) [
@@ -244,8 +350,12 @@ class generator_testcase extends \advanced_testcase {
             'droplibrarycss' => '',
             'semantics' => 'Semantics example',
             'addto' => '/regex11/',
+            'tutorial' => 'http://tutorial.org/',
+            'example' => 'http://example.org/',
             'coremajor' => null,
             'coreminor' => null,
+            'metadatasettings' => null,
+            'enabled' => 1,
         ];
 
         $this->assertEquals($expected, $data);
@@ -255,7 +365,7 @@ class generator_testcase extends \advanced_testcase {
      * Test the behaviour of create_h5p_record(). Test whather the h5p content data is
      * properly saved in the database.
      *
-     * @dataProvider test_create_h5p_record_provider
+     * @dataProvider create_h5p_record_provider
      * @param array $h5pdata The h5p content data
      * @param \stdClass $expected The expected saved data
      **/
@@ -281,7 +391,7 @@ class generator_testcase extends \advanced_testcase {
      *
      * @return array
      */
-    public function test_create_h5p_record_provider(): array {
+    public function create_h5p_record_provider(): array {
         $createdjsoncontent = json_encode(
             array(
                 'text' => '<p>Created dummy text<\/p>\n',
@@ -378,7 +488,7 @@ class generator_testcase extends \advanced_testcase {
      * Test the behaviour of create_contents_libraries_record(). Test whether the contents libraries
      * are properly saved in the database.
      *
-     * @dataProvider test_create_contents_libraries_record_provider
+     * @dataProvider create_contents_libraries_record_provider
      * @param array $contentslibrariestdata The h5p contents libraries data.
      * @param \stdClass $expected The expected saved data.
      **/
@@ -402,7 +512,7 @@ class generator_testcase extends \advanced_testcase {
      *
      * @return array
      */
-    public function test_create_contents_libraries_record_provider(): array {
+    public function create_contents_libraries_record_provider(): array {
         return [
             'Create h5p content library with set dependency type' => [
                 [
@@ -438,7 +548,7 @@ class generator_testcase extends \advanced_testcase {
      * Test the behaviour of create_library_dependency_record(). Test whether the contents libraries
      * are properly saved in the database.
      *
-     * @dataProvider test_create_library_dependency_record_provider
+     * @dataProvider create_library_dependency_record_provider
      * @param array $librarydependencydata The library dependency data.
      * @param \stdClass $expected The expected saved data.
      **/
@@ -462,7 +572,7 @@ class generator_testcase extends \advanced_testcase {
      *
      * @return array
      */
-    public function test_create_library_dependency_record_provider(): array {
+    public function create_library_dependency_record_provider(): array {
         return [
             'Create h5p library dependency with set dependency type' => [
                 [
@@ -486,6 +596,80 @@ class generator_testcase extends \advanced_testcase {
                     'requiredlibraryid' => '1',
                     'dependencytype' => 'preloaded'
                 )
+            ]
+        ];
+    }
+
+    /**
+     * Test the behaviour of create_content_file(). Test whether a file belonging to a content is created.
+     *
+     * @dataProvider create_content_file_provider
+     * @param array $filedata Data from the file to be created.
+     * @param array $expecteddata Data expected.Data from the file to be created.
+     */
+    public function test_create_content_file($filedata, $expecteddata): void {
+        $this->resetAfterTest();
+
+        $generator = self::getDataGenerator()->get_plugin_generator('core_h5p');
+
+        if ($expecteddata[1] === 'exception') {
+            $this->expectException('coding_exception');
+        }
+        call_user_func_array([$generator, 'create_content_file'], $filedata);
+
+        $systemcontext = \context_system::instance();
+        $filearea = $filedata[1];
+        $filepath = '/'. dirname($filedata[0]). '/';
+        $filename = basename($filedata[0]);
+        $itemid = $expecteddata[0];
+
+        $fs = new \file_storage();
+        $exists = $fs->file_exists($systemcontext->id, file_storage::COMPONENT, $filearea, $itemid, $filepath,
+            $filename);
+        if ($expecteddata[1] === true) {
+            $this->assertTrue($exists);
+        } else if ($expecteddata[1] === false) {
+            $this->assertFalse($exists);
+        }
+    }
+
+    /**
+     * Data provider for test_create_content_file(). Data from different files to be created.
+     *
+     * @return array
+     **/
+    public function create_content_file_provider(): array {
+        return [
+            'Create file in content with id 4' => [
+                [
+                    'images/img1.png',
+                    'content',
+                    4
+                ],
+                [
+                    4,
+                    true
+                ]
+            ],
+            'Create file in the editor' => [
+                [
+                    'images/img1.png',
+                    'editor'
+                ],
+                [
+                    0,
+                    true
+                ]
+            ],
+            'Create file in content without id' => [
+                [
+                    'images/img1.png',
+                    'content'
+                ],
+                [
+                    0,
+                    'exception'
+                ]
             ]
         ];
     }

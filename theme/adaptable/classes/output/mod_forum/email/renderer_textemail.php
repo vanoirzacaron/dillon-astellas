@@ -24,8 +24,6 @@
 
 namespace theme_adaptable\output\mod_forum\email;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Forum post renderable.
  *
@@ -55,5 +53,4 @@ class renderer_textemail extends \mod_forum\output\email\renderer_textemail {
 
         return $output;
     }
-
 }

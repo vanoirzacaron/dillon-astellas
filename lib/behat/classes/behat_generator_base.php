@@ -25,9 +25,10 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+require_once(__DIR__ . '/../../behat/behat_base.php');
+
 use Behat\Gherkin\Node\TableNode as TableNode;
 use Behat\Behat\Tester\Exception\PendingException as PendingException;
-
 
 /**
  * Class to quickly create Behat test data using component data generators.
@@ -165,18 +166,37 @@ abstract class behat_generator_base {
     protected abstract function get_creatable_entities(): array;
 
     /**
+     * Get the list of available generators for this class.
+     *
+     * @return array
+     */
+    final public function get_available_generators(): array {
+        return $this->get_creatable_entities();
+    }
+
+    /**
      * Do the work to generate an entity.
      *
      * This is called by {@link behat_data_generators::the_following_entities_exist()}.
      *
      * @param string    $generatortype The name of the entity to create.
      * @param TableNode $data from the step.
+     * @param bool      $singular Whether there is only one record and it is pivotted
      */
-    public function generate_items(string $generatortype, TableNode $data) {
+    public function generate_items(string $generatortype, TableNode $data, bool $singular = false) {
         // Now that we need them require the data generators.
         require_once(__DIR__ . '/../../testing/generator/lib.php');
 
         $elements = $this->get_creatable_entities();
+
+        foreach ($elements as $key => $configuration) {
+            if (array_key_exists('singular', $configuration)) {
+                $singularverb = $configuration['singular'];
+                unset($configuration['singular']);
+                unset($elements[$key]['singular']);
+                $elements[$singularverb] = $configuration;
+            }
+        }
 
         if (!isset($elements[$generatortype])) {
             throw new PendingException($this->name_for_errors($generatortype) .
@@ -193,8 +213,17 @@ abstract class behat_generator_base {
 
         $generatortype = $entityinfo['datagenerator'];
 
-        foreach ($data->getHash() as $elementdata) {
+        if ($singular) {
+            // There is only one record to generate, and the table has been pivotted.
+            // The rows each represent a single field.
+            $rows = [$data->getRowsHash()];
+        } else {
+            // There are multiple records to generate.
+            // The rows represent an item to create.
+            $rows = $data->getHash();
+        }
 
+        foreach ($rows as $elementdata) {
             // Check if all the required fields are there.
             foreach ($entityinfo['required'] as $requiredfield) {
                 if (!isset($elementdata[$requiredfield])) {
@@ -250,6 +279,17 @@ abstract class behat_generator_base {
                         ' data generator is not implemented');
             }
         }
+
+        // Notify that the all the elements have been generated.
+        if (method_exists($this->componentdatagenerator, 'finish_generate_' . $generatortype)) {
+            // Using the component's own data generator if it exists.
+            $this->componentdatagenerator->{'finish_generate_' . $generatortype}();
+
+        } else if (method_exists($this->datagenerator, 'finish_generate_' . $generatortype)) {
+            // Use a method on the core data geneator, if there is one.
+            $this->datagenerator->{'finish_generate_' . $generatortype}();
+
+        }
     }
 
     /**
@@ -291,6 +331,36 @@ abstract class behat_generator_base {
         global $DB;
 
         if (!$id = $DB->get_field('user', 'id', array('username' => $username))) {
+            throw new Exception('The specified user with username "' . $username . '" does not exist');
+        }
+        return $id;
+    }
+
+    /**
+     * Gets the user id from it's username.
+     * @throws Exception
+     * @param string $username
+     * @return int
+     */
+    protected function get_userfrom_id(string $username) {
+        global $DB;
+
+        if (!$id = $DB->get_field('user', 'id', ['username' => $username])) {
+            throw new Exception('The specified user with username "' . $username . '" does not exist');
+        }
+        return $id;
+    }
+
+    /**
+     * Gets the user id from it's username.
+     * @throws Exception
+     * @param string $username
+     * @return int
+     */
+    protected function get_userto_id(string $username) {
+        global $DB;
+
+        if (!$id = $DB->get_field('user', 'id', ['username' => $username])) {
             throw new Exception('The specified user with username "' . $username . '" does not exist');
         }
         return $id;
@@ -345,6 +415,25 @@ abstract class behat_generator_base {
         if (!$id = $DB->get_field('course', 'id', array('shortname' => $shortname))) {
             throw new Exception('The specified course with shortname "' . $shortname . '" does not exist');
         }
+        return $id;
+    }
+
+    /**
+     * Gets the course cmid for the specified activity based on the activity's idnumber.
+     *
+     * Note: this does not check the module type, only the idnumber.
+     *
+     * @throws Exception
+     * @param string $idnumber
+     * @return int
+     */
+    protected function get_activity_id(string $idnumber) {
+        global $DB;
+
+        if (!$id = $DB->get_field('course_modules', 'id', ['idnumber' => $idnumber])) {
+            throw new Exception('The specified activity with idnumber "' . $idnumber . '" could not be found.');
+        }
+
         return $id;
     }
 
@@ -461,53 +550,7 @@ abstract class behat_generator_base {
      * @return context
      */
     protected function get_context($levelname, $contextref) {
-        global $DB;
-
-        // Getting context levels and names (we will be using the English ones as it is the test site language).
-        $contextlevels = context_helper::get_all_levels();
-        $contextnames = array();
-        foreach ($contextlevels as $level => $classname) {
-            $contextnames[context_helper::get_level_name($level)] = $level;
-        }
-
-        if (empty($contextnames[$levelname])) {
-            throw new Exception('The specified "' . $levelname . '" context level does not exist');
-        }
-        $contextlevel = $contextnames[$levelname];
-
-        // Return it, we don't need to look for other internal ids.
-        if ($contextlevel == CONTEXT_SYSTEM) {
-            return context_system::instance();
-        }
-
-        switch ($contextlevel) {
-
-            case CONTEXT_USER:
-                $instanceid = $DB->get_field('user', 'id', array('username' => $contextref));
-                break;
-
-            case CONTEXT_COURSECAT:
-                $instanceid = $DB->get_field('course_categories', 'id', array('idnumber' => $contextref));
-                break;
-
-            case CONTEXT_COURSE:
-                $instanceid = $DB->get_field('course', 'id', array('shortname' => $contextref));
-                break;
-
-            case CONTEXT_MODULE:
-                $instanceid = $DB->get_field('course_modules', 'id', array('idnumber' => $contextref));
-                break;
-
-            default:
-                break;
-        }
-
-        $contextclass = $contextlevels[$contextlevel];
-        if (!$context = $contextclass::instance($instanceid, IGNORE_MISSING)) {
-            throw new Exception('The specified "' . $contextref . '" context reference does not exist');
-        }
-
-        return $context;
+        return behat_base::get_context($levelname, $contextref);
     }
 
     /**
@@ -523,5 +566,61 @@ abstract class behat_generator_base {
             throw new Exception('The specified user with username "' . $username . '" does not exist');
         }
         return $id;
+    }
+
+    /**
+     * Gets the external backpack id from it's backpackweburl.
+     * @param string $backpackweburl
+     * @return mixed
+     * @throws dml_exception
+     */
+    protected function get_externalbackpack_id($backpackweburl) {
+        global $DB;
+        if (!$id = $DB->get_field('badge_external_backpack', 'id', ['backpackweburl' => $backpackweburl])) {
+            throw new Exception('The specified external backpack with backpackweburl "' . $username . '" does not exist');
+        }
+        return $id;
+    }
+
+    /**
+     * Get a coursemodule from an activity name or idnumber.
+     *
+     * @param string $activity
+     * @param string $identifier
+     * @return cm_info
+     */
+    protected function get_cm_by_activity_name(string $activity, string $identifier): cm_info {
+        global $DB;
+
+        $coursetable = new \core\dml\table('course', 'c', 'c');
+        $courseselect = $coursetable->get_field_select();
+        $coursefrom = $coursetable->get_from_sql();
+
+        $cmtable = new \core\dml\table('course_modules', 'cm', 'cm');
+        $cmfrom = $cmtable->get_from_sql();
+
+        $acttable = new \core\dml\table($activity, 'a', 'a');
+        $actselect = $acttable->get_field_select();
+        $actfrom = $acttable->get_from_sql();
+
+        $sql = <<<EOF
+    SELECT cm.id as cmid, {$courseselect}, {$actselect}
+      FROM {$cmfrom}
+INNER JOIN {$coursefrom} ON c.id = cm.course
+INNER JOIN {modules} m ON m.id = cm.module AND m.name = :modname
+INNER JOIN {$actfrom} ON cm.instance = a.id
+     WHERE cm.idnumber = :idnumber OR a.name = :name
+EOF;
+
+        $result = $DB->get_record_sql($sql, [
+            'modname' => $activity,
+            'idnumber' => $identifier,
+            'name' => $identifier,
+        ], MUST_EXIST);
+
+        $course = $coursetable->extract_from_result($result);
+        $instancedata = $acttable->extract_from_result($result);
+
+        return get_fast_modinfo($course)->get_cm($result->cmid);
     }
 }

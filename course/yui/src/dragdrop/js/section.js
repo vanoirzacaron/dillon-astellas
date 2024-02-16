@@ -254,6 +254,8 @@ Y.extend(DRAGSECTION, M.core.dragdrop, {
                                 // Update flag.
                                 swapped = true;
                             }
+                            sectionlist.item(index).setAttribute('data-sectionid',
+                                Y.Moodle.core_course.util.section.getId(sectionlist.item(index)));
                         }
                         loopend = loopend - 1;
                     } while (swapped);
@@ -261,6 +263,9 @@ Y.extend(DRAGSECTION, M.core.dragdrop, {
                     window.setTimeout(function() {
                         lightbox.hide();
                     }, 250);
+
+                    // Update course state.
+                    M.course.coursebase.invoke_function('updateMovedSectionState');
                 },
 
                 failure: function(tid, response) {

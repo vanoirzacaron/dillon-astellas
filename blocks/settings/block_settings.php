@@ -90,8 +90,7 @@ class block_settings extends block_base {
     }
 
     function get_required_javascript() {
-        global $PAGE;
-        $adminnode = $PAGE->settingsnav->find('siteadministration', navigation_node::TYPE_SITE_ADMIN);
+        $adminnode = $this->page->settingsnav->find('siteadministration', navigation_node::TYPE_SITE_ADMIN);
         parent::get_required_javascript();
         $arguments = array(
             'instanceid' => $this->instance->id,
@@ -141,10 +140,6 @@ class block_settings extends block_base {
                 $this->content->footer = $renderer->search_form(new moodle_url("$CFG->wwwroot/$CFG->admin/search.php"), optional_param('query', '', PARAM_RAW));
             } else {
                 $this->content->footer = '';
-            }
-
-            if (!empty($this->config->enabledock) && $this->config->enabledock == 'yes') {
-                user_preference_allow_ajax_update('nav_in_tab_panel_settingsnav'.block_settings::$navcount, PARAM_INT);
             }
         }
 

@@ -103,6 +103,15 @@ class memberships extends \mod_lti\local\ltiservice\service_base {
     }
 
     /**
+     * Get the scope(s) defined by this service.
+     *
+     * @return array
+     */
+    public function get_scopes() {
+        return [self::SCOPE_MEMBERSHIPS_READ];
+    }
+
+    /**
      * Get the JSON for members.
      *
      * @param \mod_lti\local\ltiservice\resource_base $resource       Resource handling the request
@@ -421,7 +430,10 @@ class memberships extends \mod_lti\local\ltiservice\service_base {
                                             'source.value' => format_string($user->lastname)],
                 'Person.email.primary' => ['type' => 'email',
                                             'member.field' => 'email',
-                                            'source.value' => format_string($user->email)]
+                                            'source.value' => format_string($user->email)],
+                'User.username'        => ['type' => 'name',
+                                           'member.field' => 'ext_user_username',
+                                           'source.value' => format_string($user->username)],
             ];
 
             if (!is_null($lti)) {
@@ -447,7 +459,7 @@ class memberships extends \mod_lti\local\ltiservice\service_base {
                         $serviceurl = lti_ensure_url_is_https($serviceurl);
                     }
                     $basicoutcome->lis_outcome_service_url = $serviceurl;
-                    $message->{'https://purl.imsglobal.org/spec/lti-bos/claim/basicoutcomesservice'} = $basicoutcome;
+                    $message->{'https://purl.imsglobal.org/spec/lti-bo/claim/basicoutcome'} = $basicoutcome;
                 }
                 $member->message = [$message];
             }
@@ -466,7 +478,7 @@ class memberships extends \mod_lti\local\ltiservice\service_base {
             if (!is_null($lti)) {
                 $nextpage .= "&rlid={$lti->id}";
             }
-            $response->add_additional_header("Link: {$nextpage};rel=next");
+            $response->add_additional_header("Link: <{$nextpage}>; rel=\"next\"");
         }
 
         $response->set_content_type('application/vnd.ims.lti-nrps.v2.membershipcontainer+json');
@@ -535,10 +547,33 @@ class memberships extends \mod_lti\local\ltiservice\service_base {
         if (isset($tool->{$this->get_component_id()})) {
             if ($tool->{$this->get_component_id()} == parent::SERVICE_ENABLED && $this->is_used_in_context($typeid, $courseid)) {
                 $launchparameters['context_memberships_url'] = '$ToolProxyBinding.memberships.url';
+                $launchparameters['context_memberships_v2_url'] = '$ToolProxyBinding.memberships.url';
                 $launchparameters['context_memberships_versions'] = '1.0,2.0';
             }
         }
         return $launchparameters;
     }
 
+    /**
+     * Return an array of key/claim mapping allowing LTI 1.1 custom parameters
+     * to be transformed to LTI 1.3 claims.
+     *
+     * @return array Key/value pairs of params to claim mapping.
+     */
+    public function get_jwt_claim_mappings(): array {
+        return [
+            'custom_context_memberships_v2_url' => [
+                'suffix' => 'nrps',
+                'group' => 'namesroleservice',
+                'claim' => 'context_memberships_url',
+                'isarray' => false
+            ],
+            'custom_context_memberships_versions' => [
+                'suffix' => 'nrps',
+                'group' => 'namesroleservice',
+                'claim' => 'service_versions',
+                'isarray' => true
+            ]
+        ];
+    }
 }

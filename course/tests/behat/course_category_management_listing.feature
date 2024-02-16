@@ -5,16 +5,23 @@ Feature: Course category management interface performs as expected
   I need to expand and collapse categories.
 
   @javascript
-  Scenario: Test general look of management interface
+  Scenario Outline: Test general look of management interface
     Given the following "categories" exist:
       | name | category | idnumber |
       | Cat 1 | 0 | CAT1 |
     And I log in as "admin"
     And I go to the courses management page
-    And I should see "Course and category management" in the "h2" "css_element"
-    And I should see "Course categories" in the ".view-mode-selector" "css_element"
-    And I should see "Course categories" in the "#page-content" "css_element"
-    And I should see the "Course categories and courses" management page
+    And I select "<selected>" from the "Viewing" singleselect
+    And I should see "<heading>" in the "h2" "css_element"
+    And I should see "<selected>" in the "Viewing" "select"
+    And I should see "<pagecontent>" in the "#page-content" "css_element"
+    And I should see the "<selected>" management page
+
+    Examples:
+      | heading                              | selected                      | pagecontent       |
+      | Manage course categories and courses | Course categories and courses | Course categories |
+      | Manage course categories             | Course categories             | Course categories |
+      | Manage courses                       | Courses                       | Cat 1             |
 
   @javascript
   Scenario: Test view mode functionality
@@ -30,21 +37,13 @@ Feature: Course category management interface performs as expected
     And I should see the "Course categories and courses" management page
     And I should see "Course categories" in the "#category-listing h3" "css_element"
     And I should see "Cat 1" in the "#category-listing" "css_element"
-    And I should see "Course categories" in the ".view-mode-selector" "css_element"
-    And I should not see "Course categories and courses" in the ".view-mode-selector .menu" "css_element"
-    And I should not see "Course categories" in the ".view-mode-selector .menu" "css_element"
-    And I should not see "Courses" in the ".view-mode-selector .menu" "css_element"
-    And I open the action menu in ".view-mode-selector" "css_element"
+    And I should see "Course categories" in the "Viewing" "select"
+    And the field "jump" matches value "Course categories and courses"
     And I start watching to see if a new page loads
-    Then I should see "Course categories and courses" in the ".view-mode-selector .menu" "css_element"
-    And I should see "Course categories" in the ".view-mode-selector .menu" "css_element"
-    And I should see "Courses" in the ".view-mode-selector .menu" "css_element"
-    And I click on "Course categories and courses" "link" in the ".view-mode-selector .menu" "css_element"
-    And a new page should have loaded since I started watching
-    And I start watching to see if a new page loads
-    And I should see the "Course categories and courses" management page
-    And I should see "Course categories" in the "#category-listing h3" "css_element"
-    And I should see "Miscellaneous" in the "#course-listing h3" "css_element"
+    Then I should see "Course categories and courses" in the "Viewing" "select"
+    And I should see "Course categories" in the "Viewing" "select"
+    And I should see "Courses" in the "Viewing" "select"
+    And I should see "Category 1" in the "#course-listing h3" "css_element"
     And I should see "Cat 1" in the "#category-listing" "css_element"
     And I should see "No courses in this category" in the "#course-listing" "css_element"
     And I click on category "Cat 1" in the management interface
@@ -55,9 +54,8 @@ Feature: Course category management interface performs as expected
     And I should see "Cat 1" in the "#course-listing h3" "css_element"
     And I should see "Cat 1" in the "#category-listing" "css_element"
     And I should see "Course 1" in the "#course-listing" "css_element"
-    And I open the action menu in ".view-mode-selector" "css_element"
-    Then I should see "Courses" in the ".view-mode-selector .menu" "css_element"
-    And I click on "Courses" "link" in the ".view-mode-selector .menu" "css_element"
+    Then I should see "Courses" in the "Viewing" "select"
+    And I select "Courses" from the "jump" singleselect
     And a new page should have loaded since I started watching
     And I start watching to see if a new page loads
     And I should see the "Courses" management page
@@ -259,12 +257,12 @@ Feature: Course category management interface performs as expected
     And I should see category listing <cat1> before <cat2>
     And I should see category listing <cat2> before <cat3>
 
-  Examples:
-    | sortby | cat1 | cat2 | cat3 |
-    | "Sort by Category name ascending"       | "Applied sciences"        | "Extended social studies" | "Social studies" |
-    | "Sort by Category name descending"      | "Social studies"          | "Extended social studies" | "Applied sciences" |
-    | "Sort by Category ID number ascending"  | "Extended social studies" | "Social studies"          | "Applied sciences" |
-    | "Sort by Category ID number descending" | "Applied sciences"        | "Social studies"          | "Extended social studies" |
+    Examples:
+      | sortby | cat1 | cat2 | cat3 |
+      | "Sort by Category name ascending"       | "Applied sciences"        | "Extended social studies" | "Social studies" |
+      | "Sort by Category name descending"      | "Social studies"          | "Extended social studies" | "Applied sciences" |
+      | "Sort by Category ID number ascending"  | "Extended social studies" | "Social studies"          | "Applied sciences" |
+      | "Sort by Category ID number descending" | "Applied sciences"        | "Social studies"          | "Extended social studies" |
 
   @javascript
   Scenario Outline: Sub categories are displayed correctly when resorted
@@ -289,12 +287,12 @@ Feature: Course category management interface performs as expected
     And I should see category listing <cat1> before <cat2>
     And I should see category listing <cat2> before <cat3>
 
-  Examples:
-    | sortby | cat1 | cat2 | cat3 |
-    | "resortbyname"         | "Applied sciences"        | "Extended social studies" | "Social studies" |
-    | "resortbynamedesc"     | "Social studies"          | "Extended social studies" | "Applied sciences" |
-    | "resortbyidnumber"     | "Extended social studies" | "Social studies"          | "Applied sciences" |
-    | "resortbyidnumberdesc" | "Applied sciences"        | "Social studies"          | "Extended social studies" |
+    Examples:
+      | sortby | cat1 | cat2 | cat3 |
+      | "resortbyname"         | "Applied sciences"        | "Extended social studies" | "Social studies" |
+      | "resortbynamedesc"     | "Social studies"          | "Extended social studies" | "Applied sciences" |
+      | "resortbyidnumber"     | "Extended social studies" | "Social studies"          | "Applied sciences" |
+      | "resortbyidnumberdesc" | "Applied sciences"        | "Social studies"          | "Extended social studies" |
 
   @javascript
   Scenario Outline: Test courses are displayed correctly after being resorted.
@@ -330,16 +328,16 @@ Feature: Course category management interface performs as expected
     And I should see course listing <course1> before <course2>
     And I should see course listing <course2> before <course3>
 
-  Examples:
-    | sortby | course1 | course2 | course3 |
-    | "Sort by Course full name ascending"     | "Applied sciences"        | "Extended social studies" | "Social studies" |
-    | "Sort by Course full name descending"    | "Social studies"          | "Extended social studies" | "Applied sciences" |
-    | "Sort by Course short name ascending"    | "Extended social studies" | "Applied sciences"        | "Social studies" |
-    | "Sort by Course short name descending"   | "Social studies"          | "Applied sciences"        | "Extended social studies" |
-    | "Sort by Course ID number ascending"     | "Extended social studies" | "Social studies"          | "Applied sciences" |
-    | "Sort by Course ID number descending"    | "Applied sciences"        | "Social studies"          | "Extended social studies" |
-    | "Sort by Course time created ascending"  | "Social studies"          | "Applied sciences"        | "Extended social studies" |
-    | "Sort by Course time created descending" | "Extended social studies" | "Applied sciences"        | "Social studies" |
+    Examples:
+      | sortby | course1 | course2 | course3 |
+      | "Sort by Course full name ascending"     | "Applied sciences"        | "Extended social studies" | "Social studies" |
+      | "Sort by Course full name descending"    | "Social studies"          | "Extended social studies" | "Applied sciences" |
+      | "Sort by Course short name ascending"    | "Extended social studies" | "Applied sciences"        | "Social studies" |
+      | "Sort by Course short name descending"   | "Social studies"          | "Applied sciences"        | "Extended social studies" |
+      | "Sort by Course ID number ascending"     | "Extended social studies" | "Social studies"          | "Applied sciences" |
+      | "Sort by Course ID number descending"    | "Applied sciences"        | "Social studies"          | "Extended social studies" |
+      | "Sort by Course time created ascending"  | "Social studies"          | "Applied sciences"        | "Extended social studies" |
+      | "Sort by Course time created descending" | "Extended social studies" | "Applied sciences"        | "Social studies" |
 
   @javascript
   Scenario: Test course pagination

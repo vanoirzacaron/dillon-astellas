@@ -24,6 +24,7 @@
 namespace block_myoverview\output;
 defined('MOODLE_INTERNAL') || die();
 
+use core_competency\url;
 use renderable;
 use renderer_base;
 use templatable;
@@ -151,6 +152,9 @@ class main implements renderable, templatable {
      */
     private $customfieldvalue;
 
+    /** @var bool true if grouping selector should be shown, otherwise false. */
+    protected $displaygroupingselector;
+
     /**
      * main constructor.
      * Initialize the user preferences
@@ -164,17 +168,12 @@ class main implements renderable, templatable {
      * @throws \dml_exception
      */
     public function __construct($grouping, $sort, $view, $paging, $customfieldvalue = null) {
+        global $CFG;
         // Get plugin config.
         $config = get_config('block_myoverview');
 
         // Build the course grouping option name to check if the given grouping is enabled afterwards.
-        if ($grouping === 'favourites') {
-            // There was a mismatch in parts of block between the name starred and favourites. This helps fix that.
-            $groupingconfigname = 'displaygroupingstarred';
-        } else {
-            $groupingconfigname = 'displaygrouping'.$grouping;
-        }
-
+        $groupingconfigname = 'displaygrouping'.$grouping;
         // Check the given grouping and remember it if it is enabled.
         if ($grouping && $config->$groupingconfigname == true) {
             $this->grouping = $grouping;
@@ -191,13 +190,25 @@ class main implements renderable, templatable {
         $this->customfieldvalue = $customfieldvalue;
 
         // Check and remember the given sorting.
-        $this->sort = $sort ? $sort : BLOCK_MYOVERVIEW_SORTING_TITLE;
+        if ($sort) {
+            $this->sort = $sort;
+        } else if ($CFG->courselistshortnames) {
+            $this->sort = BLOCK_MYOVERVIEW_SORTING_SHORTNAME;
+        } else {
+            $this->sort = BLOCK_MYOVERVIEW_SORTING_TITLE;
+        }
+        // In case sorting remembered is shortname and display extended course names not checked,
+        // we should revert sorting to title.
+        if (!$CFG->courselistshortnames && $sort == BLOCK_MYOVERVIEW_SORTING_SHORTNAME) {
+            $this->sort = BLOCK_MYOVERVIEW_SORTING_TITLE;
+        }
 
         // Check and remember the given view.
         $this->view = $view ? $view : BLOCK_MYOVERVIEW_VIEW_CARD;
 
-        // Check and remember the given page size.
-        if ($paging == BLOCK_MYOVERVIEW_PAGING_ALL) {
+        // Check and remember the given page size, `null` indicates no page size set
+        // while a `0` indicates a paging size of `All`.
+        if (!is_null($paging) && $paging == BLOCK_MYOVERVIEW_PAGING_ALL) {
             $this->paging = BLOCK_MYOVERVIEW_PAGING_ALL;
         } else {
             $this->paging = $paging ? $paging : BLOCK_MYOVERVIEW_PAGING_12;
@@ -220,7 +231,7 @@ class main implements renderable, templatable {
         $this->displaygroupinginprogress = $config->displaygroupinginprogress;
         $this->displaygroupingfuture = $config->displaygroupingfuture;
         $this->displaygroupingpast = $config->displaygroupingpast;
-        $this->displaygroupingfavourites = $config->displaygroupingstarred; // Note the name mismatch!
+        $this->displaygroupingfavourites = $config->displaygroupingfavourites;
         $this->displaygroupinghidden = $config->displaygroupinghidden;
         $this->displaygroupingcustomfield = ($config->displaygroupingcustomfield && $config->customfiltergrouping);
         $this->customfiltergrouping = $config->customfiltergrouping;
@@ -242,7 +253,6 @@ class main implements renderable, templatable {
         }
         unset ($displaygroupingselectors, $displaygroupingselectorscount);
     }
-
     /**
      * Determine the most sensible fallback grouping to use (in cases where the stored selection
      * is no longer available).
@@ -265,7 +275,7 @@ class main implements renderable, templatable {
         if ($config->displaygroupingpast == true) {
             return BLOCK_MYOVERVIEW_GROUPING_PAST;
         }
-        if ($config->displaygroupingstarred == true) {
+        if ($config->displaygroupingfavourites == true) {
             return BLOCK_MYOVERVIEW_GROUPING_FAVOURITES;
         }
         if ($config->displaygroupinghidden == true) {
@@ -365,8 +375,9 @@ class main implements renderable, templatable {
         $select = "instanceid $csql AND fieldid = :fieldid";
         $params['fieldid'] = $fieldid;
         $distinctablevalue = $DB->sql_compare_text('value');
-        $values = $DB->get_records_select_menu('customfield_data', $select, $params, $DB->sql_order_by_text('value'),
+        $values = $DB->get_records_select_menu('customfield_data', $select, $params, '',
             "DISTINCT $distinctablevalue, $distinctablevalue AS value2");
+        \core_collator::asort($values, \core_collator::SORT_NATURAL);
         $values = array_filter($values);
         if (!$values) {
             return [];
@@ -399,9 +410,15 @@ class main implements renderable, templatable {
      *
      */
     public function export_for_template(renderer_base $output) {
-        global $USER;
+        global $CFG, $USER;
 
         $nocoursesurl = $output->image_url('courses', 'block_myoverview')->out();
+
+        $newcourseurl = '';
+        $coursecat = \core_course_category::user_top();
+        if ($coursecat && ($category = \core_course_category::get_nearest_editable_subcategory($coursecat, ['create']))) {
+            $newcourseurl = new \moodle_url('/course/edit.php', ['category' => $category->id]);
+        }
 
         $customfieldvalues = $this->get_customfield_values_for_export();
         $selectedcustomfield = '';
@@ -428,12 +445,19 @@ class main implements renderable, templatable {
         }
         $preferences = $this->get_preferences_as_booleans();
         $availablelayouts = $this->get_formatted_available_layouts_for_export();
+        $sort = '';
+        if ($this->sort == BLOCK_MYOVERVIEW_SORTING_SHORTNAME) {
+            $sort = 'shortname';
+        } else {
+            $sort = $this->sort == BLOCK_MYOVERVIEW_SORTING_TITLE ? 'fullname' : 'ul.timeaccess desc';
+        }
 
         $defaultvariables = [
             'totalcoursecount' => count(enrol_get_all_users_courses($USER->id, true)),
             'nocoursesimg' => $nocoursesurl,
+            'newcourseurl' => $newcourseurl,
             'grouping' => $this->grouping,
-            'sort' => $this->sort == BLOCK_MYOVERVIEW_SORTING_TITLE ? 'fullname' : 'ul.timeaccess desc',
+            'sort' => $sort,
             // If the user preference display option is not available, default to first available layout.
             'view' => in_array($this->view, $this->layouts) ? $this->view : reset($this->layouts),
             'paging' => $this->paging,
@@ -445,7 +469,7 @@ class main implements renderable, templatable {
             'displaygroupinginprogress' => $this->displaygroupinginprogress,
             'displaygroupingfuture' => $this->displaygroupingfuture,
             'displaygroupingpast' => $this->displaygroupingpast,
-            'displaygroupingstarred' => $this->displaygroupingfavourites, // Note the name mismatch!
+            'displaygroupingfavourites' => $this->displaygroupingfavourites,
             'displaygroupinghidden' => $this->displaygroupinghidden,
             'displaygroupingselector' => $this->displaygroupingselector,
             'displaygroupingcustomfield' => $this->displaygroupingcustomfield && $customfieldvalues,
@@ -453,8 +477,132 @@ class main implements renderable, templatable {
             'customfieldvalue' => $this->customfieldvalue,
             'customfieldvalues' => $customfieldvalues,
             'selectedcustomfield' => $selectedcustomfield,
+            'showsortbyshortname' => $CFG->courselistshortnames,
         ];
         return array_merge($defaultvariables, $preferences);
 
+    }
+
+    /**
+     * Export this data so it can be used as the context for a mustache template.
+     *
+     * @param \renderer_base $output
+     * @return array Context variables for the template
+     * @throws \coding_exception
+     *
+     */
+    public function export_for_zero_state_template(renderer_base $output) {
+        global $CFG, $DB;
+
+        $nocoursesimg = $output->image_url('courses', 'block_myoverview');
+
+        $coursecat = \core_course_category::user_top();
+        if ($coursecat) {
+            $category = \core_course_category::get_nearest_editable_subcategory($coursecat, ['moodle/course:request']);
+            if ($category && $category->can_request_course()) {
+                // Add Request a course button.
+                $button = new \single_button(
+                    new \moodle_url('/course/request.php', ['category' => $category->id]),
+                    get_string('requestcourse'),
+                    'post',
+                    \single_button::BUTTON_PRIMARY
+                );
+                return $this->generate_zero_state_data(
+                    $nocoursesimg,
+                    [$button->export_for_template($output)],
+                    ['title' => 'zero_request_title', 'intro' => 'zero_request_intro']
+                );
+            }
+
+            $totalcourses = $DB->count_records_select('course', 'category > 0');
+            if (!$totalcourses && ($category = \core_course_category::get_nearest_editable_subcategory($coursecat, ['create']))) {
+                // Add Quickstart guide and Create course buttons.
+                $quickstarturl = $CFG->coursecreationguide;
+                if ($quickstarturl) {
+                    $quickstartbutton = new \single_button(
+                        new \moodle_url($quickstarturl, ['lang' => current_language()]),
+                        get_string('viewquickstart', 'block_myoverview'),
+                        'get',
+                    );
+                    $buttons = [$quickstartbutton->export_for_template($output)];
+                }
+
+                $createbutton = new \single_button(
+                    new \moodle_url('/course/edit.php', ['category' => $category->id]),
+                    get_string('createcourse', 'block_myoverview'),
+                    'post',
+                    \single_button::BUTTON_PRIMARY
+                );
+                $buttons[] = $createbutton->export_for_template($output);
+                return $this->generate_zero_state_data(
+                    $nocoursesimg,
+                    $buttons,
+                    ['title' => 'zero_nocourses_title', 'intro' => 'zero_nocourses_intro']
+                );
+            }
+
+            if ($categorytocreate = \core_course_category::get_nearest_editable_subcategory($coursecat, ['create'])) {
+                $createbutton = new \single_button(
+                    new \moodle_url('/course/edit.php', ['category' => $categorytocreate->id]),
+                    get_string('createcourse', 'block_myoverview'),
+                    'post',
+                    \single_button::BUTTON_PRIMARY
+                );
+                $buttons = [$createbutton->export_for_template($output)];
+                if ($categorytomanage = \core_course_category::get_nearest_editable_subcategory($coursecat, ['manage'])) {
+                    // Add a Manage course button.
+                    $managebutton = new \single_button(
+                        new \moodle_url('/course/management.php', ['category' => $categorytomanage->id]),
+                        get_string('managecourses')
+                    );
+                    $buttons[] = $managebutton->export_for_template($output);
+                    return $this->generate_zero_state_data(
+                        $nocoursesimg,
+                        array_reverse($buttons),
+                        ['title' => 'zero_default_title', 'intro' => 'zero_default_intro']
+                    );
+                }
+                return $this->generate_zero_state_data(
+                    $nocoursesimg,
+                    $buttons,
+                    ['title' => 'zero_default_title', 'intro' => 'zero_default_intro']
+                );
+            }
+        }
+
+        return $this->generate_zero_state_data(
+            $nocoursesimg,
+            [],
+            ['title' => 'zero_default_title', 'intro' => 'zero_default_intro']
+        );
+    }
+
+    /**
+     * Generate the state zero data.
+     *
+     * @param \moodle_url $imageurl The URL to the image to show
+     * @param string[] $buttons Exported {@see \single_button} instances
+     * @param array $strings Title and intro strings for the zero state if needed.
+     * @return array Context variables for the template
+     */
+    private function generate_zero_state_data(\moodle_url $imageurl, array $buttons, array $strings) {
+        global $CFG;
+        // Documentation data.
+        $dochref = new \moodle_url($CFG->docroot, ['lang' => current_language()]);
+        $quickstart = new \moodle_url($CFG->coursecreationguide, ['lang' => current_language()]);
+        $docparams = [
+            'quickhref' => $quickstart->out(),
+            'quicktitle' => get_string('viewquickstart', 'block_myoverview'),
+            'quicktarget' => '_blank',
+            'dochref' => $dochref->out(),
+            'doctitle' => get_string('documentation'),
+            'doctarget' => $CFG->doctonewwindow ? '_blank' : '_self',
+        ];
+        return [
+            'nocoursesimg' => $imageurl->out(),
+            'title' => ($strings['title']) ? get_string($strings['title'], 'block_myoverview') : '',
+            'intro' => ($strings['intro']) ? get_string($strings['intro'], 'block_myoverview', $docparams) : '',
+            'buttons' => $buttons,
+        ];
     }
 }

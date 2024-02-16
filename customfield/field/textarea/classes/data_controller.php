@@ -59,7 +59,7 @@ class data_controller extends \core_customfield\data_controller {
      *
      * @return string
      */
-    protected function get_form_element_name() : string {
+    public function get_form_element_name() : string {
         return parent::get_form_element_name() . '_editor';
     }
 
@@ -88,7 +88,14 @@ class data_controller extends \core_customfield\data_controller {
         if (!property_exists($datanew, $fieldname)) {
             return;
         }
+
+        // Normalise form data, for cases it's come from an external source.
         $fromform = $datanew->$fieldname;
+        if (!is_array($fromform)) {
+            $fromform = ['text' => $fromform];
+            $fromform['format'] = $this->get('id') ? $this->get('valueformat') :
+                $this->get_field()->get_configdata_property('defaultvalueformat');
+        }
 
         if (!$this->get('id')) {
             $this->data->set('value', '');
@@ -96,7 +103,7 @@ class data_controller extends \core_customfield\data_controller {
             $this->save();
         }
 
-        if ($fromform['text']) {
+        if (array_key_exists('text', $fromform)) {
             $textoptions = $this->value_editor_options();
             $data = (object) ['field_editor' => $fromform];
             $data = file_postupdate_standard_editor($data, 'field', $textoptions, $textoptions['context'],
@@ -137,6 +144,29 @@ class data_controller extends \core_customfield\data_controller {
     }
 
     /**
+     * Checks if the value is empty, overriding the base method to ensure it's the "text" element of our value being compared
+     *
+     * @param mixed $value
+     * @return bool
+     */
+    protected function is_empty($value): bool {
+        if (is_array($value)) {
+            $value = $value['text'];
+        }
+        return html_is_blank($value);
+    }
+
+    /**
+     * Checks if the value is unique, overriding the base method to ensure it's the "text" element of our value being compared
+     *
+     * @param mixed $value
+     * @return bool
+     */
+    protected function is_unique($value): bool {
+        return parent::is_unique($value['text']);
+    }
+
+    /**
      * Delete data
      *
      * @return bool
@@ -162,10 +192,10 @@ class data_controller extends \core_customfield\data_controller {
      * @return mixed|null value or null if empty
      */
     public function export_value() {
+        global $CFG;
+        require_once($CFG->libdir . '/filelib.php');
+
         $value = $this->get_value();
-        if ($this->is_empty($value)) {
-            return null;
-        }
 
         if ($dataid = $this->get('id')) {
             $context = $this->get_context();

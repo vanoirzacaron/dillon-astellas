@@ -28,17 +28,13 @@ namespace core_grades\grades\grader\gradingpanel\point\external;
 
 use coding_exception;
 use context;
-use core_user;
 use core_grades\component_gradeitem as gradeitem;
 use core_grades\component_gradeitems;
-use external_api;
-use external_function_parameters;
-use external_multiple_structure;
-use external_single_structure;
-use external_value;
-use external_warnings;
+use core_external\external_api;
+use core_external\external_function_parameters;
+use core_external\external_single_structure;
+use core_external\external_value;
 use moodle_exception;
-use required_capability_exception;
 
 /**
  * External grading panel point API
@@ -110,8 +106,8 @@ class store extends external_api {
      */
     public static function execute(string $component, int $contextid, string $itemname, int $gradeduserid,
             bool $notifyuser, string $formdata): array {
-        global $USER;
-
+        global $USER, $CFG;
+        require_once("{$CFG->libdir}/gradelib.php");
         [
             'component' => $component,
             'contextid' => $contextid,
@@ -170,9 +166,12 @@ class store extends external_api {
         }
 
         // Fetch the updated grade back out.
-        $grade = $gradeitem->get_grade_for_user($gradeduser, $USER);
+        $grade = $gradeitem->get_formatted_grade_for_user($gradeduser, $USER);
 
-        return fetch::get_fetch_data($grade, $hasgrade, 0);
+        $gradegrade = \grade_grade::fetch(['itemid' => $gradeitem->get_grade_item()->id, 'userid' => $gradeduser->id]);
+        $gradername = $gradegrade ? fullname(\core_user::get_user($gradegrade->usermodified)) : null;
+
+        return fetch::get_fetch_data($grade, $hasgrade, $gradeitem, $gradername);
     }
 
     /**

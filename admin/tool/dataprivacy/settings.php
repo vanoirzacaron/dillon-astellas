@@ -34,6 +34,16 @@ if ($hassiteconfig) {
                 new lang_string('contactdataprotectionofficer_desc', 'tool_dataprivacy'), 0)
         );
 
+        $privacysettings->add(new admin_setting_configcheckbox('tool_dataprivacy/automaticdataexportapproval',
+                new lang_string('automaticdataexportapproval', 'tool_dataprivacy'),
+                new lang_string('automaticdataexportapproval_desc', 'tool_dataprivacy'), 0)
+        );
+
+        $privacysettings->add(new admin_setting_configcheckbox('tool_dataprivacy/automaticdatadeletionapproval',
+                new lang_string('automaticdatadeletionapproval', 'tool_dataprivacy'),
+                new lang_string('automaticdatadeletionapproval_desc', 'tool_dataprivacy'), 0)
+        );
+
         // Automatically create delete data request for users upon user deletion.
         // Automatically create delete data request for pre-existing deleted users.
         // Enabled by default.
@@ -80,6 +90,15 @@ if ($hassiteconfig) {
             new lang_string('showdataretentionsummary', 'tool_dataprivacy'),
             new lang_string('showdataretentionsummary_desc', 'tool_dataprivacy'),
             1));
+
+        // Whether to allow PO to select courses for data export, instead of always exporting all data.
+        $privacysettings->add(new admin_setting_configcheckbox('tool_dataprivacy/allowfiltering',
+            new lang_string('allowfiltering', 'tool_dataprivacy'),
+            new lang_string('allowfiltering_desc', 'tool_dataprivacy'),
+            0));
+        // Prevent the case where the automaticdataexportapproval setting is set to automatically approve,
+        // but the allowfiltering option is also enabled and non-functional.
+        $privacysettings->hide_if('tool_dataprivacy/allowfiltering', 'tool_dataprivacy/automaticdataexportapproval', 'checked', 1);
     }
 }
 

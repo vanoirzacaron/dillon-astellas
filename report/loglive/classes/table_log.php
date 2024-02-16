@@ -56,6 +56,7 @@ class report_loglive_table_log extends table_sql {
      *     - int userid: user id
      *     - int|string modid: Module id or "site_errors" to view site errors
      *     - int groupid: Group id
+     *     - array groups: List of group ids
      *     - \core\log\sql_reader logreader: reader from which data will be fetched.
      *     - int edulevel: educational level.
      *     - string action: view action
@@ -64,7 +65,7 @@ class report_loglive_table_log extends table_sql {
     public function __construct($uniqueid, $filterparams = null) {
         parent::__construct($uniqueid);
 
-        $this->set_attribute('class', 'reportloglive generaltable generalbox');
+        $this->set_attribute('class', 'reportloglive generaltable table-sm');
         $this->set_attribute('aria-live', 'polite');
         $this->filterparams = $filterparams;
         // Add course column if logs are displayed for site.
@@ -116,7 +117,7 @@ class report_loglive_table_log extends table_sql {
      * @return string HTML for the time column
      */
     public function col_time($event) {
-        $recenttimestr = get_string('strftimedatetime', 'core_langconfig');
+        $recenttimestr = get_string('strftimedatetimeaccurate', 'core_langconfig');
         return userdate($event->timecreated, $recenttimestr);
     }
 
@@ -230,13 +231,7 @@ class report_loglive_table_log extends table_sql {
      * @return string HTML for the event name column
      */
     public function col_eventname($event) {
-        // Event name.
-        if ($this->filterparams->logreader instanceof logstore_legacy\log\store) {
-            // Hack for support of logstore_legacy.
-            $eventname = $event->eventname;
-        } else {
-            $eventname = $event->get_name();
-        }
+        $eventname = $event->get_name();
         if ($url = $event->get_url()) {
             $eventname = $this->action_link($url, $eventname, 'action');
         }
@@ -278,7 +273,7 @@ class report_loglive_table_log extends table_sql {
         // Get extra event data for origin and realuserid.
         $logextra = $event->get_logextra();
 
-        $url = new moodle_url("/iplookup/index.php?ip={$logextra['ip']}&user=$event->userid");
+        $url = new moodle_url("/iplookup/index.php?popup=1&ip={$logextra['ip']}&user=$event->userid");
         return $this->action_link($url, $logextra['ip'], 'ip');
     }
 
@@ -293,7 +288,7 @@ class report_loglive_table_log extends table_sql {
      */
     protected function action_link(moodle_url $url, $text, $name = 'popup') {
         global $OUTPUT;
-        $link = new action_link($url, $text, new popup_action('click', $url, $name, array('height' => 440, 'width' => 700)));
+        $link = new action_link($url, $text, new popup_action('click', $url, $name, array('height' => 550, 'width' => 700)));
         return $OUTPUT->render($link);
     }
 
@@ -304,14 +299,29 @@ class report_loglive_table_log extends table_sql {
      * @param bool $useinitialsbar do you want to use the initials bar.
      */
     public function query_db($pagesize, $useinitialsbar = true) {
+        global $DB;
 
         $joins = array();
         $params = array();
 
         // Set up filtering.
         if (!empty($this->filterparams->courseid)) {
+            // For a normal course, set the course filter.
             $joins[] = "courseid = :courseid";
             $params['courseid'] = $this->filterparams->courseid;
+            // If we have a course, then check if the groups filter is set.
+            if ($this->filterparams->courseid != SITEID && !empty($this->filterparams->groups)) {
+                // If that's the case, limit the users to be in the groups only, defined by the filter.
+                $useringroups = [];
+                foreach ($this->filterparams->groups as $groupid) {
+                    $gusers = groups_get_members($groupid, 'u.id');
+                    $useringroups = array_merge($useringroups, array_keys($gusers));
+                }
+                $useringroups = array_unique($useringroups);
+                list($ugsql, $ugparams) = $DB->get_in_or_equal($useringroups, SQL_PARAMS_NAMED);
+                $joins[] = 'userid ' . $ugsql;
+                $params = array_merge($params, $ugparams);
+            }
         }
 
         if (!empty($this->filterparams->date)) {
@@ -323,7 +333,6 @@ class report_loglive_table_log extends table_sql {
             $joins[] = "anonymous = :anon";
             $params['anon'] = $this->filterparams->anonymous;
         }
-
         $selector = implode(' AND ', $joins);
 
         $total = $this->filterparams->logreader->get_events_select_count($selector, $params);
@@ -374,10 +383,12 @@ class report_loglive_table_log extends table_sql {
         // Get user fullname and put that in return list.
         if (!empty($userids)) {
             list($usql, $uparams) = $DB->get_in_or_equal($userids);
-            $users = $DB->get_records_sql("SELECT id," . get_all_user_name_fields(true) . " FROM {user} WHERE id " . $usql,
+            $userfieldsapi = \core_user\fields::for_name();
+            $users = $DB->get_records_sql("SELECT id," .
+                    $userfieldsapi->get_sql('', false, '', '', false)->selects . " FROM {user} WHERE id " . $usql,
                     $uparams);
             foreach ($users as $userid => $user) {
-                $this->userfullnames[$userid] = fullname($user);
+                $this->userfullnames[$userid] = fullname($user, has_capability('moodle/site:viewfullnames', $this->get_context()));
             }
         }
 
@@ -401,5 +412,20 @@ class report_loglive_table_log extends table_sql {
                         array('context' => $context)));
             }
         }
+    }
+
+    /**
+     * Returns the latest timestamp of the records in the table.
+     *
+     * @return int
+     */
+    public function get_until(): int {
+        $until = $this->filterparams->date;
+        if (!empty($this->rawdata)) {
+            foreach ($this->rawdata as $row) {
+                $until = max($row->timecreated, $until);
+            }
+        }
+        return $until;
     }
 }

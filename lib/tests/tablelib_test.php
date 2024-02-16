@@ -14,14 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
- * Test tablelib.
- *
- * @package    core
- * @category   phpunit
- * @copyright  2013 Damyon Wiese <damyon@moodle.com>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
+namespace core;
+
+use flexible_table;
+use testable_flexible_table;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -33,11 +29,11 @@ require_once($CFG->libdir . '/tests/fixtures/testable_flexible_table.php');
  * Test some of tablelib.
  *
  * @package    core
- * @category   phpunit
+ * @category   test
  * @copyright  2013 Damyon Wiese <damyon@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class core_tablelib_testcase extends advanced_testcase {
+class tablelib_test extends \advanced_testcase {
     protected function generate_columns($cols) {
         $columns = array();
         foreach (range(0, $cols - 1) as $j) {
@@ -71,17 +67,21 @@ class core_tablelib_testcase extends advanced_testcase {
     /**
      * Create a table with properties as passed in params, add data and output html.
      *
-     * @param string[] $columns
-     * @param string[] $headers
-     * @param bool     $sortable
-     * @param bool     $collapsible
-     * @param string[] $suppress
-     * @param string[] $nosorting
-     * @param (array|object)[] $data
-     * @param int      $pagesize
+     * @param string[] $columns The columns of the table.
+     * @param string[] $headers The header of the table.
+     * @param bool $sortable Sorting of the table.
+     * @param bool $collapsible Is table collapsible.
+     * @param string[] $suppress Suppress columns.
+     * @param string[] $nosorting No sorting.
+     * @param (array|object)[] $data The data of the table.
+     * @param int $pagesize Page size of the table
+     * @param string $caption Caption of the table.
+     * @param array $captionattribute The attribute of the caption.
      */
-    protected function run_table_test($columns, $headers, $sortable, $collapsible, $suppress, $nosorting, $data, $pagesize) {
-        $table = $this->create_and_setup_table($columns, $headers, $sortable, $collapsible, $suppress, $nosorting);
+    protected function run_table_test($columns, $headers, $sortable, $collapsible, $suppress, $nosorting, $data,
+        $pagesize, $caption = '', $captionattribute = []) {
+        $table = $this->create_and_setup_table($columns, $headers, $sortable, $collapsible, $suppress, $nosorting,
+            $caption, $captionattribute);
         $table->pagesize($pagesize, count($data));
         foreach ($data as $row) {
             $table->add_data_keyed($row);
@@ -92,15 +92,18 @@ class core_tablelib_testcase extends advanced_testcase {
     /**
      * Create a table with properties as passed in params.
      *
-     * @param string[] $columns
-     * @param string[] $headers
-     * @param bool $sortable
-     * @param bool $collapsible
-     * @param string[] $suppress
-     * @param string[] $nosorting
+     * @param string[] $columns The columns of the table.
+     * @param string[] $headers The header of the table.
+     * @param bool $sortable Sorting of the table.
+     * @param bool $collapsible Is table collapsible.
+     * @param string[] $suppress Suppress columns.
+     * @param string[] $nosorting No sorting.
+     * @param string $caption Caption of the table.
+     * @param array $captionattribute The attribute of the caption.
      * @return flexible_table
      */
-    protected function create_and_setup_table($columns, $headers, $sortable, $collapsible, $suppress, $nosorting) {
+    protected function create_and_setup_table($columns, $headers, $sortable, $collapsible, $suppress, $nosorting,
+        $caption = '', $captionattribute = '') {
         $table = new flexible_table('tablelib_test');
 
         $table->define_columns($columns);
@@ -115,6 +118,9 @@ class core_tablelib_testcase extends advanced_testcase {
 
         foreach ($nosorting as $column) {
             $table->no_sorting($column);
+        }
+        if ($caption) {
+            $table->set_caption($caption, $captionattribute);
         }
 
         $table->setup();
@@ -142,7 +148,7 @@ class core_tablelib_testcase extends advanced_testcase {
         $headers = $this->generate_headers(2);
 
         // Search for pagination controls containing 'page-link"\saria-label="Next"'.
-        $this->expectOutputRegex('/page-link"\saria-label="Next"/');
+        $this->expectOutputRegex('/Next page/');
 
         $this->run_table_test(
             $columns,
@@ -198,7 +204,7 @@ class core_tablelib_testcase extends advanced_testcase {
         );
         $output = ob_get_contents();
         ob_end_clean();
-        $this->assertNotContains(get_string('hide'), $output);
+        $this->assertStringNotContainsString(get_string('hide'), $output);
     }
 
     public function test_has_sort() {
@@ -243,7 +249,7 @@ class core_tablelib_testcase extends advanced_testcase {
         );
         $output = ob_get_contents();
         ob_end_clean();
-        $this->assertNotContains(get_string('sortby'), $output);
+        $this->assertStringNotContainsString(get_string('sortby'), $output);
     }
 
     public function test_has_not_next_pagination() {
@@ -268,7 +274,7 @@ class core_tablelib_testcase extends advanced_testcase {
 
         $output = ob_get_contents();
         ob_end_clean();
-        $this->assertNotContains(get_string('next'), $output);
+        $this->assertStringNotContainsString(get_string('next'), $output);
     }
 
     public function test_1_col() {
@@ -382,7 +388,7 @@ class core_tablelib_testcase extends advanced_testcase {
         $user = $this->getDataGenerator()->create_user();
 
         $table = $this->create_and_setup_table(['fullname'], [], true, false, [], []);
-        $this->assertContains(fullname($user, true), $table->format_row($user)['fullname']);
+        $this->assertStringContainsString(fullname($user, true), $table->format_row($user)['fullname']);
     }
 
     /**
@@ -405,12 +411,12 @@ class core_tablelib_testcase extends advanced_testcase {
 
         // Prohibit the viewfullnames from the default user role.
         $userrole = $DB->get_record('role', ['id' => $CFG->defaultuserroleid]);
-        role_change_permission($userrole->id, context_system::instance(), 'moodle/site:viewfullnames', CAP_PROHIBIT);
+        role_change_permission($userrole->id, \context_system::instance(), 'moodle/site:viewfullnames', CAP_PROHIBIT);
 
         $user = $this->getDataGenerator()->create_user();
 
         $table = $this->create_and_setup_table(['fullname'], [], true, false, [], []);
-        $this->assertContains(fullname($user, false), $table->format_row($user)['fullname']);
+        $this->assertStringContainsString(fullname($user, false), $table->format_row($user)['fullname']);
     }
 
     public function test_get_row_html() {
@@ -425,9 +431,9 @@ class core_tablelib_testcase extends advanced_testcase {
         $table->define_baseurl('/invalid.php');
 
         $row = $table->get_row_html($data);
-        $this->assertRegExp('/row 0 col 0/', $row);
-        $this->assertRegExp('/<tr class=""/', $row);
-        $this->assertRegExp('/<td class="cell c0"/', $row);
+        $this->assertMatchesRegularExpression('/row 0 col 0/', $row);
+        $this->assertMatchesRegularExpression('/<tr class=""/', $row);
+        $this->assertMatchesRegularExpression('/<td class="cell c0"/', $row);
     }
 
     public function test_persistent_table() {
@@ -699,6 +705,128 @@ class core_tablelib_testcase extends advanced_testcase {
         ob_end_clean();
 
         $this->assertEquals("Col1,Col2,Col3\na,b,c\n", substr($output, 3));
+    }
+
+    /**
+     * Test the initials functionality.
+     *
+     * @dataProvider initials_provider
+     * @param string|null $getvalue
+     * @param string|null $setvalue
+     * @param string|null $finalvalue
+     */
+    public function test_initials_first_set(?string $getvalue, ?string $setvalue, ?string $finalvalue): void {
+        global $_GET;
+
+        $this->resetAfterTest(true);
+
+        $table = new flexible_table('tablelib_test');
+
+        $user = $this->getDataGenerator()->create_user();
+
+        $table->define_columns(['fullname']);
+        $table->define_headers(['Fullname']);
+        $table->define_baseurl('/invalid.php');
+        $table->initialbars(true);
+
+        if ($getvalue !== null) {
+            $_GET['tifirst'] = $getvalue;
+        }
+
+        if ($setvalue !== null) {
+            $table->set_first_initial($setvalue);
+        }
+
+        $table->setup();
+
+        $this->assertEquals($finalvalue, $table->get_initial_first());
+    }
+
+    /**
+     * Test the initials functionality.
+     *
+     * @dataProvider initials_provider
+     * @param string|null $getvalue
+     * @param string|null $setvalue
+     * @param string|null $finalvalue
+     */
+    public function test_initials_last_set(?string $getvalue, ?string $setvalue, ?string $finalvalue): void {
+        global $_GET;
+
+        $this->resetAfterTest(true);
+
+        $table = new flexible_table('tablelib_test');
+
+        $user = $this->getDataGenerator()->create_user();
+
+        $table->define_columns(['fullname']);
+        $table->define_headers(['Fullname']);
+        $table->define_baseurl('/invalid.php');
+        $table->initialbars(true);
+
+        if ($getvalue !== null) {
+            $_GET['tilast'] = $getvalue;
+        }
+
+        if ($setvalue !== null) {
+            $table->set_last_initial($setvalue);
+        }
+
+        $table->setup();
+
+        $this->assertEquals($finalvalue, $table->get_initial_last());
+    }
+
+    /**
+     * Data for testing initials providers.
+     *
+     * @return array
+     */
+    public function initials_provider(): array {
+        return [
+            [null, null, null],
+            ['A', null, 'A'],
+            ['Z', null, 'Z'],
+            [null, 'A', 'A'],
+            [null, 'Z', 'Z'],
+            ['A', 'Z', 'Z'],
+            ['Z', 'A', 'A'],
+        ];
+    }
+
+    /**
+     * Data test for set and render caption for table.
+     *
+     * @covers ::set_caption_for_table
+     * @covers ::render_caption_for_table
+     */
+    public function test_set_and_render_caption_for_table(): void {
+        $data = $this->generate_data(10, 2);
+        $columns = $this->generate_columns(2);
+        $headers = $this->generate_headers(2);
+        $caption = 'Caption for table';
+        $captionattribute = ['class' => 'inline'];
+        $this->run_table_test(
+            $columns,
+            $headers,
+            // Sortable.
+            true,
+            // Collapsible.
+            false,
+            // Suppress columns.
+            [],
+            // No sorting.
+            [],
+            // Data.
+            $data,
+            // Page size.
+            10,
+            // Caption for table.
+            $caption,
+            // Caption attribute.
+            $captionattribute,
+        );
+        $this->expectOutputRegex('/' . '<caption class="inline">' . $caption . '<\/caption>' . '/');
     }
 
 }

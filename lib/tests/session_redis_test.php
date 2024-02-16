@@ -14,8 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+namespace core;
+
+use Redis;
+use RedisException;
+
 /**
- * Redis session tests.
+ * Unit tests for classes/session/redis.php.
  *
  * NOTE: in order to execute this test you need to set up
  *       Redis server and add configuration a constant
@@ -24,30 +29,27 @@
  * define('TEST_SESSION_REDIS_HOST', '127.0.0.1');
  *
  * @package   core
+ * @covers    \core\session\redis
  * @author    Russell Smith <mr-russ@smith2001.net>
  * @copyright 2016 Russell Smith
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-
-defined('MOODLE_INTERNAL') || die();
-
-/**
- * Unit tests for classes/session/redis.php.
- *
- * @package   core
- * @author    Russell Smith <mr-russ@smith2001.net>
- * @copyright 2016 Russell Smith
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @runClassInSeparateProcess
  */
-class core_session_redis_testcase extends advanced_testcase {
+class session_redis_test extends \advanced_testcase {
 
     /** @var $keyprefix This key prefix used when testing Redis */
     protected $keyprefix = null;
     /** @var $redis The current testing redis connection */
     protected $redis = null;
+    /** @var bool $encrypted Is the current testing redis connection encrypted*/
+    protected $encrypted = false;
+    /** @var int $acquiretimeout how long we wait for session lock in seconds when testing Redis */
+    protected $acquiretimeout = 1;
+    /** @var int $lockexpire how long to wait in seconds before expiring the lock when testing Redis */
+    protected $lockexpire = 70;
 
-    public function setUp() {
+
+    public function setUp(): void {
         global $CFG;
 
         if (!extension_loaded('redis')) {
@@ -68,18 +70,34 @@ class core_session_redis_testcase extends advanced_testcase {
         $this->keyprefix = 'phpunit'.rand(1, 100000);
 
         $CFG->session_redis_host = TEST_SESSION_REDIS_HOST;
+        if (strpos(TEST_SESSION_REDIS_HOST, ':')) {
+            list($server, $port) = explode(':', TEST_SESSION_REDIS_HOST);
+        } else {
+            $server = TEST_SESSION_REDIS_HOST;
+            $port = 6379;
+        }
+
+        $opts = [];
+        if (defined('TEST_SESSION_REDIS_ENCRYPT') && TEST_SESSION_REDIS_ENCRYPT) {
+            $this->encrypted = true;
+            $sslopts = $CFG->session_redis_encrypt = ['verify_peer' => false, 'verify_peer_name' => false];
+            $opts['stream'] = $sslopts;
+        }
         $CFG->session_redis_prefix = $this->keyprefix;
 
         // Set a very short lock timeout to ensure tests run quickly.  We are running single threaded,
         // so unless we lock and expect it to be there, we will always see a lock.
-        $CFG->session_redis_acquire_lock_timeout = 1;
-        $CFG->session_redis_lock_expire = 70;
+        $CFG->session_redis_acquire_lock_timeout = $this->acquiretimeout;
+        $CFG->session_redis_lock_expire = $this->lockexpire;
 
         $this->redis = new Redis();
-        $this->redis->connect(TEST_SESSION_REDIS_HOST);
+        $this->redis->connect($server, $port, 1, null, 1, 0, $opts);
+        if (!$this->redis->ping()) {
+            $this->markTestSkipped("Redis ping failed");
+        }
     }
 
-    public function tearDown() {
+    public function tearDown(): void {
         if (!extension_loaded('redis') || !defined('TEST_SESSION_REDIS_HOST')) {
             return;
         }
@@ -91,9 +109,18 @@ class core_session_redis_testcase extends advanced_testcase {
         $this->redis->close();
     }
 
+    public function test_normal_session_read_only() {
+        $sess = new \core\session\redis();
+        $sess->set_requires_write_lock(false);
+        $sess->init();
+        $this->assertSame('', $sess->handler_read('sess1'));
+        $this->assertTrue($sess->handler_close());
+    }
+
     public function test_normal_session_start_stop_works() {
         $sess = new \core\session\redis();
         $sess->init();
+        $sess->set_requires_write_lock(true);
         $this->assertTrue($sess->handler_open('Not used', 'Not used'));
         $this->assertSame('', $sess->handler_read('sess1'));
         $this->assertTrue($sess->handler_write('sess1', 'DATA'));
@@ -107,9 +134,34 @@ class core_session_redis_testcase extends advanced_testcase {
         $this->assertSessionNoLocks();
     }
 
+    public function test_compression_read_and_write_works() {
+        global $CFG;
+
+        $CFG->session_redis_compressor = \core\session\redis::COMPRESSION_GZIP;
+
+        $sess = new \core\session\redis();
+        $sess->init();
+        $this->assertTrue($sess->handler_write('sess1', 'DATA'));
+        $this->assertSame('DATA', $sess->handler_read('sess1'));
+        $this->assertTrue($sess->handler_close());
+
+        if (extension_loaded('zstd')) {
+            $CFG->session_redis_compressor = \core\session\redis::COMPRESSION_ZSTD;
+
+            $sess = new \core\session\redis();
+            $sess->init();
+            $this->assertTrue($sess->handler_write('sess2', 'DATA'));
+            $this->assertSame('DATA', $sess->handler_read('sess2'));
+            $this->assertTrue($sess->handler_close());
+        }
+
+        $CFG->session_redis_compressor = \core\session\redis::COMPRESSION_NONE;
+    }
+
     public function test_session_blocks_with_existing_session() {
         $sess = new \core\session\redis();
         $sess->init();
+        $sess->set_requires_write_lock(true);
         $this->assertTrue($sess->handler_open('Not used', 'Not used'));
         $this->assertSame('', $sess->handler_read('sess1'));
         $this->assertTrue($sess->handler_write('sess1', 'DATA'));
@@ -121,6 +173,7 @@ class core_session_redis_testcase extends advanced_testcase {
 
         $sessblocked = new \core\session\redis();
         $sessblocked->init();
+        $sessblocked->set_requires_write_lock(true);
         $this->assertTrue($sessblocked->handler_open('Not used', 'Not used'));
 
         // Trap the error log and send it to stdOut so we can expect output at the right times.
@@ -130,8 +183,10 @@ class core_session_redis_testcase extends advanced_testcase {
             $sessblocked->handler_read('sess1');
             $this->fail('Session lock must fail to be obtained.');
         } catch (\core\session\exception $e) {
-            $this->assertContains("Unable to obtain session lock", $e->getMessage());
-            $this->assertContains('Cannot obtain session lock for sid: sess1', file_get_contents($errorlog));
+            $this->assertStringContainsString("Unable to obtain lock for session id sess1", $e->getMessage());
+            $this->assertStringContainsString('within 1 sec.', $e->getMessage());
+            $this->assertStringContainsString('session lock timeout (1 min 10 secs) ', $e->getMessage());
+            $this->assertStringContainsString('Cannot obtain session lock for sid: sess1', file_get_contents($errorlog));
         }
 
         $this->assertTrue($sessblocked->handler_close());
@@ -143,6 +198,7 @@ class core_session_redis_testcase extends advanced_testcase {
     public function test_session_is_destroyed_when_it_does_not_exist() {
         $sess = new \core\session\redis();
         $sess->init();
+        $sess->set_requires_write_lock(true);
         $this->assertTrue($sess->handler_open('Not used', 'Not used'));
         $this->assertTrue($sess->handler_destroy('sess-destroy'));
         $this->assertSessionNoLocks();
@@ -151,6 +207,7 @@ class core_session_redis_testcase extends advanced_testcase {
     public function test_session_is_destroyed_when_we_have_it_open() {
         $sess = new \core\session\redis();
         $sess->init();
+        $sess->set_requires_write_lock(true);
         $this->assertTrue($sess->handler_open('Not used', 'Not used'));
         $this->assertSame('', $sess->handler_read('sess-destroy'));
         $this->assertTrue($sess->handler_destroy('sess-destroy'));
@@ -160,8 +217,10 @@ class core_session_redis_testcase extends advanced_testcase {
 
     public function test_multiple_sessions_do_not_interfere_with_each_other() {
         $sess1 = new \core\session\redis();
+        $sess1->set_requires_write_lock(true);
         $sess1->init();
         $sess2 = new \core\session\redis();
+        $sess2->set_requires_write_lock(true);
         $sess2->init();
 
         // Initialize session 1.
@@ -203,6 +262,7 @@ class core_session_redis_testcase extends advanced_testcase {
     public function test_multiple_sessions_work_with_a_single_instance() {
         $sess = new \core\session\redis();
         $sess->init();
+        $sess->set_requires_write_lock(true);
 
         // Initialize session 1.
         $this->assertTrue($sess->handler_open('Not used', 'Not used'));
@@ -223,6 +283,7 @@ class core_session_redis_testcase extends advanced_testcase {
     public function test_session_exists_returns_valid_values() {
         $sess = new \core\session\redis();
         $sess->init();
+        $sess->set_requires_write_lock(true);
 
         $this->assertTrue($sess->handler_open('Not used', 'Not used'));
         $this->assertSame('', $sess->handler_read('sess1'));
@@ -283,9 +344,13 @@ class core_session_redis_testcase extends advanced_testcase {
             $actual = $e->getMessage();
         }
 
-        $expected = 'Failed to connect (try 5 out of 5) to redis at ' . TEST_SESSION_REDIS_HOST . ':111111';
+        $host = TEST_SESSION_REDIS_HOST;
+        if ($this->encrypted) {
+            $host = "tls://$host";
+        }
+        $expected = "Failed to connect (try 5 out of 5) to redis at $host:111111";
         $this->assertDebuggingCalledCount(5);
-        $this->assertContains($expected, $actual);
+        $this->assertStringContainsString($expected, $actual);
     }
 
     /**
@@ -293,5 +358,17 @@ class core_session_redis_testcase extends advanced_testcase {
      */
     protected function assertSessionNoLocks() {
         $this->assertEmpty($this->redis->keys($this->keyprefix.'*.lock'));
+    }
+
+    public function test_session_redis_encrypt() {
+        global $CFG;
+
+        $CFG->session_redis_encrypt = ['verify_peer' => false, 'verify_peer_name' => false];
+
+        $sess = new \core\session\redis();
+
+        $prop = new \ReflectionProperty(\core\session\redis::class, 'host');
+        $prop->setAccessible(true);
+        $this->assertEquals('tls://' . TEST_SESSION_REDIS_HOST, $prop->getValue($sess));
     }
 }

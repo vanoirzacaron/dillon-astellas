@@ -14,13 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
- * Asyncronhous helper tests.
- *
- * @package    core_backup
- * @copyright  2018 Matt Porritt <mattp@catalyst-au.net>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
+namespace core_backup;
+
+use async_helper;
+use backup;
+use backup_controller;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -31,10 +29,12 @@ require_once($CFG->dirroot . '/backup/util/includes/restore_includes.php');
 /**
  * Asyncronhous helper tests.
  *
+ * @package    core_backup
+ * @covers     \async_helper
  * @copyright  2018 Matt Porritt <mattp@catalyst-au.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class core_backup_async_helper_testcase extends \core_privacy\tests\provider_testcase {
+class async_helper_test extends \advanced_testcase {
 
     /**
      * Tests sending message for asynchronous backup.
@@ -48,7 +48,7 @@ class core_backup_async_helper_testcase extends \core_privacy\tests\provider_tes
         set_config('backup_async_message_users', '1', 'backup');
         set_config('backup_async_message_subject', 'Moodle {operation} completed sucessfully', 'backup');
         set_config('backup_async_message',
-                'Dear {user_firstname} {user_lastname}, <br/> Your {operation} (ID: {backupid}) has completed successfully!',
+                'Dear {user_firstname} {user_lastname}, your {operation} (ID: {backupid}) has completed successfully!',
                 'backup');
         set_config('allowedemaildomains', 'example.com');
 
@@ -77,15 +77,17 @@ class core_backup_async_helper_testcase extends \core_privacy\tests\provider_tes
         $this->assertCount(1, $emails);
         $email = reset($emails);
 
-        $this->assertSame($USER->email, $email->from);
-        $this->assertSame($user2->email, $email->to);
-        $this->assertSame('Moodle backup completed sucessfully', $email->subject);
-        $this->assertNotEmpty($email->header);
-        $this->assertNotEmpty($email->body);
-        $this->assertRegExp("/$backupid/", $email->body);
-        $this->assertThat($email->body, $this->logicalNot($this->stringContains('{')));
         $this->assertGreaterThan(0, $messageid);
         $sink->clear();
+
+        $this->assertSame($USER->email, $email->from);
+        $this->assertSame($user2->email, $email->to);
+        $this->assertSame('Moodle Backup completed sucessfully', $email->subject);
+
+        // Assert body placeholders have all been replaced.
+        $this->assertStringContainsString('Dear test human, your Backup', $email->body);
+        $this->assertStringContainsString("(ID: {$backupid})", $email->body);
+        $this->assertStringNotContainsString('{', $email->body);
     }
 
     /**
@@ -113,7 +115,7 @@ class core_backup_async_helper_testcase extends \core_privacy\tests\provider_tes
         // We need a grade, easiest is to add an assignment.
         $assignrow = $generator->create_module('assign', array(
             'course' => $course->id));
-        $assign = new assign(context_module::instance($assignrow->cmid), false, false);
+        $assign = new \assign(\context_module::instance($assignrow->cmid), false, false);
         $item = $assign->get_grade_item();
 
         // Make a test grouping as well.
@@ -137,12 +139,98 @@ class core_backup_async_helper_testcase extends \core_privacy\tests\provider_tes
         $bc->destroy();
         unset($bc);
 
-        $coursecontext = context_course::instance($course->id);
-        $renderer = $PAGE->get_renderer('core', 'backup');
+        $coursecontext = \context_course::instance($course->id);
 
-        $result = \async_helper::get_async_backups($renderer, $coursecontext->instanceid);
+        $result = \async_helper::get_async_backups('course', $coursecontext->instanceid);
 
         $this->assertEquals(1, count($result));
-        $this->assertEquals('backup.mbz', $result[0][0]);
+        $this->assertEquals('backup.mbz', $result[0]->filename);
     }
+
+    /**
+     * Tests getting the backup record.
+     */
+    public function test_get_backup_record() {
+        global $USER;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+
+        // Create the initial backupcontoller.
+        $bc = new \backup_controller(\backup::TYPE_1COURSE, $course->id, \backup::FORMAT_MOODLE,
+            \backup::INTERACTIVE_NO, \backup::MODE_COPY, $USER->id, \backup::RELEASESESSION_YES);
+        $backupid = $bc->get_backupid();
+        $bc->destroy();
+        $copyrec = \async_helper::get_backup_record($backupid);
+
+        $this->assertEquals($backupid, $copyrec->backupid);
+
+    }
+
+    /**
+     * Tests is async pending conditions.
+     */
+    public function test_is_async_pending() {
+        global $USER;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+
+        set_config('enableasyncbackup', '0');
+        $ispending = async_helper::is_async_pending($course->id, 'course', 'backup');
+
+        // Should be false as there are no backups and async backup is false.
+        $this->assertFalse($ispending);
+
+        // Create the initial backupcontoller.
+        $bc = new \backup_controller(\backup::TYPE_1COURSE, $course->id, \backup::FORMAT_MOODLE,
+            \backup::INTERACTIVE_NO, \backup::MODE_ASYNC, $USER->id, \backup::RELEASESESSION_YES);
+        $bc->destroy();
+        $ispending = async_helper::is_async_pending($course->id, 'course', 'backup');
+
+        // Should be false as there as async backup is false.
+        $this->assertFalse($ispending);
+
+        set_config('enableasyncbackup', '1');
+        // Should be true as there as async backup is true and there is a pending backup.
+        $this->assertFalse($ispending);
+    }
+
+    /**
+     * Tests is async pending conditions for course copies.
+     */
+    public function test_is_async_pending_copy() {
+        global $USER;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+
+        set_config('enableasyncbackup', '0');
+        $ispending = async_helper::is_async_pending($course->id, 'course', 'backup');
+
+        // Should be false as there are no copies and async backup is false.
+        $this->assertFalse($ispending);
+
+        // Create the initial backupcontoller.
+        $bc = new \backup_controller(\backup::TYPE_1COURSE, $course->id, \backup::FORMAT_MOODLE,
+            \backup::INTERACTIVE_NO, \backup::MODE_COPY, $USER->id, \backup::RELEASESESSION_YES);
+        $bc->destroy();
+        $ispending = async_helper::is_async_pending($course->id, 'course', 'backup');
+
+        // Should be True as this a copy operation.
+        $this->assertTrue($ispending);
+
+        set_config('enableasyncbackup', '1');
+        $ispending = async_helper::is_async_pending($course->id, 'course', 'backup');
+
+        // Should be true as there as async backup is true and there is a pending copy.
+        $this->assertTrue($ispending);
+    }
+
 }

@@ -122,7 +122,7 @@ abstract class data_controller {
      *
      * @return string
      */
-    protected function get_form_element_name() : string {
+    public function get_form_element_name() : string {
         return 'customfield_' . $this->get_field()->get('shortname');
     }
 
@@ -238,7 +238,13 @@ abstract class data_controller {
      */
     protected function is_unique($value) : bool {
         global $DB;
+
+        // Ensure the "value" datafield can be safely compared across all databases.
         $datafield = $this->datafield();
+        if ($datafield === 'value') {
+            $datafield = $DB->sql_cast_to_char($datafield);
+        }
+
         $where = "fieldid = ? AND {$datafield} = ?";
         $params = [$this->get_field()->get('id'), $value];
         if ($this->get('id')) {

@@ -31,25 +31,28 @@ defined('MOODLE_INTERNAL') || die;
 global $PAGE, $OUTPUT;
 
 if (!empty($PAGE->theme->settings->loginheader)) {
+    $sidepostdrawer = false;
     require_once(dirname(__FILE__) . '/includes/header.php');
 } else {
     require_once(dirname(__FILE__) . '/includes/noheader.php');
 }
+$PAGE->set_secondary_navigation(false);
 
 echo '<div class="container outercont">';
     echo $OUTPUT->page_navbar();
     ?>
     <div id="page-content" class="row">
-        <section id="region-main" class="col-12">
+        <div id="region-main-box" class="col-12">
+            <section id="region-main">
             <?php
 
-            $logintextboxtop = $OUTPUT->get_setting('logintextboxtop', 'format_html');
-            $logintextboxbottom = $OUTPUT->get_setting('logintextboxbottom', 'format_html');
+            $logintextboxtop = $OUTPUT->get_setting('logintextboxtop', 'format_moodle');
+            $logintextboxbottom = $OUTPUT->get_setting('logintextboxbottom', 'format_moodle');
             $logintextstartwrapper = '';
             $logintextendwrapper = '';
             if ((!empty($logintextboxtop)) || (!empty($logintextboxbottom))) {
-                $logintextstartwrapper = '<div class="row justify-content-center"><div class="col-xl-6 col-sm-8 ">' .
-                                         '<div class="card"><div class="card-block">';
+                $logintextstartwrapper = '<div class="row justify-content-center"><div class="col-xl-6 col-sm-8">'.
+                    '<div class="card"><div class="card-block">';
                 $logintextendwrapper = '</div></div></div></div>';
             }
 
@@ -59,7 +62,9 @@ echo '<div class="container outercont">';
                 echo $logintextendwrapper;
             }
 
+            echo '<div class="login-wrapper"><div class="login-container">';
             echo $OUTPUT->main_content();
+            echo '</div></div>';
 
             if (!empty($logintextboxbottom)) {
                 echo '<div class="my-1 my-sm-5"></div>';
@@ -69,7 +74,8 @@ echo '<div class="container outercont">';
             }
 
             ?>
-        </section>
+            </section>
+        </div>
     </div>
 </div>
 

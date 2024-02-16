@@ -32,6 +32,7 @@ require_once(__DIR__ . '/behat_config_manager.php');
 
 require_once(__DIR__ . '/../../filelib.php');
 require_once(__DIR__ . '/../../clilib.php');
+require_once(__DIR__ . '/../../csslib.php');
 
 use Behat\Mink\Session;
 use Behat\Mink\Exception\ExpectationException;
@@ -124,11 +125,53 @@ class behat_util extends testing_util {
         // Set noreplyaddress to an example domain, as it should be valid email address and test site can be a localhost.
         set_config('noreplyaddress', 'noreply@example.com');
 
+        // Set the support email address.
+        set_config('supportemail', 'email@example.com');
+
+        // Remove any default blocked hosts and port restrictions, to avoid blocking tests (eg those using local files).
+        set_config('curlsecurityblockedhosts', '');
+        set_config('curlsecurityallowedport', '');
+
+        // Execute all the adhoc tasks.
+        while ($task = \core\task\manager::get_next_adhoc_task(time())) {
+            $task->execute();
+            \core\task\manager::adhoc_task_complete($task);
+        }
+
         // Keeps the current version of database and dataroot.
         self::store_versions_hash();
 
         // Stores the database contents for fast reset.
         self::store_database_state();
+    }
+
+    /**
+     * Build theme CSS.
+     */
+    public static function build_themes($mtraceprogress = false) {
+        global $CFG;
+        require_once("{$CFG->libdir}/outputlib.php");
+
+        $themenames = array_keys(\core_component::get_plugin_list('theme'));
+
+        // Load the theme configs.
+        $themeconfigs = array_map(function($themename) {
+            return \theme_config::load($themename);
+        }, $themenames);
+
+        // Build the list of themes and cache them in local cache.
+        $themes = theme_build_css_for_themes($themeconfigs, ['ltr'], true, $mtraceprogress);
+
+        $framework = self::get_framework();
+        $storageroot = self::get_dataroot() . "/{$framework}/themedata";
+
+        foreach ($themes as $themename => $themedata) {
+            $dirname = "{$storageroot}/{$themename}";
+            check_dir_exists($dirname);
+            foreach ($themedata as $direction => $css) {
+                file_put_contents("{$dirname}/{$direction}.css", $css);
+            }
+        }
     }
 
     /**
@@ -248,7 +291,6 @@ class behat_util extends testing_util {
      * @return void
      */
     public static function start_test_mode($themesuitewithallfeatures = false, $tags = '', $parallelruns = 0, $run = 0) {
-        global $CFG;
 
         if (!defined('BEHAT_UTIL')) {
             throw new coding_exception('This method can be only used by Behat CLI tool');
@@ -381,11 +423,10 @@ class behat_util extends testing_util {
 
         filter_manager::reset_caches();
 
+        \core_reportbuilder\manager::reset_caches();
+
         // Reset course and module caches.
-        if (class_exists('format_base')) {
-            // If file containing class is not loaded, there is no cache there anyway.
-            format_base::reset_course_cache(0);
-        }
+        core_courseformat\base::reset_course_cache(0);
         get_fast_modinfo(0, 0, true);
 
         // Inform data generator.
@@ -395,6 +436,37 @@ class behat_util extends testing_util {
         // $CFG values from the old run. @see set_config.
         self::remove_added_config();
         initialise_cfg();
+    }
+
+    /**
+     * Restore theme CSS stored during behat setup.
+     */
+    public static function restore_saved_themes(): void {
+        global $CFG;
+
+        $themerev = theme_get_revision();
+
+        $framework = self::get_framework();
+        $storageroot = self::get_dataroot() . "/{$framework}/themedata";
+        $themenames = array_keys(\core_component::get_plugin_list('theme'));
+        $directions = ['ltr', 'rtl'];
+
+        $themeconfigs = array_map(function($themename) {
+            return \theme_config::load($themename);
+        }, $themenames);
+
+        foreach ($themeconfigs as $themeconfig) {
+            $themename = $themeconfig->name;
+            $themesubrev = theme_get_sub_revision_for_theme($themename);
+
+            $dirname = "{$storageroot}/{$themename}";
+            foreach ($directions as $direction) {
+                $cssfile = "{$dirname}/{$direction}.css";
+                if (file_exists($cssfile)) {
+                    $themeconfig->set_css_content_cache(file_get_contents($cssfile));
+                }
+            }
+        }
     }
 
     /**
@@ -429,5 +501,24 @@ class behat_util extends testing_util {
         // Add any extra lines back if the provided message was spread over multiple lines.
         $linecount = count(explode("\n", $formattedmessage));
         fwrite(STDOUT, str_repeat(cli_ansi_format("<cursor:down>"), $linecount - 1));
+    }
+
+    /**
+     * Gets a text-based site version description.
+     *
+     * @return string The site info
+     */
+    public static function get_site_info() {
+        $siteinfo = parent::get_site_info();
+
+        $accessibility = empty(behat_config_manager::get_behat_run_config_value('axe')) ? 'No' : 'Yes';
+
+        $siteinfo .= <<<EOF
+Run optional tests:
+- Accessibility: {$accessibility}
+
+EOF;
+
+        return $siteinfo;
     }
 }

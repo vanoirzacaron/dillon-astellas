@@ -33,39 +33,49 @@ defined('MOODLE_INTERNAL') || die();
 function xmldb_tool_monitor_upgrade($oldversion) {
     global $CFG, $DB;
 
-    if ($oldversion < 2017021300) {
+    require_once($CFG->libdir.'/db/upgradelib.php'); // Core Upgrade-related functions.
 
-        // Delete "orphaned" subscriptions.
-        $sql = "SELECT DISTINCT s.courseid
-                  FROM {tool_monitor_subscriptions} s
-       LEFT OUTER JOIN {course} c ON c.id = s.courseid
-                 WHERE s.courseid <> 0 and c.id IS NULL";
-        $deletedcourses = $DB->get_field_sql($sql);
-        if ($deletedcourses) {
-            list($sql, $params) = $DB->get_in_or_equal($deletedcourses);
-            $DB->execute("DELETE FROM {tool_monitor_subscriptions} WHERE courseid " . $sql, $params);
-        }
+    $dbman = $DB->get_manager(); // Loads ddl manager and xmldb classes.
+
+    // Automatically generated Moodle v3.9.0 release upgrade line.
+    // Put any upgrade step following this.
+
+    // Automatically generated Moodle v4.0.0 release upgrade line.
+    // Put any upgrade step following this.
+    if ($oldversion < 2022053000) {
+
+        // Define key courseid (foreign) to be added to tool_monitor_events.
+        $table = new xmldb_table('tool_monitor_events');
+        $key = new xmldb_key('courseid', XMLDB_KEY_FOREIGN, ['courseid'], 'course', ['id']);
+
+        // Launch add key courseid.
+        $dbman->add_key($table, $key);
+
+        // Define key contextid (foreign) to be added to tool_monitor_events.
+        $table = new xmldb_table('tool_monitor_events');
+        $key = new xmldb_key('contextid', XMLDB_KEY_FOREIGN, ['contextid'], 'context', ['id']);
+
+        // Launch add key contextid.
+        $dbman->add_key($table, $key);
+
+        // Define key contextinstanceid (foreign) to be added to tool_monitor_events.
+        $table = new xmldb_table('tool_monitor_events');
+        $key = new xmldb_key('contextinstanceid', XMLDB_KEY_FOREIGN, ['contextinstanceid'], 'context', ['instanceid']);
+
+        // Launch add key contextinstanceid.
+        $dbman->add_key($table, $key);
 
         // Monitor savepoint reached.
-        upgrade_plugin_savepoint(true, 2017021300, 'tool', 'monitor');
+        upgrade_plugin_savepoint(true, 2022053000, 'tool', 'monitor');
     }
 
-    // Automatically generated Moodle v3.3.0 release upgrade line.
+    // Automatically generated Moodle v4.1.0 release upgrade line.
     // Put any upgrade step following this.
 
-    // Automatically generated Moodle v3.4.0 release upgrade line.
+    // Automatically generated Moodle v4.2.0 release upgrade line.
     // Put any upgrade step following this.
 
-    // Automatically generated Moodle v3.5.0 release upgrade line.
-    // Put any upgrade step following this.
-
-    // Automatically generated Moodle v3.6.0 release upgrade line.
-    // Put any upgrade step following this.
-
-    // Automatically generated Moodle v3.7.0 release upgrade line.
-    // Put any upgrade step following this.
-
-    // Automatically generated Moodle v3.8.0 release upgrade line.
+    // Automatically generated Moodle v4.3.0 release upgrade line.
     // Put any upgrade step following this.
 
     return true;

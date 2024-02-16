@@ -38,8 +38,33 @@ require_once(__DIR__ . '/image.php');
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class repository_flickr_public extends repository {
+
+    /** @var phpFlickr Flickr class. */
     private $flickr;
+
+    /** @var string Flick photos. */
     public $photos;
+
+    /** @var string API key. */
+    protected $api_key;
+
+    /** @var string email address account. */
+    protected $flickr_account;
+
+    /** @var string watermarks usage status. */
+    protected $usewatermarks;
+
+    /** @var string session account. */
+    protected $sess_account;
+
+    /** @var string session tag. */
+    protected $sess_tag;
+
+    /** @var string session text. */
+    protected $sess_text;
+
+    /** @var string Flickr user identifier. */
+    protected $nsid;
 
     /**
      * Stores sizes of images to prevent multiple API call
@@ -304,6 +329,7 @@ class repository_flickr_public extends repository {
                 'user_id' => $nsid,
                 'license' => $licenses,
                 'text' => $text,
+                'extras' => 'original_format,license,date_upload,last_update',
                 'media' => 'photos'
             )
         );
@@ -328,7 +354,8 @@ class repository_flickr_public extends repository {
     public function get_listing($path = '', $page = 1) {
         $people = $this->flickr->people_findByEmail($this->flickr_account);
         $this->nsid = $people['nsid'];
-        $photos = $this->flickr->people_getPublicPhotos($people['nsid'], 'original_format', 24, $page);
+        $photos = $this->flickr->people_getPublicPhotos($people['nsid'], 'original_format,license,date_upload,last_update',
+            24, $page);
         $ret = array();
 
         return $this->build_list($photos, $page, $ret);
@@ -341,7 +368,7 @@ class repository_flickr_public extends repository {
      * @param int $page
      * @return array
      */
-    private function build_list($photos, $page = 1, &$ret) {
+    private function build_list($photos, $page, &$ret) {
         global $OUTPUT;
 
         if (!empty($this->nsid)) {
@@ -380,18 +407,29 @@ class repository_flickr_public extends repository {
                 if (!@getimagesize($thumbnailsource)) {
                     // Use the file extension icon as a thumbnail if the original thumbnail does not exist to avoid
                     // displaying broken thumbnails in the repository.
-                    $thumbnailsource = $OUTPUT->image_url(file_extension_icon($p['title'], 90))->out(false);
+                    $thumbnailsource = $OUTPUT->image_url(file_extension_icon($p['title']))->out(false);
                 }
+
+                // Perform a HEAD request to the image to obtain it's Content-Length.
+                $curl = new curl();
+                $curl->head($this->get_link($p['id']));
+
+                // The photo sizes are statically cached, so we can retrieve image dimensions without another API call.
+                $bestsize = $this->get_best_size($p['id']);
+
                 $ret['list'][] = array(
                     'title' => $p['title'],
                     'source' => $p['id'],
                     'id' => $p['id'],
                     'thumbnail' => $thumbnailsource,
-                    'date' => '',
-                    'size' => 'unknown',
+                    'datecreated' => $p['dateupload'],
+                    'datemodified' => $p['lastupdate'],
+                    'size' => (int)($curl->get_info()['download_content_length']),
+                    'image_width' => $bestsize['width'],
+                    'image_height' => $bestsize['height'],
                     'url' => 'http://www.flickr.com/photos/' . $p['owner'] . '/' . $p['id'],
-                    'haslicense' => true,
-                    'hasauthor' => true
+                    'license' => $this->license4moodle($p['license']),
+                    'author' => $p['owner'],
                 );
             }
         }

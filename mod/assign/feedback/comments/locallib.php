@@ -22,6 +22,9 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+use core_external\external_single_structure;
+use core_external\external_value;
+
 defined('MOODLE_INTERNAL') || die();
 
 // File component for feedback comments.
@@ -348,7 +351,11 @@ class assign_feedback_comments extends assign_feedback_plugin {
             $feedbackcomments = $this->get_feedback_comments($grade->id);
         }
 
-        if ($feedbackcomments && !empty($feedbackcomments->commenttext)) {
+        // Check first for data from last form submission in case grading validation failed.
+        if (!empty($data->assignfeedbackcomments_editor['text'])) {
+            $data->assignfeedbackcomments = $data->assignfeedbackcomments_editor['text'];
+            $data->assignfeedbackcommentsformat = $data->assignfeedbackcomments_editor['format'];
+        } else if ($feedbackcomments && !empty($feedbackcomments->commenttext)) {
             $data->assignfeedbackcomments = $feedbackcomments->commenttext;
             $data->assignfeedbackcommentsformat = $feedbackcomments->commentformat;
         } else {
@@ -611,7 +618,7 @@ class assign_feedback_comments extends assign_feedback_plugin {
     /**
      * Return a description of external params suitable for uploading an feedback comment from a webservice.
      *
-     * @return external_description|null
+     * @return \core_external\external_description|null
      */
     public function get_external_parameters() {
         $editorparams = array('text' => new external_value(PARAM_RAW, 'The text for this feedback.'),

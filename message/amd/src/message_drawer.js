@@ -35,6 +35,7 @@ define(
     'core_message/message_drawer_router',
     'core_message/message_drawer_routes',
     'core_message/message_drawer_events',
+    'core_message/message_drawer_helper',
     'core/pending',
     'core/drawer',
 ],
@@ -52,6 +53,7 @@ function(
     Router,
     Routes,
     Events,
+    Helper,
     Pending,
     Drawer
 ) {
@@ -73,6 +75,7 @@ function(
         HEADER_CONTAINER: '[data-region="header-container"]',
         BODY_CONTAINER: '[data-region="body-container"]',
         FOOTER_CONTAINER: '[data-region="footer-container"]',
+        CLOSE_BUTTON: '[data-action="closedrawer"]'
     };
 
     /**
@@ -83,7 +86,7 @@ function(
      * @param {string} selector The route container.
      *
      * @return {array} elements Found route container objects.
-    */
+     */
     var getParametersForRoute = function(namespace, root, selector) {
 
         var header = root.find(SELECTORS.HEADER_CONTAINER).find(selector);
@@ -253,7 +256,7 @@ function(
         });
 
         $(SELECTORS.JUMPTO).focus(function() {
-            var firstInput = $(SELECTORS.HEADER_CONTAINER).find('input:visible');
+            var firstInput = root.find(SELECTORS.CLOSE_BUTTON);
             if (firstInput.length) {
                 firstInput.focus();
             } else {
@@ -293,6 +296,17 @@ function(
             setJumpFrom(args.buttonid);
             show(namespace, root);
             Router.go(namespace, Routes.VIEW_CONVERSATION, args.conversationid);
+        });
+
+        var closebutton = root.find(SELECTORS.CLOSE_BUTTON);
+        closebutton.on(CustomEvents.events.activate, function(e, data) {
+            data.originalEvent.preventDefault();
+
+            var button = $(SELECTORS.DRAWER).attr('data-origin');
+            if (button) {
+                $('#' + button).focus();
+            }
+            PubSub.publish(Events.TOGGLE_VISIBILITY);
         });
 
         PubSub.subscribe(Events.CREATE_CONVERSATION_WITH_USER, function(args) {
@@ -341,6 +355,9 @@ function(
                 Router.go.apply(null, routeParams);
             }
         }
+
+        // Mark the drawer as ready.
+        Helper.markDrawerReady();
     };
 
     return {

@@ -14,23 +14,66 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+namespace core_course;
+
+use advanced_testcase;
+use backup_controller;
+use backup;
+use blog_entry;
+use cache;
+use calendar_event;
+use coding_exception;
+use comment;
+use completion_criteria_date;
+use completion_completion;
+use context_course;
+use context_module;
+use context_system;
+use context_coursecat;
+use core_completion_external;
+use core_external;
+use core_tag_index_builder;
+use core_tag_tag;
+use course_capability_assignment;
+use course_request;
+use core_course_category;
+use enrol_imsenterprise\imsenterprise_test;
+use core_external\external_api;
+use grade_item;
+use grading_manager;
+use moodle_exception;
+use moodle_url;
+use phpunit_util;
+use rating_manager;
+use restore_controller;
+use stdClass;
+use testing_data_generator;
+
+defined('MOODLE_INTERNAL') or die();
+
+// Require library globally because it's constants are used within dataProvider methods, executed before setUpBeforeClass.
+global $CFG;
+require_once($CFG->dirroot . '/course/lib.php');
+
 /**
  * Course related unit tests
  *
- * @package    core
- * @category   phpunit
+ * @package    core_course
+ * @category   test
  * @copyright  2012 Petr Skoda {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+class courselib_test extends advanced_testcase {
 
-defined('MOODLE_INTERNAL') || die();
+    /**
+     * Load required libraries and fixtures.
+     */
+    public static function setUpBeforeClass(): void {
+        global $CFG;
 
-global $CFG;
-require_once($CFG->dirroot . '/course/lib.php');
-require_once($CFG->dirroot . '/course/tests/fixtures/course_capability_assignment.php');
-require_once($CFG->dirroot . '/enrol/imsenterprise/tests/imsenterprise_test.php');
-
-class core_course_courselib_testcase extends advanced_testcase {
+        require_once($CFG->dirroot . '/course/tests/fixtures/course_capability_assignment.php');
+        require_once($CFG->dirroot . '/enrol/imsenterprise/tests/imsenterprise_test.php');
+    }
 
     /**
      * Set forum specific test values for calling create_module().
@@ -221,6 +264,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         $moduleinfo->completion = COMPLETION_TRACKING_AUTOMATIC;
         $moduleinfo->completionview = COMPLETION_VIEW_REQUIRED;
         $moduleinfo->completiongradeitemnumber = 1;
+        $moduleinfo->completionpassgrade = 0;
         $moduleinfo->completionexpected = time() + (7 * 24 * 3600);
 
         // Conditional activity.
@@ -283,6 +327,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals($moduleinfo->completion, $dbcm->completion);
         $this->assertEquals($moduleinfo->completionview, $dbcm->completionview);
         $this->assertEquals($moduleinfo->completiongradeitemnumber, $dbcm->completiongradeitemnumber);
+        $this->assertEquals($moduleinfo->completionpassgrade, $dbcm->completionpassgrade);
         $this->assertEquals($moduleinfo->completionexpected, $dbcm->completionexpected);
         $this->assertEquals($moduleinfo->availability, $dbcm->availability);
         $this->assertEquals($moduleinfo->showdescription, $dbcm->showdescription);
@@ -504,6 +549,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         $moduleinfo->completion = COMPLETION_TRACKING_AUTOMATIC;
         $moduleinfo->completionview = COMPLETION_VIEW_REQUIRED;
         $moduleinfo->completiongradeitemnumber = 1;
+        $moduleinfo->completionpassgrade = 0;
         $moduleinfo->completionexpected = time() + (7 * 24 * 3600);
         $moduleinfo->completionunlocked = 1;
 
@@ -561,6 +607,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals($moduleinfo->completion, $dbcm->completion);
         $this->assertEquals($moduleinfo->completionview, $dbcm->completionview);
         $this->assertEquals($moduleinfo->completiongradeitemnumber, $dbcm->completiongradeitemnumber);
+        $this->assertEquals($moduleinfo->completionpassgrade, $dbcm->completionpassgrade);
         $this->assertEquals($moduleinfo->completionexpected, $dbcm->completionexpected);
         $this->assertEquals($moduleinfo->availability, $dbcm->availability);
         $this->assertEquals($moduleinfo->showdescription, $dbcm->showdescription);
@@ -842,8 +889,9 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals($cmids[0] . ',' . $cmids[1], $sequence);
 
         // Check that modinfo cache was reset but not rebuilt (important for performance if calling repeatedly).
-        $this->assertGreaterThan($coursecacherev, $DB->get_field('course', 'cacherev', array('id' => $course->id)));
-        $this->assertEmpty(cache::make('core', 'coursemodinfo')->get($course->id));
+        $newcacherev = $DB->get_field('course', 'cacherev', ['id' => $course->id]);
+        $this->assertGreaterThan($coursecacherev, $newcacherev);
+        $this->assertEmpty(cache::make('core', 'coursemodinfo')->get_versioned($course->id, $newcacherev));
 
         // Add one to section that doesn't exist (this might rebuild modinfo).
         course_add_cm_to_section($course, $cmids[2], 2);
@@ -996,6 +1044,80 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals(3, $course->marker);
     }
 
+    /**
+     * Test move_section_to method with caching
+     *
+     * @covers ::move_section_to
+     * @return void
+     */
+    public function test_move_section_with_section_cache(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $cache = cache::make('core', 'coursemodinfo');
+
+        // Generate the course and pre-requisite module.
+        $course = $this->getDataGenerator()->create_course(['format' => 'topics', 'numsections' => 3], ['createsections' => true]);
+        // Reset course cache.
+        rebuild_course_cache($course->id, true);
+
+        // Build course cache.
+        get_fast_modinfo($course->id);
+        // Get the course modinfo cache.
+        $coursemodinfo = $cache->get_versioned($course->id, $course->cacherev);
+        // Get the section cache.
+        $sectioncaches = $coursemodinfo->sectioncache;
+
+        // Make sure that we will have 4 section caches here.
+        $this->assertCount(4, $sectioncaches);
+        $this->assertArrayHasKey(0, $sectioncaches);
+        $this->assertArrayHasKey(1, $sectioncaches);
+        $this->assertArrayHasKey(2, $sectioncaches);
+        $this->assertArrayHasKey(3, $sectioncaches);
+
+        // Move section.
+        move_section_to($course, 2, 3);
+        // Get the course modinfo cache.
+        $coursemodinfo = $cache->get_versioned($course->id, $course->cacherev);
+        // Get the section cache.
+        $sectioncaches = $coursemodinfo->sectioncache;
+
+        // Make sure that we will have 2 section caches left.
+        $this->assertCount(2, $sectioncaches);
+        $this->assertArrayHasKey(0, $sectioncaches);
+        $this->assertArrayHasKey(1, $sectioncaches);
+        $this->assertArrayNotHasKey(2, $sectioncaches);
+        $this->assertArrayNotHasKey(3, $sectioncaches);
+    }
+
+    /**
+     * Test move_section_to method.
+     * Make sure that we only update the moving sections, not all the sections in the current course.
+     *
+     * @covers ::move_section_to
+     * @return void
+     */
+    public function test_move_section_to(): void {
+        global $DB, $CFG;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        // Generate the course and pre-requisite module.
+        $course = $this->getDataGenerator()->create_course(['format' => 'topics', 'numsections' => 3], ['createsections' => true]);
+
+        ob_start();
+        $DB->set_debug(true);
+        // Move section.
+        move_section_to($course, 2, 3);
+        $DB->set_debug(false);
+        $debuginfo = ob_get_contents();
+        ob_end_clean();
+        $sectionmovequerycount = substr_count($debuginfo, 'UPDATE ' . $CFG->phpunit_prefix . 'course_sections SET');
+        // We are updating the course_section table in steps to avoid breaking database uniqueness constraint.
+        // So the queries will be doubled. See: course/lib.php:1423
+        // Make sure that we only need 4 queries to update the position of section 2 and section 3.
+        $this->assertEquals(4, $sectionmovequerycount);
+    }
+
     public function test_course_can_delete_section() {
         global $DB;
         $this->resetAfterTest(true);
@@ -1095,6 +1217,7 @@ class core_course_courselib_testcase extends advanced_testcase {
 
         // Delete section in the middle (2).
         $this->assertFalse(course_delete_section($course, 2, false));
+        $this->assertEquals(4, course_get_format($course)->get_last_section_number());
         $this->assertTrue(course_delete_section($course, 2, true));
         $this->assertFalse($DB->record_exists('course_modules', array('id' => $assign21->cmid)));
         $this->assertFalse($DB->record_exists('course_modules', array('id' => $assign22->cmid)));
@@ -1206,6 +1329,53 @@ class core_course_courselib_testcase extends advanced_testcase {
         // Showing the modules.
         foreach ($modules as $mod) {
             set_coursemodule_visible($mod->cmid, 1);
+            $this->check_module_visibility($mod, 1, 1);
+        }
+    }
+
+    /**
+     * Test rebuildcache = false behaviour.
+     *
+     * When we pass rebuildcache = false to set_coursemodule_visible, the corusemodinfo cache will still contain
+     * the original visibility until we trigger a rebuild.
+     *
+     * @return void
+     * @covers ::set_coursemodule_visible
+     */
+    public function test_module_visibility_no_rebuild(): void {
+        $this->setAdminUser();
+        $this->resetAfterTest(true);
+
+        // Create course and modules.
+        $course = $this->getDataGenerator()->create_course(['numsections' => 5]);
+        $forum = $this->getDataGenerator()->create_module('forum', ['course' => $course->id]);
+        $assign = $this->getDataGenerator()->create_module('assign', ['duedate' => time(), 'course' => $course->id]);
+        $modules = compact('forum', 'assign');
+
+        // Hiding the modules.
+        foreach ($modules as $mod) {
+            set_coursemodule_visible($mod->cmid, 0, 1, false);
+            // The modinfo cache still has the original visibility until we manually trigger a rebuild.
+            $cm = get_fast_modinfo($mod->course)->get_cm($mod->cmid);
+            $this->assertEquals(1, $cm->visible);
+        }
+
+        rebuild_course_cache($course->id);
+
+        foreach ($modules as $mod) {
+            $this->check_module_visibility($mod, 0, 0);
+        }
+
+        // Showing the modules.
+        foreach ($modules as $mod) {
+            set_coursemodule_visible($mod->cmid, 1, 1, false);
+            $cm = get_fast_modinfo($mod->course)->get_cm($mod->cmid);
+            $this->assertEquals(0, $cm->visible);
+        }
+
+        rebuild_course_cache($course->id);
+
+        foreach ($modules as $mod) {
             $this->check_module_visibility($mod, 1, 1);
         }
     }
@@ -1517,9 +1687,9 @@ class core_course_courselib_testcase extends advanced_testcase {
         $modinfo = get_fast_modinfo($course);
 
         // Verify that forum and page have been moved to the hidden section and quiz has not.
-        $this->assertContains($forum->cmid, $modinfo->sections[3]);
-        $this->assertContains($page->cmid, $modinfo->sections[3]);
-        $this->assertNotContains($quiz->cmid, $modinfo->sections[3]);
+        $this->assertContainsEquals($forum->cmid, $modinfo->sections[3]);
+        $this->assertContainsEquals($page->cmid, $modinfo->sections[3]);
+        $this->assertNotContainsEquals($quiz->cmid, $modinfo->sections[3]);
 
         // Verify that forum has been made invisible.
         $forumcm = $modinfo->cms[$forum->cmid];
@@ -1653,11 +1823,8 @@ class core_course_courselib_testcase extends advanced_testcase {
             case 'quiz':
                 $qgen = $this->getDataGenerator()->get_plugin_generator('core_question');
                 $qcat = $qgen->create_question_category(array('contextid' => $modcontext->id));
-                $questions = array(
-                    $qgen->create_question('shortanswer', null, array('category' => $qcat->id)),
-                    $qgen->create_question('shortanswer', null, array('category' => $qcat->id)),
-                );
-                $this->expectOutputRegex('/'.get_string('unusedcategorydeleted', 'question').'/');
+                $qgen->create_question('shortanswer', null, array('category' => $qcat->id));
+                $qgen->create_question('shortanswer', null, array('category' => $qcat->id));
                 break;
             default:
                 break;
@@ -1705,8 +1872,13 @@ class core_course_courselib_testcase extends advanced_testcase {
                 $this->assertEquals(0, $DB->count_records('question_categories', $criteria));
 
                 // Verify questions deleted.
-                $criteria = array('category' => $qcat->id);
-                $this->assertEquals(0, $DB->count_records('question', $criteria));
+                $criteria = [$qcat->id];
+                $sql = 'SELECT COUNT(q.id)
+                          FROM {question} q
+                          JOIN {question_versions} qv ON qv.questionid = q.id
+                          JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
+                          WHERE qbe.questioncategoryid = ?';
+                $this->assertEquals(0, $DB->count_records_sql($sql, $criteria));
                 break;
             default:
                 break;
@@ -1742,10 +1914,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals($course->id, $event->objectid);
         $this->assertEquals(context_course::instance($course->id), $event->get_context());
         $this->assertEquals($course, $event->get_record_snapshot('course', $course->id));
-        $this->assertEquals('course_created', $event->get_legacy_eventname());
-        $this->assertEventLegacyData($course, $event);
-        $expectedlog = array(SITEID, 'course', 'new', 'view.php?id=' . $course->id, $course->fullname . ' (ID ' . $course->id . ')');
-        $this->assertEventLegacyLogData($expectedlog, $event);
 
         // Now we want to trigger creating a course via the imsenterprise.
         // Delete the course we created earlier, as we want the imsenterprise plugin to create this.
@@ -1757,7 +1925,7 @@ class core_course_courselib_testcase extends advanced_testcase {
 
         // Create the XML file we want to use.
         $course->category = (array)$course->category;
-        $imstestcase = new enrol_imsenterprise_testcase();
+        $imstestcase = new imsenterprise_test();
         $imstestcase->imsplugin = enrol_get_plugin('imsenterprise');
         $imstestcase->set_test_config();
         $imstestcase->set_xml_file(false, array($course));
@@ -1816,10 +1984,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $url = new moodle_url('/course/edit.php', array('id' => $event->objectid));
         $this->assertEquals($url, $event->get_url());
         $this->assertEquals($updatedcourse, $event->get_record_snapshot('course', $event->objectid));
-        $this->assertEquals('course_updated', $event->get_legacy_eventname());
-        $this->assertEventLegacyData($updatedcourse, $event);
-        $expectedlog = array($updatedcourse->id, 'course', 'update', 'edit.php?id=' . $course->id, $course->id);
-        $this->assertEventLegacyLogData($expectedlog, $event);
 
         // Move course and catch course_updated event.
         $sink = $this->redirectEvents();
@@ -1836,10 +2000,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals($movedcourse->id, $event->objectid);
         $this->assertEquals(context_course::instance($course->id), $event->get_context());
         $this->assertEquals($movedcourse, $event->get_record_snapshot('course', $movedcourse->id));
-        $this->assertEquals('course_updated', $event->get_legacy_eventname());
-        $this->assertEventLegacyData($movedcourse, $event);
-        $expectedlog = array($movedcourse->id, 'course', 'move', 'edit.php?id=' . $movedcourse->id, $movedcourse->id);
-        $this->assertEventLegacyLogData($expectedlog, $event);
 
         // Move course to hidden category and catch course_updated event.
         $sink = $this->redirectEvents();
@@ -1856,10 +2016,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals($movedcoursehidden->id, $event->objectid);
         $this->assertEquals(context_course::instance($course->id), $event->get_context());
         $this->assertEquals($movedcoursehidden, $event->get_record_snapshot('course', $movedcoursehidden->id));
-        $this->assertEquals('course_updated', $event->get_legacy_eventname());
-        $this->assertEventLegacyData($movedcoursehidden, $event);
-        $expectedlog = array($movedcoursehidden->id, 'course', 'move', 'edit.php?id=' . $movedcoursehidden->id, $movedcoursehidden->id);
-        $this->assertEventLegacyLogData($expectedlog, $event);
         $this->assertEventContextNotUsed($event);
     }
 
@@ -1929,21 +2085,11 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals($course->id, $event->objectid);
         $this->assertEquals($coursecontext->id, $event->contextid);
         $this->assertEquals($course, $event->get_record_snapshot('course', $course->id));
-        $this->assertEquals('course_deleted', $event->get_legacy_eventname());
         $eventdata = $event->get_data();
         $this->assertSame($course->idnumber, $eventdata['other']['idnumber']);
         $this->assertSame($course->fullname, $eventdata['other']['fullname']);
         $this->assertSame($course->shortname, $eventdata['other']['shortname']);
 
-        // The legacy data also passed the context in the course object and substitutes timemodified with the current date.
-        $expectedlegacy = clone($course);
-        $expectedlegacy->context = $coursecontext;
-        $expectedlegacy->timemodified = $event->timecreated;
-        $this->assertEventLegacyData($expectedlegacy, $event);
-
-        // Validate legacy log data.
-        $expectedlog = array(SITEID, 'course', 'delete', 'view.php?id=' . $course->id, $course->fullname . '(ID ' . $course->id . ')');
-        $this->assertEventLegacyLogData($expectedlog, $event);
         $this->assertEventContextNotUsed($event);
     }
 
@@ -1981,11 +2127,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals($course->id, $event->objectid);
         $this->assertEquals($coursecontext->id, $event->contextid);
         $this->assertEquals($course, $event->get_record_snapshot('course', $course->id));
-        $this->assertEquals('course_content_removed', $event->get_legacy_eventname());
-        // The legacy data also passed the context and options in the course object.
-        $course->context = $coursecontext;
-        $course->options = array();
-        $this->assertEventLegacyData($course, $event);
         $this->assertEventContextNotUsed($event);
     }
 
@@ -1998,7 +2139,8 @@ class core_course_courselib_testcase extends advanced_testcase {
         // Create a category.
         $category = $this->getDataGenerator()->create_category();
 
-        // Save the context before it is deleted.
+        // Save the original record/context before it is deleted.
+        $categoryrecord = $category->get_db_record();
         $categorycontext = context_coursecat::instance($category->id);
 
         // Catch the update event.
@@ -2017,17 +2159,18 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals('course_categories', $event->objecttable);
         $this->assertEquals($category->id, $event->objectid);
         $this->assertEquals($categorycontext->id, $event->contextid);
-        $this->assertEquals('course_category_deleted', $event->get_legacy_eventname());
+        $this->assertEquals([
+            'name' => $category->name,
+        ], $event->other);
+        $this->assertEquals($categoryrecord, $event->get_record_snapshot($event->objecttable, $event->objectid));
         $this->assertEquals(null, $event->get_url());
-        $this->assertEventLegacyData($category, $event);
-        $expectedlog = array(SITEID, 'category', 'delete', 'index.php', $category->name . '(ID ' . $category->id . ')');
-        $this->assertEventLegacyLogData($expectedlog, $event);
 
         // Create two categories.
         $category = $this->getDataGenerator()->create_category();
         $category2 = $this->getDataGenerator()->create_category();
 
-        // Save the context before it is moved and then deleted.
+        // Save the original record/context before it is moved and then deleted.
+        $category2record = $category2->get_db_record();
         $category2context = context_coursecat::instance($category2->id);
 
         // Catch the update event.
@@ -2046,10 +2189,11 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals('course_categories', $event->objecttable);
         $this->assertEquals($category2->id, $event->objectid);
         $this->assertEquals($category2context->id, $event->contextid);
-        $this->assertEquals('course_category_deleted', $event->get_legacy_eventname());
-        $this->assertEventLegacyData($category2, $event);
-        $expectedlog = array(SITEID, 'category', 'delete', 'index.php', $category2->name . '(ID ' . $category2->id . ')');
-        $this->assertEventLegacyLogData($expectedlog, $event);
+        $this->assertEquals([
+            'name' => $category2->name,
+            'contentmovedcategoryid' => $category->id,
+        ], $event->other);
+        $this->assertEquals($category2record, $event->get_record_snapshot($event->objecttable, $event->objectid));
         $this->assertEventContextNotUsed($event);
     }
 
@@ -2150,19 +2294,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals('course', $event->objecttable);
         $this->assertEquals($rc->get_courseid(), $event->objectid);
         $this->assertEquals(context_course::instance($rc->get_courseid())->id, $event->contextid);
-        $this->assertEquals('course_restored', $event->get_legacy_eventname());
-        $legacydata = (object) array(
-            'courseid' => $rc->get_courseid(),
-            'userid' => $rc->get_userid(),
-            'type' => $rc->get_type(),
-            'target' => $rc->get_target(),
-            'mode' => $rc->get_mode(),
-            'operation' => $rc->get_operation(),
-            'samesite' => $rc->is_samesite()
-        );
-        $url = new moodle_url('/course/view.php', array('id' => $event->objectid));
-        $this->assertEquals($url, $event->get_url());
-        $this->assertEventLegacyData($legacydata, $event);
         $this->assertEventContextNotUsed($event);
 
         // Destroy the resource controller since we are done using it.
@@ -2221,8 +2352,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals($section, $event->get_record_snapshot('course_sections', $event->objectid));
         $id = $section->id;
         $sectionnum = $section->section;
-        $expectedlegacydata = array($course->id, "course", "editsection", 'editsection.php?id=' . $id, $sectionnum);
-        $this->assertEventLegacyLogData($expectedlegacydata, $event);
         $this->assertEventContextNotUsed($event);
     }
 
@@ -2256,11 +2385,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals($expecteddesc, $event->get_description());
         $this->assertEquals($section, $event->get_record_snapshot('course_sections', $event->objectid));
         $this->assertNull($event->get_url());
-
-        // Test legacy data.
-        $sectionnum = $section->section;
-        $expectedlegacydata = array($course->id, "course", "delete section", 'view.php?id=' . $course->id, $sectionnum);
-        $this->assertEventLegacyLogData($expectedlegacydata, $event);
         $this->assertEventContextNotUsed($event);
     }
 
@@ -2410,22 +2534,6 @@ class core_course_courselib_testcase extends advanced_testcase {
                 $this->assertEquals('course_modules', $event->objecttable);
                 $url = new moodle_url('/mod/assign/view.php', array('id' => $module->cmid));
                 $this->assertEquals($url, $event->get_url());
-
-                // Test legacy data.
-                $this->assertSame('mod_created', $event->get_legacy_eventname());
-                $eventdata = new stdClass();
-                $eventdata->modulename = 'assign';
-                $eventdata->name       = $module->name;
-                $eventdata->cmid       = $module->cmid;
-                $eventdata->courseid   = $module->course;
-                $eventdata->userid     = $USER->id;
-                $this->assertEventLegacyData($eventdata, $event);
-
-                $arr = array(
-                    array($module->course, "course", "add mod", "../mod/assign/view.php?id=$module->cmid", "assign $module->id"),
-                    array($module->course, "assign", "add", "view.php?id=$module->cmid", $module->id, $module->cmid)
-                );
-                $this->assertEventLegacyLogData($arr, $event);
                 $this->assertEventContextNotUsed($event);
             }
         }
@@ -2483,7 +2591,7 @@ class core_course_courselib_testcase extends advanced_testcase {
             $this->fail("Event validation should not allow \\core\\event\\course_module_created to be triggered without
                     other['instanceid']");
         } catch (coding_exception $e) {
-            $this->assertContains("The 'instanceid' value must be set in other.", $e->getMessage());
+            $this->assertStringContainsString("The 'instanceid' value must be set in other.", $e->getMessage());
         }
 
         // Test not setting modulename.
@@ -2500,7 +2608,7 @@ class core_course_courselib_testcase extends advanced_testcase {
             $this->fail("Event validation should not allow \\core\\event\\course_module_created to be triggered without
                     other['modulename']");
         } catch (coding_exception $e) {
-            $this->assertContains("The 'modulename' value must be set in other.", $e->getMessage());
+            $this->assertStringContainsString("The 'modulename' value must be set in other.", $e->getMessage());
         }
 
         // Test not setting name.
@@ -2518,7 +2626,7 @@ class core_course_courselib_testcase extends advanced_testcase {
             $this->fail("Event validation should not allow \\core\\event\\course_module_created to be triggered without
                     other['name']");
         } catch (coding_exception $e) {
-            $this->assertContains("The 'name' value must be set in other.", $e->getMessage());
+            $this->assertStringContainsString("The 'name' value must be set in other.", $e->getMessage());
         }
 
     }
@@ -2550,22 +2658,6 @@ class core_course_courselib_testcase extends advanced_testcase {
                 $this->assertEquals('course_modules', $event->objecttable);
                 $url = new moodle_url('/mod/forum/view.php', array('id' => $cm->id));
                 $this->assertEquals($url, $event->get_url());
-
-                // Test legacy data.
-                $this->assertSame('mod_updated', $event->get_legacy_eventname());
-                $eventdata = new stdClass();
-                $eventdata->modulename = 'forum';
-                $eventdata->name       = $mod->name;
-                $eventdata->cmid       = $cm->id;
-                $eventdata->courseid   = $cm->course;
-                $eventdata->userid     = $USER->id;
-                $this->assertEventLegacyData($eventdata, $event);
-
-                $arr = array(
-                    array($cm->course, "course", "update mod", "../mod/forum/view.php?id=$cm->id", "forum $cm->instance"),
-                    array($cm->course, "forum", "update", "view.php?id=$cm->id", $cm->instance, $cm->id)
-                );
-                $this->assertEventLegacyLogData($arr, $event);
                 $this->assertEventContextNotUsed($event);
             }
         }
@@ -2610,12 +2702,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals($cm->instance, $event2->other['instanceid']);
         $this->assertEquals($cm->name, $event2->other['name']);
         $this->assertEventContextNotUsed($event2);
-        $this->assertSame('mod_updated', $event2->get_legacy_eventname());
-        $arr = array(
-            array($cm->course, "course", "update mod", "../mod/assign/view.php?id=$cm->id", "assign $cm->instance"),
-            array($cm->course, "assign", "update", "view.php?id=$cm->id", $cm->instance, $cm->id)
-        );
-        $this->assertEventLegacyLogData($arr, $event);
     }
 
     /**
@@ -2643,7 +2729,7 @@ class core_course_courselib_testcase extends advanced_testcase {
             $this->fail("Event validation should not allow \\core\\event\\course_module_updated to be triggered without
                     other['instanceid']");
         } catch (coding_exception $e) {
-            $this->assertContains("The 'instanceid' value must be set in other.", $e->getMessage());
+            $this->assertStringContainsString("The 'instanceid' value must be set in other.", $e->getMessage());
         }
 
         // Test not setting modulename.
@@ -2660,7 +2746,7 @@ class core_course_courselib_testcase extends advanced_testcase {
             $this->fail("Event validation should not allow \\core\\event\\course_module_updated to be triggered without
                     other['modulename']");
         } catch (coding_exception $e) {
-            $this->assertContains("The 'modulename' value must be set in other.", $e->getMessage());
+            $this->assertStringContainsString("The 'modulename' value must be set in other.", $e->getMessage());
         }
 
         // Test not setting name.
@@ -2678,7 +2764,7 @@ class core_course_courselib_testcase extends advanced_testcase {
             $this->fail("Event validation should not allow \\core\\event\\course_module_updated to be triggered without
                     other['name']");
         } catch (coding_exception $e) {
-            $this->assertContains("The 'name' value must be set in other.", $e->getMessage());
+            $this->assertStringContainsString("The 'name' value must be set in other.", $e->getMessage());
         }
 
     }
@@ -2706,19 +2792,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals('course_modules', $event->objecttable);
         $this->assertEquals(null, $event->get_url());
         $this->assertEquals($cm, $event->get_record_snapshot('course_modules', $cm->id));
-
-        // Test legacy data.
-        $this->assertSame('mod_deleted', $event->get_legacy_eventname());
-        $eventdata = new stdClass();
-        $eventdata->modulename = 'forum';
-        $eventdata->cmid       = $cm->id;
-        $eventdata->courseid   = $cm->course;
-        $eventdata->userid     = $USER->id;
-        $this->assertEventLegacyData($eventdata, $event);
-
-        $arr = array($cm->course, 'course', "delete mod", "view.php?id=$cm->course", "forum $cm->instance", $cm->id);
-        $this->assertEventLegacyLogData($arr, $event);
-
     }
 
     /**
@@ -2746,7 +2819,7 @@ class core_course_courselib_testcase extends advanced_testcase {
             $this->fail("Event validation should not allow \\core\\event\\course_module_deleted to be triggered without
                     other['instanceid']");
         } catch (coding_exception $e) {
-            $this->assertContains("The 'instanceid' value must be set in other.", $e->getMessage());
+            $this->assertStringContainsString("The 'instanceid' value must be set in other.", $e->getMessage());
         }
 
         // Test not setting modulename.
@@ -2763,7 +2836,7 @@ class core_course_courselib_testcase extends advanced_testcase {
             $this->fail("Event validation should not allow \\core\\event\\course_module_deleted to be triggered without
                     other['modulename']");
         } catch (coding_exception $e) {
-            $this->assertContains("The 'modulename' value must be set in other.", $e->getMessage());
+            $this->assertStringContainsString("The 'modulename' value must be set in other.", $e->getMessage());
         }
     }
 
@@ -2810,7 +2883,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         $caps = course_capability_assignment::allow('moodle/category:manage', $roleid, $context->id);
 
         $courses = $category->get_courses();
-        $this->assertInternalType('array', $courses);
+        $this->assertIsArray($courses);
         $this->assertEquals(array($course1->id, $course2->id, $course3->id), array_keys($courses));
         $dbcourses = $DB->get_records('course', array('category' => $category->id), 'sortorder', 'id');
         $this->assertEquals(array_keys($dbcourses), array_keys($courses));
@@ -2818,7 +2891,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         // Test moving down.
         $this->assertTrue(course_change_sortorder_after_course($course1->id, $course3->id));
         $courses = $category->get_courses();
-        $this->assertInternalType('array', $courses);
+        $this->assertIsArray($courses);
         $this->assertEquals(array($course2->id, $course3->id, $course1->id), array_keys($courses));
         $dbcourses = $DB->get_records('course', array('category' => $category->id), 'sortorder', 'id');
         $this->assertEquals(array_keys($dbcourses), array_keys($courses));
@@ -2826,7 +2899,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         // Test moving up.
         $this->assertTrue(course_change_sortorder_after_course($course1->id, $course2->id));
         $courses = $category->get_courses();
-        $this->assertInternalType('array', $courses);
+        $this->assertIsArray($courses);
         $this->assertEquals(array($course2->id, $course1->id, $course3->id), array_keys($courses));
         $dbcourses = $DB->get_records('course', array('category' => $category->id), 'sortorder', 'id');
         $this->assertEquals(array_keys($dbcourses), array_keys($courses));
@@ -2834,7 +2907,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         // Test moving to the top.
         $this->assertTrue(course_change_sortorder_after_course($course1->id, 0));
         $courses = $category->get_courses();
-        $this->assertInternalType('array', $courses);
+        $this->assertIsArray($courses);
         $this->assertEquals(array($course1->id, $course2->id, $course3->id), array_keys($courses));
         $dbcourses = $DB->get_records('course', array('category' => $category->id), 'sortorder', 'id');
         $this->assertEquals(array_keys($dbcourses), array_keys($courses));
@@ -2881,7 +2954,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         $course1 = $generator->create_course(array('category' => $category->id));
 
         $courses = $category->get_courses();
-        $this->assertInternalType('array', $courses);
+        $this->assertIsArray($courses);
         $this->assertEquals(array($course1->id, $course2->id, $course3->id), array_keys($courses));
         $dbcourses = $DB->get_records('course', array('category' => $category->id), 'sortorder', 'id');
         $this->assertEquals(array_keys($dbcourses), array_keys($courses));
@@ -2890,7 +2963,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         $course1 = get_course($course1->id);
         $this->assertTrue(course_change_sortorder_by_one($course1, false));
         $courses = $category->get_courses();
-        $this->assertInternalType('array', $courses);
+        $this->assertIsArray($courses);
         $this->assertEquals(array($course2->id, $course1->id, $course3->id), array_keys($courses));
         $dbcourses = $DB->get_records('course', array('category' => $category->id), 'sortorder', 'id');
         $this->assertEquals(array_keys($dbcourses), array_keys($courses));
@@ -2899,7 +2972,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         $course1 = get_course($course1->id);
         $this->assertTrue(course_change_sortorder_by_one($course1, true));
         $courses = $category->get_courses();
-        $this->assertInternalType('array', $courses);
+        $this->assertIsArray($courses);
         $this->assertEquals(array($course1->id, $course2->id, $course3->id), array_keys($courses));
         $dbcourses = $DB->get_records('course', array('category' => $category->id), 'sortorder', 'id');
         $this->assertEquals(array_keys($dbcourses), array_keys($courses));
@@ -2909,7 +2982,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertFalse(course_change_sortorder_by_one($course1, true));
         // Check nothing changed.
         $courses = $category->get_courses();
-        $this->assertInternalType('array', $courses);
+        $this->assertIsArray($courses);
         $this->assertEquals(array($course1->id, $course2->id, $course3->id), array_keys($courses));
         $dbcourses = $DB->get_records('course', array('category' => $category->id), 'sortorder', 'id');
         $this->assertEquals(array_keys($dbcourses), array_keys($courses));
@@ -2919,7 +2992,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertFalse(course_change_sortorder_by_one($course3, false));
         // Check nothing changed.
         $courses = $category->get_courses();
-        $this->assertInternalType('array', $courses);
+        $this->assertIsArray($courses);
         $this->assertEquals(array($course1->id, $course2->id, $course3->id), array_keys($courses));
         $dbcourses = $DB->get_records('course', array('category' => $category->id), 'sortorder', 'id');
         $this->assertEquals(array_keys($dbcourses), array_keys($courses));
@@ -2932,7 +3005,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $coursecontext = context_course::instance($course->id);
 
         $event = \core\event\course_resources_list_viewed::create(array('context' => context_course::instance($course->id)));
-        $event->set_legacy_logdata(array('book', 'page', 'resource'));
         $sink = $this->redirectEvents();
         $event->trigger();
         $events = $sink->get_events();
@@ -2945,12 +3017,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertEquals(null, $event->objectid);
         $this->assertEquals($course->id, $event->courseid);
         $this->assertEquals($coursecontext->id, $event->contextid);
-        $expectedlegacydata = array(
-            array($course->id, "book", "view all", 'index.php?id=' . $course->id, ''),
-            array($course->id, "page", "view all", 'index.php?id=' . $course->id, ''),
-            array($course->id, "resource", "view all", 'index.php?id=' . $course->id, ''),
-        );
-        $this->assertEventLegacyLogData($expectedlegacydata, $event);
         $this->assertEventContextNotUsed($event);
     }
 
@@ -3073,11 +3139,11 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->setAdminUser();
         $res = course_get_tagged_course_modules(core_tag_tag::get_by_name(0, 'Cat'),
                 /*$exclusivemode = */false, /*$fromctx = */0, /*$ctx = */0, /*$rec = */1, /*$page = */0);
-        $this->assertRegExp('/'.$cm11->name.'/', $res->content);
-        $this->assertRegExp('/'.$cm12->name.'/', $res->content);
-        $this->assertRegExp('/'.$cm13->name.'/', $res->content);
-        $this->assertRegExp('/'.$cm21->name.'/', $res->content);
-        $this->assertRegExp('/'.$cm31->name.'/', $res->content);
+        $this->assertMatchesRegularExpression('/'.$cm11->name.'/', $res->content);
+        $this->assertMatchesRegularExpression('/'.$cm12->name.'/', $res->content);
+        $this->assertMatchesRegularExpression('/'.$cm13->name.'/', $res->content);
+        $this->assertMatchesRegularExpression('/'.$cm21->name.'/', $res->content);
+        $this->assertMatchesRegularExpression('/'.$cm31->name.'/', $res->content);
         // Results from course1 are returned before results from course2.
         $this->assertTrue(strpos($res->content, $cm11->name) < strpos($res->content, $cm21->name));
 
@@ -3099,21 +3165,21 @@ class core_course_courselib_testcase extends advanced_testcase {
         $context = context_course::instance($course1->id);
         $res = course_get_tagged_course_modules(core_tag_tag::get_by_name(0, 'Cat'),
                 /*$exclusivemode = */false, /*$fromctx = */0, /*$ctx = */$context->id, /*$rec = */1, /*$page = */0);
-        $this->assertRegExp('/'.$cm11->name.'/', $res->content);
-        $this->assertNotRegExp('/'.$cm12->name.'/', $res->content);
-        $this->assertRegExp('/'.$cm13->name.'/', $res->content);
-        $this->assertNotRegExp('/'.$cm21->name.'/', $res->content);
-        $this->assertNotRegExp('/'.$cm31->name.'/', $res->content);
+        $this->assertMatchesRegularExpression('/'.$cm11->name.'/', $res->content);
+        $this->assertDoesNotMatchRegularExpression('/'.$cm12->name.'/', $res->content);
+        $this->assertMatchesRegularExpression('/'.$cm13->name.'/', $res->content);
+        $this->assertDoesNotMatchRegularExpression('/'.$cm21->name.'/', $res->content);
+        $this->assertDoesNotMatchRegularExpression('/'.$cm31->name.'/', $res->content);
 
         // Searching FROM the course context returns visible modules in all courses.
         $context = context_course::instance($course2->id);
         $res = course_get_tagged_course_modules(core_tag_tag::get_by_name(0, 'Cat'),
                 /*$exclusivemode = */false, /*$fromctx = */$context->id, /*$ctx = */0, /*$rec = */1, /*$page = */0);
-        $this->assertRegExp('/'.$cm11->name.'/', $res->content);
-        $this->assertNotRegExp('/'.$cm12->name.'/', $res->content);
-        $this->assertRegExp('/'.$cm13->name.'/', $res->content);
-        $this->assertRegExp('/'.$cm21->name.'/', $res->content);
-        $this->assertNotRegExp('/'.$cm31->name.'/', $res->content); // No access to course3.
+        $this->assertMatchesRegularExpression('/'.$cm11->name.'/', $res->content);
+        $this->assertDoesNotMatchRegularExpression('/'.$cm12->name.'/', $res->content);
+        $this->assertMatchesRegularExpression('/'.$cm13->name.'/', $res->content);
+        $this->assertMatchesRegularExpression('/'.$cm21->name.'/', $res->content);
+        $this->assertDoesNotMatchRegularExpression('/'.$cm31->name.'/', $res->content); // No access to course3.
         // Results from course2 are returned before results from course1.
         $this->assertTrue(strpos($res->content, $cm21->name) < strpos($res->content, $cm11->name));
 
@@ -3124,7 +3190,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         $context = context_course::instance($course1->id);
         $res = course_get_tagged_course_modules(core_tag_tag::get_by_name(0, 'Cat'),
                 /*$exclusivemode = */false, /*$fromctx = */$context->id, /*$ctx = */0, /*$rec = */1, /*$page = */0);
-        $this->assertRegExp('/'.$cm12->name.'/', $res->content);
+        $this->assertMatchesRegularExpression('/'.$cm12->name.'/', $res->content);
 
         // Create more modules and try pagination.
         $cm14 = $this->getDataGenerator()->create_module('assign', array('course' => $course1->id,
@@ -3137,27 +3203,27 @@ class core_course_courselib_testcase extends advanced_testcase {
         $context = context_course::instance($course1->id);
         $res = course_get_tagged_course_modules(core_tag_tag::get_by_name(0, 'Cat'),
                 /*$exclusivemode = */false, /*$fromctx = */0, /*$ctx = */$context->id, /*$rec = */1, /*$page = */0);
-        $this->assertRegExp('/'.$cm11->name.'/', $res->content);
-        $this->assertRegExp('/'.$cm12->name.'/', $res->content);
-        $this->assertRegExp('/'.$cm13->name.'/', $res->content);
-        $this->assertNotRegExp('/'.$cm21->name.'/', $res->content);
-        $this->assertRegExp('/'.$cm14->name.'/', $res->content);
-        $this->assertRegExp('/'.$cm15->name.'/', $res->content);
-        $this->assertNotRegExp('/'.$cm16->name.'/', $res->content);
-        $this->assertNotRegExp('/'.$cm31->name.'/', $res->content); // No access to course3.
+        $this->assertMatchesRegularExpression('/'.$cm11->name.'/', $res->content);
+        $this->assertMatchesRegularExpression('/'.$cm12->name.'/', $res->content);
+        $this->assertMatchesRegularExpression('/'.$cm13->name.'/', $res->content);
+        $this->assertDoesNotMatchRegularExpression('/'.$cm21->name.'/', $res->content);
+        $this->assertMatchesRegularExpression('/'.$cm14->name.'/', $res->content);
+        $this->assertMatchesRegularExpression('/'.$cm15->name.'/', $res->content);
+        $this->assertDoesNotMatchRegularExpression('/'.$cm16->name.'/', $res->content);
+        $this->assertDoesNotMatchRegularExpression('/'.$cm31->name.'/', $res->content); // No access to course3.
         $this->assertEmpty($res->prevpageurl);
         $this->assertNotEmpty($res->nextpageurl);
 
         $res = course_get_tagged_course_modules(core_tag_tag::get_by_name(0, 'Cat'),
                 /*$exclusivemode = */false, /*$fromctx = */0, /*$ctx = */$context->id, /*$rec = */1, /*$page = */1);
-        $this->assertNotRegExp('/'.$cm11->name.'/', $res->content);
-        $this->assertNotRegExp('/'.$cm12->name.'/', $res->content);
-        $this->assertNotRegExp('/'.$cm13->name.'/', $res->content);
-        $this->assertNotRegExp('/'.$cm21->name.'/', $res->content);
-        $this->assertNotRegExp('/'.$cm14->name.'/', $res->content);
-        $this->assertNotRegExp('/'.$cm15->name.'/', $res->content);
-        $this->assertRegExp('/'.$cm16->name.'/', $res->content);
-        $this->assertNotRegExp('/'.$cm31->name.'/', $res->content); // No access to course3.
+        $this->assertDoesNotMatchRegularExpression('/'.$cm11->name.'/', $res->content);
+        $this->assertDoesNotMatchRegularExpression('/'.$cm12->name.'/', $res->content);
+        $this->assertDoesNotMatchRegularExpression('/'.$cm13->name.'/', $res->content);
+        $this->assertDoesNotMatchRegularExpression('/'.$cm21->name.'/', $res->content);
+        $this->assertDoesNotMatchRegularExpression('/'.$cm14->name.'/', $res->content);
+        $this->assertDoesNotMatchRegularExpression('/'.$cm15->name.'/', $res->content);
+        $this->assertMatchesRegularExpression('/'.$cm16->name.'/', $res->content);
+        $this->assertDoesNotMatchRegularExpression('/'.$cm31->name.'/', $res->content); // No access to course3.
         $this->assertNotEmpty($res->prevpageurl);
         $this->assertEmpty($res->nextpageurl);
     }
@@ -3179,7 +3245,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertTrue($navoptions->badges);
         $this->assertTrue($navoptions->tags);
         $this->assertFalse($navoptions->search);
-        $this->assertTrue($navoptions->calendar);
         $this->assertTrue($navoptions->competencies);
 
         // Enable global search now.
@@ -3204,7 +3269,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertTrue($navoptions->badges);
         $this->assertTrue($navoptions->tags);
         $this->assertTrue($navoptions->search);
-        $this->assertTrue($navoptions->calendar);
     }
 
     /**
@@ -3243,7 +3307,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertTrue($navoptions->blogs);
         $this->assertFalse($navoptions->notes);
         $this->assertTrue($navoptions->participants);
-        $this->assertTrue($navoptions->badges);
+        $this->assertFalse($navoptions->badges);
 
         // Disable some options.
         $CFG->badges_allowcoursebadges = 0;
@@ -3256,6 +3320,13 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertFalse($navoptions->notes);
         $this->assertFalse($navoptions->participants);
         $this->assertFalse($navoptions->badges);
+
+        // Re-enable some options to check badges are displayed as expected.
+        $CFG->badges_allowcoursebadges = 1;
+        assign_capability('moodle/badges:createbadge', CAP_ALLOW, $roleid, $context);
+
+        $navoptions = course_get_user_navigation_options($context);
+        $this->assertTrue($navoptions->badges);
     }
 
     /**
@@ -4553,7 +4624,7 @@ class core_course_courselib_testcase extends advanced_testcase {
                 'totalcourses' => 0,
                 'limit' => 0,
                 'offset' => 0,
-                'expecteddbqueries' => 1,
+                'expecteddbqueries' => 4,
                 'expectedresult' => $buildexpectedresult(0, 0)
             ],
             'less than query limit' => [
@@ -4561,7 +4632,7 @@ class core_course_courselib_testcase extends advanced_testcase {
                 'totalcourses' => 2,
                 'limit' => 0,
                 'offset' => 0,
-                'expecteddbqueries' => 1,
+                'expecteddbqueries' => 2,
                 'expectedresult' => $buildexpectedresult(2, 0)
             ],
             'more than query limit' => [
@@ -4569,7 +4640,7 @@ class core_course_courselib_testcase extends advanced_testcase {
                 'totalcourses' => 7,
                 'limit' => 0,
                 'offset' => 0,
-                'expecteddbqueries' => 3,
+                'expecteddbqueries' => 4,
                 'expectedresult' => $buildexpectedresult(7, 0)
             ],
             'limit less than query limit' => [
@@ -4577,7 +4648,7 @@ class core_course_courselib_testcase extends advanced_testcase {
                 'totalcourses' => 7,
                 'limit' => 2,
                 'offset' => 0,
-                'expecteddbqueries' => 1,
+                'expecteddbqueries' => 2,
                 'expectedresult' => $buildexpectedresult(2, 0)
             ],
             'limit less than query limit with offset' => [
@@ -4585,7 +4656,7 @@ class core_course_courselib_testcase extends advanced_testcase {
                 'totalcourses' => 7,
                 'limit' => 2,
                 'offset' => 2,
-                'expecteddbqueries' => 1,
+                'expecteddbqueries' => 2,
                 'expectedresult' => $buildexpectedresult(2, 2)
             ],
             'limit less than total' => [
@@ -4593,7 +4664,7 @@ class core_course_courselib_testcase extends advanced_testcase {
                 'totalcourses' => 9,
                 'limit' => 6,
                 'offset' => 0,
-                'expecteddbqueries' => 2,
+                'expecteddbqueries' => 3,
                 'expectedresult' => $buildexpectedresult(6, 0)
             ],
             'less results than limit' => [
@@ -4601,7 +4672,7 @@ class core_course_courselib_testcase extends advanced_testcase {
                 'totalcourses' => 9,
                 'limit' => 20,
                 'offset' => 0,
-                'expecteddbqueries' => 3,
+                'expecteddbqueries' => 4,
                 'expectedresult' => $buildexpectedresult(9, 0)
             ],
             'less results than limit exact divisible' => [
@@ -4609,7 +4680,7 @@ class core_course_courselib_testcase extends advanced_testcase {
                 'totalcourses' => 9,
                 'limit' => 20,
                 'offset' => 0,
-                'expecteddbqueries' => 4,
+                'expecteddbqueries' => 5,
                 'expectedresult' => $buildexpectedresult(9, 0)
             ],
             'less results than limit with offset' => [
@@ -4617,7 +4688,7 @@ class core_course_courselib_testcase extends advanced_testcase {
                 'totalcourses' => 9,
                 'limit' => 10,
                 'offset' => 5,
-                'expecteddbqueries' => 2,
+                'expecteddbqueries' => 3,
                 'expectedresult' => $buildexpectedresult(4, 5)
             ],
         ];
@@ -4668,7 +4739,7 @@ class core_course_courselib_testcase extends advanced_testcase {
         sort($expectedresult);
 
         $this->assertEquals($expectedresult, $actualresult);
-        $this->assertEquals($expecteddbqueries, $DB->perf_get_queries() - $initialquerycount);
+        $this->assertLessThanOrEqual($expecteddbqueries, $DB->perf_get_queries() - $initialquerycount);
     }
 
     /**
@@ -4821,6 +4892,104 @@ class core_course_courselib_testcase extends advanced_testcase {
                 'expectedprocessedcount' => 10
             ],
         ];
+    }
+
+    /**
+     * Test the course_get_enrolled_courses_for_logged_in_user_from_search function.
+     */
+    public function test_course_get_enrolled_courses_for_logged_in_user_from_search() {
+        global $DB;
+
+        // Set up.
+
+        $this->resetAfterTest();
+        $generator = $this->getDataGenerator();
+        $student = $generator->create_user();
+
+        $cat1 = core_course_category::create(['name' => 'Cat1']);
+        $cat2 = core_course_category::create(['name' => 'Cat2', 'parent' => $cat1->id]);
+        $c1 = $this->getDataGenerator()->create_course(['category' => $cat1->id, 'fullname' => 'Test 3', 'summary' => 'Magic', 'idnumber' => 'ID3']);
+        $c2 = $this->getDataGenerator()->create_course(['category' => $cat1->id, 'fullname' => 'Test 1', 'summary' => 'Magic']);
+        $c3 = $this->getDataGenerator()->create_course(['category' => $cat1->id, 'fullname' => 'Математика', 'summary' => ' Test Magic']);
+        $c4 = $this->getDataGenerator()->create_course(['category' => $cat1->id, 'fullname' => 'Test 4', 'summary' => 'Magic', 'idnumber' => 'ID4']);
+
+        $c5 = $this->getDataGenerator()->create_course(['category' => $cat2->id, 'fullname' => 'Test 5', 'summary' => 'Magic']);
+        $c6 = $this->getDataGenerator()->create_course(['category' => $cat2->id, 'fullname' => 'Дискретная Математика', 'summary' => 'Magic']);
+        $c7 = $this->getDataGenerator()->create_course(['category' => $cat2->id, 'fullname' => 'Test 7', 'summary' => 'Magic']);
+        $c8 = $this->getDataGenerator()->create_course(['category' => $cat2->id, 'fullname' => 'Test 8', 'summary' => 'Magic']);
+
+        for ($i = 1; $i < 9; $i++) {
+            $generator->enrol_user($student->id, ${"c$i"}->id, 'student');
+        }
+
+        $this->setUser($student);
+
+        $returnedcourses = course_get_enrolled_courses_for_logged_in_user_from_search(
+            0,
+            0,
+            'id ASC',
+            null,
+            COURSE_DB_QUERY_LIMIT,
+            ['search' => 'test'],
+            ['idonly' => true]
+        );
+
+        $actualresult = array_map(function($course) {
+            return $course->id;
+        }, iterator_to_array($returnedcourses, false));
+
+        $this->assertEquals([$c1->id, $c2->id, $c3->id, $c4->id, $c5->id, $c7->id, $c8->id], $actualresult);
+
+        // Test no courses matching the search.
+        $returnedcourses = course_get_enrolled_courses_for_logged_in_user_from_search(
+            0,
+            0,
+            'id ASC',
+            null,
+            COURSE_DB_QUERY_LIMIT,
+            ['search' => 'foobar'],
+            ['idonly' => true]
+        );
+
+        $actualresult = array_map(function($course) {
+            return $course->id;
+        }, iterator_to_array($returnedcourses, false));
+
+        $this->assertEquals([], $actualresult);
+
+        // Test returning all courses that have a mutual summary.
+        $returnedcourses = course_get_enrolled_courses_for_logged_in_user_from_search(
+            0,
+            0,
+            'id ASC',
+            null,
+            COURSE_DB_QUERY_LIMIT,
+            ['search' => 'Magic'],
+            ['idonly' => true]
+        );
+
+        $actualresult = array_map(function($course) {
+            return $course->id;
+        }, iterator_to_array($returnedcourses, false));
+
+        $this->assertEquals([$c1->id, $c2->id, $c3->id, $c4->id, $c5->id, $c6->id, $c7->id, $c8->id], $actualresult);
+
+        // Test returning a unique course.
+        $returnedcourses = course_get_enrolled_courses_for_logged_in_user_from_search(
+            0,
+            0,
+            'id ASC',
+            null,
+            COURSE_DB_QUERY_LIMIT,
+            ['search' => 'Дискретная'],
+            ['idonly' => true]
+        );
+
+        $actualresult = array_map(function($course) {
+            return $course->id;
+        }, iterator_to_array($returnedcourses, false));
+
+        $this->assertEquals([$c6->id], $actualresult);
     }
 
     /**
@@ -5445,7 +5614,16 @@ class core_course_courselib_testcase extends advanced_testcase {
         // Every course accessed, order by shortname DESC. The last create course ($course[2]) should have the greater shortname.
         $result = course_get_recent_courses($student->id, 0, 0, 'shortname DESC');
         $this->assertCount(3, $result);
-        $this->assertEquals($courses[2]->id, array_shift($result)->id);
+        $this->assertEquals($courses[2]->id, array_values($result)[0]->id);
+        $this->assertEquals($courses[1]->id, array_values($result)[1]->id);
+        $this->assertEquals($courses[0]->id, array_values($result)[2]->id);
+
+        // Every course accessed, order by shortname ASC.
+        $result = course_get_recent_courses($student->id, 0, 0, 'shortname ASC');
+        $this->assertCount(3, $result);
+        $this->assertEquals($courses[0]->id, array_values($result)[0]->id);
+        $this->assertEquals($courses[1]->id, array_values($result)[1]->id);
+        $this->assertEquals($courses[2]->id, array_values($result)[2]->id);
 
         $guestcourse = $generator->create_course(
             (object)array('shortname' => 'guestcourse',
@@ -5465,6 +5643,101 @@ class core_course_courselib_testcase extends advanced_testcase {
         $result = course_get_recent_courses($student->id);
         $this->assertCount(3, $result);
         $this->assertArrayNotHasKey($courses[0]->id, $result);
+    }
+
+    /**
+     * Test the validation of the sort value in course_get_recent_courses().
+     *
+     * @dataProvider course_get_recent_courses_sort_validation_provider
+     * @param string $sort The sort value
+     * @param string $expectedexceptionmsg The expected exception message
+     */
+    public function test_course_get_recent_courses_sort_validation(string $sort, string $expectedexceptionmsg) {
+        $this->resetAfterTest();
+
+        $user = $this->getDataGenerator()->create_user();
+
+        if (!empty($expectedexceptionmsg)) {
+            $this->expectException('invalid_parameter_exception');
+            $this->expectExceptionMessage($expectedexceptionmsg);
+        }
+        course_get_recent_courses($user->id, 0, 0, $sort);
+    }
+
+    /**
+     * Data provider for test_course_get_recent_courses_sort_validation().
+     *
+     * @return array
+     */
+    function course_get_recent_courses_sort_validation_provider() {
+        return [
+            'Invalid sort format (SQL injection attempt)' =>
+                [
+                    'shortname DESC LIMIT 1--',
+                    'Invalid structure of the sort parameter, allowed structure: fieldname [ASC|DESC].',
+                ],
+            'Sort uses \'sort by\' field that does not exist' =>
+                [
+                    'shortname DESC, xyz ASC',
+                    'Invalid field in the sort parameter, allowed fields: id, idnumber, summary, summaryformat, ' .
+                    'startdate, enddate, category, shortname, fullname, timeaccess, component, visible, ' .
+                    'showactivitydates, showcompletionconditions, pdfexportfont.',
+            ],
+            'Sort uses invalid value for the sorting direction' =>
+                [
+                    'shortname xyz, lastaccess',
+                    'Invalid sort direction in the sort parameter, allowed values: asc, desc.',
+                ],
+            'Valid sort format' =>
+                [
+                    'shortname asc, timeaccess',
+                    ''
+                ]
+        ];
+    }
+
+    /**
+     * Test the course_get_recent_courses function.
+     */
+    public function test_course_get_recent_courses_with_guest() {
+        global $DB;
+        $this->resetAfterTest(true);
+
+        $student = $this->getDataGenerator()->create_user();
+
+        // Course 1 with guest access and no direct enrolment.
+        $course1 = $this->getDataGenerator()->create_course();
+        $context1 = context_course::instance($course1->id);
+        $record = $DB->get_record('enrol', ['courseid' => $course1->id, 'enrol' => 'guest']);
+        enrol_get_plugin('guest')->update_status($record, ENROL_INSTANCE_ENABLED);
+
+        // Course 2 where student is enrolled with two enrolment methods.
+        $course2 = $this->getDataGenerator()->create_course();
+        $context2 = context_course::instance($course2->id);
+        $record = $DB->get_record('enrol', ['courseid' => $course2->id, 'enrol' => 'self']);
+        enrol_get_plugin('guest')->update_status($record, ENROL_INSTANCE_ENABLED);
+        $this->getDataGenerator()->enrol_user($student->id, $course2->id, 'student', 'manual', 0, 0, ENROL_USER_ACTIVE);
+        $this->getDataGenerator()->enrol_user($student->id, $course2->id, 'student', 'self', 0, 0, ENROL_USER_ACTIVE);
+
+        // Course 3.
+        $course3 = $this->getDataGenerator()->create_course();
+        $context3 = context_course::instance($course3->id);
+
+        // Student visits first two courses, course_get_recent_courses returns two courses.
+        $this->setUser($student);
+        course_view($context1);
+        course_view($context2);
+
+        $result = course_get_recent_courses($student->id);
+        $this->assertEqualsCanonicalizing([$course2->id, $course1->id], array_column($result, 'id'));
+
+        // Admin visits all three courses. Only the one with guest access is returned.
+        $this->setAdminUser();
+        course_view($context1);
+        course_view($context2);
+        course_view($context3);
+        $result = course_get_recent_courses(get_admin()->id);
+        $this->assertEqualsCanonicalizing([$course1->id], array_column($result, 'id'));
     }
 
     /**
@@ -6922,5 +7195,222 @@ class core_course_courselib_testcase extends advanced_testcase {
 
         $this->setAdminUser();
         $this->assertTrue($request2->can_approve());
+    }
+
+    /**
+     * Test the course allowed module method.
+     */
+    public function test_course_allowed_module() {
+        $this->resetAfterTest();
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $manager = $this->getDataGenerator()->create_and_enrol($course, 'manager');
+
+        $teacherrole = $DB->get_record('role', array('shortname' => 'editingteacher'));
+        assign_capability('mod/assign:addinstance', CAP_PROHIBIT, $teacherrole->id, \context_course::instance($course->id));
+
+        // Global user (teacher) has no permissions in this course.
+        $this->setUser($teacher);
+        $this->assertFalse(course_allowed_module($course, 'assign'));
+
+        // Manager has permissions.
+        $this->assertTrue(course_allowed_module($course, 'assign', $manager));
+    }
+
+    /**
+     * Test the {@link average_number_of_participants()} function.
+     */
+    public function test_average_number_of_participants() {
+        global $DB;
+        $this->resetAfterTest(true);
+
+        $generator = $this->getDataGenerator();
+        $now = time();
+
+        // If there are no courses, expect zero number of participants per course.
+        $this->assertEquals(0, average_number_of_participants());
+
+        $c1 = $generator->create_course();
+        $c2 = $generator->create_course();
+
+        // If there are no users, expect zero number of participants per course.
+        $this->assertEquals(0, average_number_of_participants());
+
+        $t1 = $generator->create_user(['lastlogin' => $now]);
+        $s1 = $generator->create_user(['lastlogin' => $now]);
+        $s2 = $generator->create_user(['lastlogin' => $now - WEEKSECS]);
+        $s3 = $generator->create_user(['lastlogin' => $now - WEEKSECS]);
+        $s4 = $generator->create_user(['lastlogin' => $now - YEARSECS]);
+
+        // We have courses, we have users, but no enrolments yet.
+        $this->assertEquals(0, average_number_of_participants());
+
+        // Front page enrolments are ignored.
+        $generator->enrol_user($t1->id, SITEID, 'teacher');
+        $this->assertEquals(0, average_number_of_participants());
+
+        // The teacher enrolled into one of the two courses.
+        $generator->enrol_user($t1->id, $c1->id, 'editingteacher');
+        $this->assertEquals(0.5, average_number_of_participants());
+
+        // The teacher enrolled into both courses.
+        $generator->enrol_user($t1->id, $c2->id, 'editingteacher');
+        $this->assertEquals(1, average_number_of_participants());
+
+        // Student 1 enrolled in the Course 1 only.
+        $generator->enrol_user($s1->id, $c1->id, 'student');
+        $this->assertEquals(1.5, average_number_of_participants());
+
+        // Student 2 enrolled in both courses, but the enrolment in the Course 2 not active yet (enrolment starts in the future).
+        $generator->enrol_user($s2->id, $c1->id, 'student');
+        $generator->enrol_user($s2->id, $c2->id, 'student', 'manual', $now + WEEKSECS);
+        $this->assertEquals(2.5, average_number_of_participants());
+        $this->assertEquals(2, average_number_of_participants(true));
+
+        // Student 3 enrolled in the Course 1, but the enrolment already expired.
+        $generator->enrol_user($s3->id, $c1->id, 'student', 'manual', 0, $now - YEARSECS);
+        $this->assertEquals(3, average_number_of_participants());
+        $this->assertEquals(2, average_number_of_participants(true));
+
+        // Student 4 enrolled in both courses, but the enrolment has been suspended.
+        $generator->enrol_user($s4->id, $c1->id, 'student', 'manual', 0, 0, ENROL_USER_SUSPENDED);
+        $generator->enrol_user($s4->id, $c2->id, 'student', 'manual', $now - DAYSECS, $now + YEARSECS, ENROL_USER_SUSPENDED);
+        $this->assertEquals(4, average_number_of_participants());
+        $this->assertEquals(2, average_number_of_participants(true));
+
+        // Consider only t1 and s1 who logged in recently.
+        $this->assertEquals(1.5, average_number_of_participants(false, $now - DAYSECS));
+
+        // Consider only t1, s1, s2 and s3 who logged in in recent weeks.
+        $this->assertEquals(3, average_number_of_participants(false, $now - 4 * WEEKSECS));
+
+        // Hidden courses are excluded from stats.
+        $DB->set_field('course', 'visible', 0, ['id' => $c1->id]);
+        $this->assertEquals(3, average_number_of_participants());
+        $this->assertEquals(1, average_number_of_participants(true));
+    }
+
+    /**
+     * Test the set_downloadcontent() function.
+     */
+    public function test_set_downloadcontent() {
+        $this->resetAfterTest();
+
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $page = $generator->create_module('page', ['course' => $course]);
+
+        // Test the module 'downloadcontent' field is set to enabled.
+        set_downloadcontent($page->cmid, DOWNLOAD_COURSE_CONTENT_ENABLED);
+        $modinfo = get_fast_modinfo($course)->get_cm($page->cmid);
+        $this->assertEquals(DOWNLOAD_COURSE_CONTENT_ENABLED, $modinfo->downloadcontent);
+
+        // Now let's test the 'downloadcontent' value is updated to disabled.
+        set_downloadcontent($page->cmid, DOWNLOAD_COURSE_CONTENT_DISABLED);
+        $modinfo = get_fast_modinfo($course)->get_cm($page->cmid);
+        $this->assertEquals(DOWNLOAD_COURSE_CONTENT_DISABLED, $modinfo->downloadcontent);
+
+        // Nothing to update, the download course content value is the same, it should return false.
+        $this->assertFalse(set_downloadcontent($page->cmid, DOWNLOAD_COURSE_CONTENT_DISABLED));
+
+        // The download course content value has changed, it should return true in this case.
+        $this->assertTrue(set_downloadcontent($page->cmid, DOWNLOAD_COURSE_CONTENT_ENABLED));
+    }
+
+    /**
+     * Test for course_get_courseimage.
+     *
+     * @covers ::course_get_courseimage
+     */
+    public function test_course_get_courseimage(): void {
+        global $CFG;
+
+        $this->resetAfterTest();
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+
+        $this->assertNull(course_get_courseimage($course));
+
+        $fs = get_file_storage();
+        $file = $fs->create_file_from_pathname((object) [
+            'contextid' => \core\context\course::instance($course->id)->id,
+            'component' => 'course',
+            'filearea' => 'overviewfiles',
+            'itemid' => 0,
+            'filepath' => '/',
+            'filename' => 'logo.png',
+        ], "{$CFG->dirroot}/lib/tests/fixtures/gd-logo.png");
+
+        $image = course_get_courseimage($course);
+        $this->assertInstanceOf(\stored_file::class, $image);
+        $this->assertEquals(
+            $file->get_id(),
+            $image->get_id(),
+        );
+    }
+
+    /**
+     * Test the course_get_communication_instance_data() function.
+     *
+     * @covers ::course_get_communication_instance_data
+     */
+    public function test_course_get_communication_instance_data(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+
+        // Set admin user as a valid enrolment will be checked in the callback function.
+        $this->setAdminUser();
+
+        // Use the callback function and return the data.
+        list($instance, $context, $heading, $returnurl) = component_callback(
+            'core_course',
+            'get_communication_instance_data',
+            [$course->id]
+        );
+
+        // Check the url is as expected.
+        $expectedreturnurl = new moodle_url('/course/view.php', ['id' => $course->id]);
+        $this->assertEquals($expectedreturnurl, $returnurl);
+
+        // Check the context is as expected.
+        $expectedcontext = context_course::instance($course->id);
+        $this->assertEquals($expectedcontext, $context);
+
+        // Check the instance id is as expected.
+        $this->assertEquals($course->id, $instance->id);
+
+        // Check the heading is as expected.
+        $this->assertEquals($course->fullname, $heading);
+    }
+
+    /**
+     * Test the course_update_communication_instance_data() function.
+     *
+     * @covers ::course_update_communication_instance_data
+     */
+    public function test_course_update_communication_instance_data(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+
+        // Set some data to update with.
+        $data = new stdClass();
+        $data->instanceid = $course->id;
+        $data->fullname = 'newname';
+
+        // These should not be the same yet.
+        $this->assertNotEquals($course->fullname, $data->fullname);
+
+        // Use the callback function to update the course with the data.
+        component_callback(
+            'core_course',
+            'update_communication_instance_data',
+            [$data]
+        );
+
+        // Get the course and check it was updated.
+        $course = get_course($course->id);
+        $this->assertEquals($course->fullname, $data->fullname);
     }
 }

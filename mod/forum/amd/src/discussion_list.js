@@ -17,7 +17,6 @@
  * Module for the list of discussions on when viewing a forum.
  *
  * @module     mod_forum/discussion_list
- * @package    mod_forum
  * @copyright  2019 Andrew Nicols <andrew@nicols.co.uk>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -31,6 +30,7 @@ define([
     'mod_forum/repository',
     'core/pubsub',
     'mod_forum/forum_events',
+    'core_form/changechecker',
 ], function(
     $,
     Templates,
@@ -40,7 +40,8 @@ define([
     Selectors,
     Repository,
     PubSub,
-    ForumEvents
+    ForumEvents,
+    FormChangeChecker
 ) {
     var registerEventListeners = function(root) {
         PubSub.subscribe(ForumEvents.SUBSCRIPTION_TOGGLED, function(data) {
@@ -57,7 +58,14 @@ define([
             }
         });
 
-        root.on('click', Selectors.favourite.toggle, function() {
+        root.on('click', Selectors.post.inpageCancelButton, function(e) {
+            // Tell formchangechecker to reset the form state.
+            FormChangeChecker.resetFormDirtyState(e.currentTarget);
+        });
+
+        root.on('click', Selectors.favourite.toggle, function(e) {
+            e.preventDefault();
+
             var toggleElement = $(this);
             var forumId = toggleElement.data('forumid');
             var discussionId = toggleElement.data('discussionid');
@@ -133,7 +141,7 @@ define([
                 var stringKey = context.userstate.subscribed ? 'unsubscribediscussion' : 'subscribediscussion';
                 return Str.get_string(stringKey, 'mod_forum')
                     .then(function(string) {
-                        toggleElement.closest('td').find('label[for="' + toggleId + '"]').text(string);
+                        toggleElement.closest('td').find('label[for="' + toggleId + '"]').find('span').text(string);
                         return string;
                     });
             });

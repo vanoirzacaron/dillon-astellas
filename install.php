@@ -49,6 +49,10 @@ define('CACHE_DISABLE_ALL', true); // Disables caching.. just in case.
 define('PHPUNIT_TEST', false);
 define('IGNORE_COMPONENT_CACHE', true);
 define('MDL_PERF_TEST', false);
+define('MDL_PERF', false);
+define('MDL_PERFTOFOOT', false);
+define('MDL_PERFTOLOG', false);
+define('MDL_PERFINC', false);
 
 // Servers should define a default timezone in php.ini, but if they don't then make sure something is defined.
 if (!function_exists('date_default_timezone_set') or !function_exists('date_default_timezone_get')) {
@@ -493,6 +497,7 @@ if ($config->stage == INSTALL_DATABASETYPE) {
                                   get_string('databasetypesub', 'install'));
 
     $databases = array('mysqli' => moodle_database::get_driver_instance('mysqli', 'native'),
+                       'auroramysql' => moodle_database::get_driver_instance('auroramysql', 'native'),
                        'mariadb'=> moodle_database::get_driver_instance('mariadb', 'native'),
                        'pgsql'  => moodle_database::get_driver_instance('pgsql',  'native'),
                        'oci'    => moodle_database::get_driver_instance('oci',    'native'),

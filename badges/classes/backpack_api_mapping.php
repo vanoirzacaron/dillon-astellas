@@ -79,6 +79,12 @@ class backpack_api_mapping {
     /** @var string Error string from authentication request. */
     private static $authenticationerror = '';
 
+    /** @var mixed List of parameters for this method. */
+    protected $postparams;
+
+    /** @var int OpenBadges version 1 or 2. */
+    protected $backpackapiversion;
+
     /**
      * Create a mapping.
      *
@@ -170,8 +176,8 @@ class backpack_api_mapping {
         $url = str_replace('[SCHEME]', $urlscheme, $url);
         $url = str_replace('[HOST]', $urlhost, $url);
         $url = str_replace('[URL]', $apiurl, $url);
-        $url = str_replace('[PARAM1]', $param1, $url);
-        $url = str_replace('[PARAM2]', $param2, $url);
+        $url = str_replace('[PARAM1]', $param1 ?? '', $url);
+        $url = str_replace('[PARAM2]', $param2 ?? '', $url);
 
         return $url;
     }
@@ -209,6 +215,8 @@ class backpack_api_mapping {
                 } else if ($value == '[PASSWORD]') {
                     $value = $password;
                     $request[$key] = $value;
+                } else if ($value == '[PARAM]') {
+                    $request[$key] = is_array($param) ? $param[0] : $param;
                 }
             }
         }
@@ -312,6 +320,7 @@ class backpack_api_mapping {
         return array(
             'FRESH_CONNECT'     => true,
             'RETURNTRANSFER'    => true,
+            'FOLLOWLOCATION'    => true,
             'FORBID_REUSE'      => true,
             'HEADER'            => 0,
             'CONNECTTIMEOUT'    => 3,
@@ -359,6 +368,8 @@ class backpack_api_mapping {
             $response = $curl->get($url, $post, $options);
         } else if ($this->method == 'post') {
             $response = $curl->post($url, $post, $options);
+        } else if ($this->method == 'put') {
+            $response = $curl->put($url, $post, $options);
         }
         $response = json_decode($response);
         if (isset($response->result)) {

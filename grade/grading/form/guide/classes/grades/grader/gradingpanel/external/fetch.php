@@ -33,13 +33,12 @@ use context;
 use core_user;
 use core_grades\component_gradeitem as gradeitem;
 use core_grades\component_gradeitems;
-use external_api;
-use external_format_value;
-use external_function_parameters;
-use external_multiple_structure;
-use external_single_structure;
-use external_value;
-use external_warnings;
+use core_external\external_api;
+use core_external\external_function_parameters;
+use core_external\external_multiple_structure;
+use core_external\external_single_structure;
+use core_external\external_value;
+use core_external\external_warnings;
 use moodle_exception;
 use stdClass;
 require_once($CFG->dirroot.'/grade/grading/form/guide/lib.php');
@@ -100,8 +99,8 @@ class fetch extends external_api {
      * @since Moodle 3.8
      */
     public static function execute(string $component, int $contextid, string $itemname, int $gradeduserid): array {
-        global $USER;
-
+        global $CFG, $USER;
+        require_once("{$CFG->libdir}/gradelib.php");
         [
             'component' => $component,
             'contextid' => $contextid,
@@ -133,7 +132,12 @@ class fetch extends external_api {
         }
 
         // Fetch the actual data.
-        $gradeduser = core_user::get_user($gradeduserid);
+        $gradeduser = core_user::get_user($gradeduserid, '*', MUST_EXIST);
+
+        // One can access its own grades. Others just if they're graders.
+        if ($gradeduserid != $USER->id) {
+            $gradeitem->require_user_can_grade($gradeduser, $USER);
+        }
 
         return self::get_fetch_data($gradeitem, $gradeduser);
     }
@@ -149,13 +153,20 @@ class fetch extends external_api {
         global $USER;
 
         $hasgrade = $gradeitem->user_has_grade($gradeduser);
-        $grade = $gradeitem->get_grade_for_user($gradeduser, $USER);
+        $grade = $gradeitem->get_formatted_grade_for_user($gradeduser, $USER);
         $instance = $gradeitem->get_advanced_grading_instance($USER, $grade);
+        if (!$instance) {
+            throw new moodle_exception('error:gradingunavailable', 'grading');
+        }
         $controller = $instance->get_controller();
         $definition = $controller->get_definition();
         $fillings = $instance->get_guide_filling();
         $context = $controller->get_context();
         $definitionid = (int) $definition->id;
+
+        // Set up some items we need to return on other interfaces.
+        $gradegrade = \grade_grade::fetch(['itemid' => $gradeitem->get_grade_item()->id, 'userid' => $gradeduser->id]);
+        $gradername = $gradegrade ? fullname(\core_user::get_user($gradegrade->usermodified)) : null;
         $maxgrade = max(array_keys($controller->get_grade_range()));
 
         $criterion = [];
@@ -225,8 +236,9 @@ class fetch extends external_api {
                 'criterion' => $criterion,
                 'hascomments' => !empty($comments),
                 'comments' => $comments,
-                'usergrade' => $grade->grade,
+                'usergrade' => $grade->usergrade,
                 'maxgrade' => $maxgrade,
+                'gradedby' => $gradername,
                 'timecreated' => $grade->timecreated,
                 'timemodified' => $grade->timemodified,
             ],
@@ -269,6 +281,7 @@ class fetch extends external_api {
                 ),
                 'usergrade' => new external_value(PARAM_RAW, 'Current user grade'),
                 'maxgrade' => new external_value(PARAM_RAW, 'Max possible grade'),
+                'gradedby' => new external_value(PARAM_RAW, 'The assumed grader of this grading instance'),
                 'timecreated' => new external_value(PARAM_INT, 'The time that the grade was created'),
                 'timemodified' => new external_value(PARAM_INT, 'The time that the grade was last updated'),
             ]),
@@ -293,7 +306,15 @@ class fetch extends external_api {
             'filter' => true,
         ];
 
-        [$newtext, ] = external_format_text($text, $format, $context, 'grading', $filearea, $definitionid, $formatoptions);
+        [$newtext] = \core_external\util::format_text(
+            $text,
+            $format,
+            $context,
+            'grading',
+            $filearea,
+            $definitionid,
+            $formatoptions
+        );
 
         return $newtext;
     }

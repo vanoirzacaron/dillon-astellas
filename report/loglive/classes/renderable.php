@@ -34,7 +34,7 @@ defined('MOODLE_INTERNAL') || die;
  */
 class report_loglive_renderable implements renderable {
 
-    /** @const int number of seconds to show logs from, by default. */
+    /** @var int number of seconds to show logs from, by default. */
     const CUTOFF = 3600;
 
     /** @var \core\log\manager log manager */
@@ -168,19 +168,33 @@ class report_loglive_renderable implements renderable {
      * @return stdClass filters
      */
     protected function setup_filters() {
+        global $USER;
+
         $readers = $this->get_readers();
 
         // Set up filters.
         $filter = new \stdClass();
         if (!empty($this->course)) {
             $filter->courseid = $this->course->id;
+            $context = context_course::instance($filter->courseid);
+            if (!has_capability('moodle/site:viewanonymousevents', $context)) {
+                $filter->anonymous = 0;
+            }
+            if (groups_get_course_groupmode($this->course) == SEPARATEGROUPS &&
+                !has_capability('moodle/site:accessallgroups', $context)) {
+                if ($cgroups = groups_get_all_groups($this->course->id, $USER->id)) {
+                    $filter->groups = [];
+                    foreach ($cgroups as $cgroup) {
+                        $filter->groups[] = (int)$cgroup->id;
+                    }
+                }
+            }
         } else {
             $filter->courseid = 0;
         }
         $filter->logreader = $readers[$this->selectedlogreader];
         $filter->date = $this->date;
         $filter->orderby = $this->order;
-        $filter->anonymous = 0;
 
         return $filter;
     }
@@ -195,7 +209,7 @@ class report_loglive_renderable implements renderable {
         } else {
             if (defined('REPORT_LOGLIVE_REFRESH')) {
                 // Backward compatibility.
-                $this->refresh = REPORT_LOGLIVE_REFERESH;
+                $this->refresh = REPORT_LOGLIVE_REFRESH;
             } else {
                 // Default.
                 $this->refresh = 60;

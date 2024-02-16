@@ -79,9 +79,18 @@ class qtype_multichoice extends question_type {
         }
         $options->answernumbering = $config->answernumbering;
         $options->shuffleanswers = $config->shuffleanswers;
+        $options->showstandardinstruction = 0;
         $options->shownumcorrect = 1;
 
         return $options;
+    }
+
+    public function save_defaults_for_new_questions(stdClass $fromform): void {
+        parent::save_defaults_for_new_questions($fromform);
+        $this->set_default_value('single', $fromform->single);
+        $this->set_default_value('shuffleanswers', $fromform->shuffleanswers);
+        $this->set_default_value('answernumbering', $fromform->answernumbering);
+        $this->set_default_value('showstandardinstruction', $fromform->showstandardinstruction);
     }
 
     public function save_question_options($question) {
@@ -155,6 +164,7 @@ class qtype_multichoice extends question_type {
             $options->correctfeedback = '';
             $options->partiallycorrectfeedback = '';
             $options->incorrectfeedback = '';
+            $options->showstandardinstruction = 0;
             $options->id = $DB->insert_record('qtype_multichoice_options', $options);
         }
 
@@ -164,6 +174,7 @@ class qtype_multichoice extends question_type {
         }
         $options->answernumbering = $question->answernumbering;
         $options->shuffleanswers = $question->shuffleanswers;
+        $options->showstandardinstruction = !empty($question->showstandardinstruction);
         $options = $this->save_combined_feedback_helper($options, $question, $context, true);
         $DB->update_record('qtype_multichoice_options', $options);
 
@@ -204,6 +215,7 @@ class qtype_multichoice extends question_type {
         parent::initialise_question_instance($question, $questiondata);
         $question->shuffleanswers = $questiondata->options->shuffleanswers;
         $question->answernumbering = $questiondata->options->answernumbering;
+        $question->showstandardinstruction = $questiondata->options->showstandardinstruction;
         if (!empty($questiondata->options->layout)) {
             $question->layout = $questiondata->options->layout;
         } else {
@@ -229,6 +241,13 @@ class qtype_multichoice extends question_type {
     public function get_random_guess_score($questiondata) {
         if (!$questiondata->options->single) {
             // Pretty much impossible to compute for _multi questions. Don't try.
+            return null;
+        }
+
+        if (empty($questiondata->options->answers)) {
+            // A multi-choice question with no choices is senseless,
+            // but, seemingly, it can happen (presumably as a side-effect of bugs).
+            // Therefore, ensure it does not lead to errors here.
             return null;
         }
 

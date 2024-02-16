@@ -86,7 +86,7 @@ if ($ADMIN->fulltree) {
     $name = 'theme_adaptable/favicon';
     $title = get_string('favicon', 'theme_adaptable');
     $description = get_string('favicondesc', 'theme_adaptable');
-    $setting = new admin_setting_configstoredfile($name, $title, $description, 'favicon');
+    $setting = new admin_setting_description($name, $title, $description);
     $page->add($setting);
 
     // Site title.
@@ -158,16 +158,19 @@ if ($ADMIN->fulltree) {
     $setting = new admin_setting_configtext($name, $title, $description, 'angle-right');
     $page->add($setting);
 
-    // Choose to display search box or social icons.
-    $name = 'theme_adaptable/socialorsearch';
-    $title = get_string('socialorsearch', 'theme_adaptable');
-    $description = get_string('socialorsearchdesc', 'theme_adaptable');
-    $radchoices = array(
-        'none' => get_string('socialorsearchnone', 'theme_adaptable'),
-        'social' => get_string('socialorsearchsocial', 'theme_adaptable'),
-        'search' => get_string('socialorsearchsearch', 'theme_adaptable')
+    // Choose what to do with the search box and social icons.
+    $name = 'theme_adaptable/headersearchandsocial';
+    $title = get_string('headersearchandsocial', 'theme_adaptable');
+    $description = get_string('headersearchandsocialdesc', 'theme_adaptable');
+    $choices = array(
+        'none' => get_string('headersearchandsocialnone', 'theme_adaptable'),
+        'searchmobilenav' => get_string('headersearchandsocialsearchmobilenav', 'theme_adaptable'),
+        'searchheader' => get_string('headersearchandsocialsearchheader', 'theme_adaptable'),
+        'socialheader' => get_string('headersearchandsocialsocialheader', 'theme_adaptable'),
+        'searchnavbar' => get_string('headersearchandsocialsearchnavbar', 'theme_adaptable'),
+        'searchnavbarsocialheader' => get_string('headersearchandsocialsearchnavbarsocialheader', 'theme_adaptable'),
     );
-    $setting = new admin_setting_configselect($name, $title, $description, 'search', $radchoices);
+    $setting = new admin_setting_configselect($name, $title, $description, 'searchmobilenav', $choices);
     $page->add($setting);
 
     // Search box padding.
@@ -186,7 +189,7 @@ if ($ADMIN->fulltree) {
     $setting = new admin_setting_configcheckbox($name, $title, $description, $default, true, false);
     $page->add($setting);
 
-    // My courses section.
+    // Header style section.
     $page->add(new admin_setting_heading('theme_adaptable_headerstyle_heading',
         get_string('headerstyleheading', 'theme_adaptable'),
         format_text(get_string('headerstyleheadingdesc', 'theme_adaptable'), FORMAT_MARKDOWN)));
@@ -202,7 +205,7 @@ if ($ADMIN->fulltree) {
     $setting = new admin_setting_configselect($name, $title, $description, 'style1', $radchoices);
     $page->add($setting);
 
-    // Page header layout.
+    // Page header layout for header one.
     $name = 'theme_adaptable/pageheaderlayout';
     $title = get_string('pageheaderlayout', 'theme_adaptable');
     $description = get_string('pageheaderlayoutdesc', 'theme_adaptable');
@@ -210,20 +213,18 @@ if ($ADMIN->fulltree) {
         'original' => get_string('pageheaderoriginal', 'theme_adaptable'),
         'alternative' => get_string('pageheaderalternative', 'theme_adaptable')
     );
-    $setting = new admin_setting_configselect($name, $title, $description, 'left', $radchoices);
+    $setting = new admin_setting_configselect($name, $title, $description, 'original', $radchoices);
     $page->add($setting);
 
-    // Header 2 search box.
-    $name = 'theme_adaptable/header2searchbox';
-    $title = get_string('header2searchbox', 'theme_adaptable');
-    $description = get_string('header2searchboxdesc', 'theme_adaptable');
-    $default = 'expandable';
+    // Page header layout for header two.
+    $name = 'theme_adaptable/pageheaderlayouttwo';
+    $title = get_string('pageheaderlayouttwo', 'theme_adaptable');
+    $description = get_string('pageheaderlayouttwodesc', 'theme_adaptable');
     $radchoices = array(
-        'expandable' => get_string('expandable', 'theme_adaptable'),
-        'static' => get_string('static', 'theme_adaptable'),
-        'disabled' => get_string('disabled', 'theme_adaptable')
+        'original' => get_string('pageheaderoriginal', 'theme_adaptable'),
+        'nosearch' => get_string('pageheadernosearch', 'theme_adaptable')
     );
-    $setting = new admin_setting_configselect($name, $title, $description, $default, $radchoices);
+    $setting = new admin_setting_configselect($name, $title, $description, 'original', $radchoices);
     $page->add($setting);
 
     $asettings->add($page);

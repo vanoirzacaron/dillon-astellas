@@ -26,6 +26,8 @@ namespace core_course\management;
 
 defined('MOODLE_INTERNAL') || die;
 
+require_once($CFG->dirroot . '/course/lib.php');
+
 /**
  * Course and category management interface helper class.
  *
@@ -173,6 +175,14 @@ class helper {
         $manageurl = new \moodle_url('/course/management.php', array('categoryid' => $category->id));
         $baseurl = new \moodle_url($manageurl, array('sesskey' => \sesskey()));
         $actions = array();
+
+        // View link.
+        $actions['view'] = [
+            'url' => new \moodle_url('/course/index.php', ['categoryid' => $category->id]),
+            'icon' => null,
+            'string' => get_string('view')
+        ];
+
         // Edit.
         if ($category->can_edit()) {
             $actions['edit'] = array(
@@ -201,13 +211,13 @@ class helper {
         if ($category->can_change_sortorder()) {
             $actions['moveup'] = array(
                 'url' => new \moodle_url($baseurl, array('action' => 'movecategoryup')),
-                'icon' => new \pix_icon('t/up', new \lang_string('up')),
-                'string' => new \lang_string('up')
+                'icon' => new \pix_icon('t/up', new \lang_string('moveup')),
+                'string' => new \lang_string('moveup')
             );
             $actions['movedown'] = array(
                 'url' => new \moodle_url($baseurl, array('action' => 'movecategorydown')),
-                'icon' => new \pix_icon('t/down', new \lang_string('down')),
-                'string' => new \lang_string('down')
+                'icon' => new \pix_icon('t/down', new \lang_string('movedown')),
+                'string' => new \lang_string('movedown')
             );
         }
 
@@ -244,7 +254,7 @@ class helper {
         }
 
         // Delete.
-        if ($category->can_delete_full()) {
+        if (!empty($category->move_content_targets_list()) || $category->can_delete_full()) {
             $actions['delete'] = array(
                 'url' => new \moodle_url($baseurl, array('action' => 'deletecategory')),
                 'icon' => new \pix_icon('t/delete', new \lang_string('delete')),
@@ -252,33 +262,12 @@ class helper {
             );
         }
 
-        // Assign roles.
-        if ($category->can_review_roles()) {
-            $actions['assignroles'] = array(
-                'url' => new \moodle_url('/admin/roles/assign.php', array('contextid' => $category->get_context()->id,
-                    'returnurl' => $manageurl->out_as_local_url(false))),
-                'icon' => new \pix_icon('t/assignroles', new \lang_string('assignroles', 'role')),
-                'string' => new \lang_string('assignroles', 'role')
-            );
-        }
-
         // Permissions.
         if ($category->can_review_permissions()) {
             $actions['permissions'] = array(
-                'url' => new \moodle_url('/admin/roles/permissions.php', array('contextid' => $category->get_context()->id,
-                    'returnurl' => $manageurl->out_as_local_url(false))),
+                'url' => new \moodle_url('/admin/roles/permissions.php', ['contextid' => $category->get_context()->id]),
                 'icon' => new \pix_icon('i/permissions', new \lang_string('permissions', 'role')),
                 'string' => new \lang_string('permissions', 'role')
-            );
-        }
-
-        // Check permissions.
-        if ($category->can_review_permissions()) {
-            $actions['checkroles'] = array(
-                'url' => new \moodle_url('/admin/roles/check.php', array('contextid' => $category->get_context()->id,
-                    'returnurl' => $manageurl->out_as_local_url(false))),
-                'icon' => new \pix_icon('i/checkpermissions', new \lang_string('checkpermissions', 'role')),
-                'string' => new \lang_string('checkpermissions', 'role')
             );
         }
 
@@ -351,6 +340,16 @@ class helper {
             }
         }
 
+        // Content bank.
+        if ($category->has_contentbank()) {
+            $url = new \moodle_url('/contentbank/index.php', ['contextid' => $category->get_context()->id]);
+            $actions['contentbank'] = [
+                'url' => $url,
+                'icon' => new \pix_icon('i/contentbank', ''),
+                'string' => get_string('contentbank')
+            ];
+        }
+
         return $actions;
     }
 
@@ -359,7 +358,7 @@ class helper {
      *
      * @param \core_course_category $category
      * @param \core_course_list_element $course
-     * @return string
+     * @return array
      */
     public static function get_course_listitem_actions(\core_course_category $category, \core_course_list_element $course) {
         $baseurl = new \moodle_url(
@@ -373,6 +372,14 @@ class helper {
                 'url' => new \moodle_url('/course/edit.php', array('id' => $course->id, 'returnto' => 'catmanage')),
                 'icon' => new \pix_icon('t/edit', \get_string('edit')),
                 'attributes' => array('class' => 'action-edit')
+            );
+        }
+        // Copy.
+        if (self::can_copy_course($course->id)) {
+            $actions[] = array(
+                'url' => new \moodle_url('/backup/copy.php', array('id' => $course->id, 'returnto' => 'catmanage')),
+                'icon' => new \pix_icon('t/copy', \get_string('copycourse')),
+                'attributes' => array('class' => 'action-copy')
             );
         }
         // Delete.
@@ -400,12 +407,12 @@ class helper {
         if ($category->can_resort_courses()) {
             $actions[] = array(
                 'url' => new \moodle_url($baseurl, array('action' => 'movecourseup')),
-                'icon' => new \pix_icon('t/up', \get_string('up')),
+                'icon' => new \pix_icon('t/up', \get_string('moveup')),
                 'attributes' => array('data-action' => 'moveup', 'class' => 'action-moveup')
             );
             $actions[] = array(
                 'url' => new \moodle_url($baseurl, array('action' => 'movecoursedown')),
-                'icon' => new \pix_icon('t/down', \get_string('down')),
+                'icon' => new \pix_icon('t/down', \get_string('movedown')),
                 'attributes' => array('data-action' => 'movedown', 'class' => 'action-movedown')
             );
         }
@@ -995,5 +1002,25 @@ class helper {
         } else {
             return array($parent);
         }
+    }
+
+    /**
+     * Get an array of the capabilities required to copy a course.
+     *
+     * @return array
+     */
+    public static function get_course_copy_capabilities(): array {
+        return array('moodle/backup:backupcourse', 'moodle/restore:restorecourse', 'moodle/course:create');
+    }
+
+    /**
+     * Returns true if the current user can copy this course.
+     *
+     * @param int $courseid
+     * @return bool
+     */
+    public static function can_copy_course(int $courseid): bool {
+        $coursecontext = \context_course::instance($courseid);
+        return has_all_capabilities(self::get_course_copy_capabilities(), $coursecontext);
     }
 }

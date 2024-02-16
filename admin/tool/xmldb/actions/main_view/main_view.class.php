@@ -57,6 +57,7 @@ class main_view extends XMLDBAction {
             'checkforeignkeys' => 'tool_xmldb',
             'checkbigints' => 'tool_xmldb',
             'checkoraclesemantics' => 'tool_xmldb',
+            'reconcilefiles' => 'tool_xmldb',
             'doc' => 'tool_xmldb',
             'filemodifiedoutfromeditor' => 'tool_xmldb',
             'viewxml' => 'tool_xmldb',
@@ -97,6 +98,8 @@ class main_view extends XMLDBAction {
         $b .= '&nbsp;<a href="index.php?action=view_reserved_words">[' . $this->str['reservedwords'] . ']</a>';
         // The docs button
         $b .= '&nbsp;<a href="index.php?action=generate_all_documentation">[' . $this->str['doc'] . ']</a>';
+        // The reconcile XMLDB files button.
+        $b .= '&nbsp;<a href="index.php?action=reconcile_files">[' . $this->str['reconcilefiles'] . ']</a>';
         // The check indexes button
         $b .= '&nbsp;<a href="index.php?action=check_indexes&amp;sesskey=' . sesskey() . '">[' . $this->str['checkindexes'] . ']</a>';
         // The check defaults button
@@ -120,7 +123,8 @@ class main_view extends XMLDBAction {
         $result = $this->launch('get_db_directories');
         // Display list of DB directories if everything is ok
         if ($result && !empty($XMLDB->dbdirs)) {
-            $o .= '<table id="listdirectories" border="0" cellpadding="5" cellspacing="1" class="admintable generaltable">';
+            $o .= '<table id="listdirectories" border="0" cellpadding="5" cellspacing="1"' .
+                ' class="table-striped table-sm admintable generaltable">';
             $row = 0;
             foreach ($XMLDB->dbdirs as $key => $dbdir) {
                 // Detect if this is the lastused dir

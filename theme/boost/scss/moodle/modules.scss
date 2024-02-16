@@ -9,6 +9,68 @@ select {
     width: auto;
 }
 
+.path-mod {
+    .activity-header:not(:empty) {
+        background-color: $gray-100;
+        margin-bottom: map-get($spacers, 3);
+        padding-left: map-get($spacers, 3);
+        padding-right: map-get($spacers, 3);
+
+        @include border-radius();
+
+        & > div:last-child > div:last-child {
+            border-bottom: 0;
+        }
+    }
+    .activity-information {
+
+        .activity-dates {
+            padding-top: map-get($spacers, 3);
+            padding-bottom: map-get($spacers, 3);
+            border-bottom: $border-width solid $border-color;
+        }
+        .completion-info {
+            padding-top: map-get($spacers, 3);
+            padding-bottom: map-get($spacers, 3);
+            border-bottom: $border-width solid $border-color;
+        }
+    }
+    .activity-description {
+        padding-top: map-get($spacers, 3);
+        padding-bottom: map-get($spacers, 3);
+        & > .box.py-3 {
+            padding-top: 0 !important; /* stylelint-disable-line declaration-no-important */
+            padding-bottom: 0 !important; /* stylelint-disable-line declaration-no-important */
+        }
+        & > .box.py-3:empty {
+            display: none;
+        }
+    }
+    .automatic-completion-conditions .badge {
+        font-size: 80%;
+        padding: map-get($spacers, 2);
+        margin-top: map-get($spacers, 1);
+        mix-blend-mode: multiply;
+        &.badge-light {
+            background-color: $gray-200 !important; /* stylelint-disable-line declaration-no-important */
+        }
+
+        .icon {
+            width: 0.7rem;
+            height: 0.7rem;
+            font-size: 0.7rem;
+        }
+
+        &:first-child {
+            margin-top: 0;
+        }
+    }
+    .activity-description .no-overflow p:last-child {
+        padding-bottom: 0;
+        margin-bottom: 0;
+    }
+}
+
 // Choice module
 
 .path-mod-choice {
@@ -17,17 +79,10 @@ select {
     }
 }
 
-.path-mod-feedback .feedback_form .col-form-label {
-    display: block !important; /* stylelint-disable-line declaration-no-important */
-}
-
-// Feedback module
-.path-mod-feedback .itemactions {
-    float: right;
-}
-.path-mod-feedback .itemhandle {
-    position: absolute;
-    right: 1rem;
+.path-mod-choice {
+    .choices .option label {
+        vertical-align: top;
+    }
 }
 
 // Forum module
@@ -102,17 +157,6 @@ select {
             // Do not use the default bold style for the table headings.
             font-weight: inherit;
         }
-    }
-
-    // Style for the forum subscription mode node.
-    .subscriptionmode {
-        color: $body-color;
-    }
-
-    // Style for the currently selected subscription mode.
-    .activesetting {
-        color: $body-color;
-        font-weight: bold;
     }
 }
 
@@ -218,7 +262,7 @@ $author-image-margin-sm: 8px;
 /** Gently highlight the selected post by changing it's background to blue and then fading it out. */
 @keyframes background-highlight {
     from {
-        background-color: rgba(0, 123, 255, 0.5);
+        background-color: $modules-highlight-bg;
     }
     to {
         background-color: inherit;
@@ -256,14 +300,14 @@ $author-image-margin-sm: 8px;
     }
 
     .badge-light {
-        background-color: #f6f6f6;
-        color: #5b5b5b;
+        background-color: $modules-badge-bg;
+        color: $modules-badge-color;
     }
 
     /** Style the ratings like a badge. */
     .rating-aggregate-container {
-        background-color: #f6f6f6;
-        color: #5b5b5b;
+        background-color: $modules-rating-aggregate-bg;
+        color: $modules-rating-aggregate-color;
         padding: .25em .5em;
         line-height: 1;
         margin-right: .5rem;
@@ -293,13 +337,13 @@ $author-image-margin-sm: 8px;
 
     /** Don't show the discussion locked alert in this mode because it's already indicated with a badge. */
     .alert.discussionlocked {
-        @extend .sr-only;
+        @include sr-only();
     }
 
     /** Fix muted text contrast ratios for accessibility. */
     .text-muted,
     .dimmed_text {
-        color: #707070 !important; /* stylelint-disable-line declaration-no-important */
+        color: $modules-forum-muted-color !important; /* stylelint-disable-line declaration-no-important */
     }
 
     .author-header {
@@ -312,7 +356,7 @@ $author-image-margin-sm: 8px;
 
     /** Make the tag list text screen reader visible only */
     .tag_list > b {
-        @extend .sr-only;
+        @include sr-only();
     }
 
     :target > .focus-target {
@@ -325,7 +369,7 @@ $author-image-margin-sm: 8px;
     .forum-post-container {
         .replies-container {
             .forum-post-container {
-                border-top: 1px solid #dee2e6;
+                border-top: 1px solid $modules-forum-post-border-color;
                 padding-top: 1.5rem;
 
                 .replies-container .forum-post-container {
@@ -368,7 +412,7 @@ $author-image-margin-sm: 8px;
                 .author-image-container {
                     width: $author-image-width-sm;
                     margin-right: $author-image-margin-sm;
-                    padding-top: (36px - $author-image-width-sm) / 2;
+                    padding-top: (36px - $author-image-width-sm) * 0.5;
                 }
 
                 /**
@@ -427,10 +471,6 @@ $author-image-margin-sm: 8px;
 .filter-dates-popover {
     width: 100%;
     max-width: 41.5em;
-
-    .mform {
-        margin-left: -3em;
-    }
 }
 
 $grading-drawer-width: 430px !default;
@@ -446,7 +486,7 @@ $grading-content-show-content-button-padding-left: calc(#{map-get($spacers, 2) *
     from {
         height: $grading-icon-button-size;
         width: $grading-icon-button-size;
-        border-radius: $grading-icon-button-size / 2;
+        border-radius: $grading-icon-button-size * 0.5;
         background-color: $gray-200;
     }
     to {
@@ -481,18 +521,21 @@ $grading-content-show-content-button-padding-left: calc(#{map-get($spacers, 2) *
     to {
         height: $grading-icon-button-size;
         width: $grading-icon-button-size;
-        border-radius: $grading-icon-button-size / 2;
+        border-radius: $grading-icon-button-size * 0.5;
         background-color: $gray-200;
     }
 }
 
 .path-mod-forum .unified-grader {
-    .navbar {
-        max-height: none;
-        z-index: 1;
+    @include media-breakpoint-up(xs) {
+        .navbar {
+            max-height: none;
+            z-index: 1;
+        }
     }
 
     .body-container {
+        overflow: auto;
         &.hidden {
             display: none !important; /* stylelint-disable-line declaration-no-important */
         }
@@ -504,8 +547,8 @@ $grading-content-show-content-button-padding-left: calc(#{map-get($spacers, 2) *
     }
 
     .grader-grading-panel {
-        position: absolute;
         top: 0;
+        position: absolute;
         height: 100%;
         z-index: 0;
         width: $grading-drawer-width;
@@ -911,6 +954,13 @@ $grading-content-show-content-button-padding-left: calc(#{map-get($spacers, 2) *
     .path-mod-forum .unified-grader {
         .grader-grading-panel {
             width: 100%;
+            position: fixed;
+            height: calc(100vh - 50px);
+            overflow: scroll;
+            top: 50px;
+        }
+        .body-container {
+            overflow: visible;
         }
     }
 }
@@ -934,10 +984,6 @@ $grading-content-show-content-button-padding-left: calc(#{map-get($spacers, 2) *
     width: auto;
 }
 
-.path-mod-data form {
-    margin-top: 10px;
-}
-
 .template_heading {
     margin-top: 10px;
 }
@@ -949,10 +995,6 @@ $grading-content-show-content-button-padding-left: calc(#{map-get($spacers, 2) *
 .breadcrumb-button .singlebutton {
     float: left;
     margin-left: 4px;
-}
-
-.ie .row-fluid .desktop-first-column {
-    margin-left: 0;
 }
 
 .langmenu form {
@@ -1033,7 +1075,7 @@ div#dock {
         }
 
         > tbody > tr:nth-of-type(even) {
-            background-color: $table-bg-accent;
+            background-color: $table-accent-bg;
         }
 
         .rblock label {
@@ -1056,21 +1098,6 @@ div#dock {
 }
 
 // Usermenu
-.usermenu {
-    .login {
-        line-height: 2.25rem;
-
-        a {
-            color: $link-color;
-            &:hover,
-            &:focus {
-                color: $link-hover-color;
-                text-decoration: underline;
-            }
-        }
-    }
-}
-
 .userloggedinas,
 .userswitchedrole,
 .loginfailures {
@@ -1078,11 +1105,11 @@ div#dock {
         .usertext {
             float: left;
             text-align: right;
-            margin-right: $spacer / 2;
+            margin-right: $spacer * 0.5;
             height: 35px;
             .meta {
-                display: block;
                 font-size: $font-size-sm;
+                align-items: center;
             }
         }
         .avatar {
@@ -1109,6 +1136,13 @@ div#dock {
                 img {
                     vertical-align: baseline;
                 }
+                .userinitials.size-35 {
+                    width: 20px;
+                    height: 20px;
+                    border: $border-width solid $border-color;
+                    background-color: $white;
+                    font-size: $font-size-base * .6;
+                }
             }
             img {
                 width: inherit;
@@ -1123,6 +1157,45 @@ div#dock {
     }
 }
 
+.userinitials {
+    background-color: $gray-200;
+    vertical-align: middle;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: $gray-800;
+    font-weight: normal;
+    margin-right: $spacer * 0.25;
+    &.size-16,
+    &.size-30 {
+        font-size: 0.7rem;
+        width: 30px;
+        height: 30px;
+    }
+    &.size-35 {
+        width: 35px;
+        height: 35px;
+    }
+    &.size-50 {
+        width: 50px;
+        height: 50px;
+    }
+    &.size-64 {
+        width: 64px;
+        height: 64px;
+    }
+    &.size-100 {
+        width: 100px;
+        height: 100px;
+        font-size: $h2-font-size;
+    }
+}
+
+img.userpicture {
+    margin-right: $spacer * 0.25;
+}
+
 @include media-breakpoint-down(sm) {
     .usertext {
         display: none;
@@ -1130,11 +1203,6 @@ div#dock {
 }
 
 // Quiz module
-.path-mod-quiz .mod-quiz-edit-content {
-    // Force the quiz edit page to always be large enough to prevent scrolling when accessing the menu.
-    margin-bottom: 10rem;
-}
-
 #page-mod-quiz-mod #id_reviewoptionshdr .col-md-3,
 #page-mod-quiz-mod #id_reviewoptionshdr .col-md-9 {
     width: auto;
@@ -1156,9 +1224,14 @@ div#dock {
     clear: left;
 }
 #page-mod-quiz-mod #id_reviewoptionshdr .form-check {
-    width: 90%;
+    width: auto;
     height: 22px;
     justify-content: flex-start;
+}
+
+#page-mod-quiz-mod #id_reviewoptionshdr .review_option_item {
+    width: 90%;
+    height: 22px;
 }
 
 // Question navigation block.
@@ -1174,14 +1247,15 @@ div#dock {
         width: 30px;
         border-radius: 3px;
         border: 0;
-        overflow: visible;
+        overflow: hidden;
+        white-space: nowrap;
         margin: 0 6px 6px 0;
     }
 
     span.qnbutton {
         cursor: default;
-        background-color: $input-bg-disabled;
-        color: $gray;
+        background-color: $input-disabled-bg;
+        color: $gray-700;
     }
 
     a.qnbutton:hover,
@@ -1227,28 +1301,28 @@ div#dock {
 
     .qnbutton.correct .trafficlight {
         background-image: url([[pix:theme|mod/quiz/checkmark]]);
-        background-color: $state-success-text;
+        background-color: $success;
     }
 
     .qnbutton.blocked .trafficlight {
         background-image: url([[pix:core|t/locked]]);
-        background-color: $input-bg-disabled;
+        background-color: $input-disabled-bg;
     }
 
     .qnbutton.notanswered .trafficlight,
     .qnbutton.incorrect .trafficlight {
-        background-color: $state-danger-text;
+        background-color: $danger;
     }
 
     .qnbutton.partiallycorrect .trafficlight {
         background-image: url([[pix:theme|mod/quiz/whitecircle]]);
-        background-color: $state-warning-text;
+        background-color: $warning;
     }
 
     .qnbutton.complete .trafficlight,
     .qnbutton.answersaved .trafficlight,
     .qnbutton.requiresgrading .trafficlight {
-        background-color: $gray-light;
+        background-color: $gray-600;
     }
 }
 
@@ -1258,8 +1332,36 @@ div#dock {
 }
 
 #page-mod-quiz-edit ul.slots li.section li.activity .instancemaxmarkcontainer {
-    padding: 0;
-    margin: 0 0.4em;
+    padding: 0.5em 0 0.5em 0.1em;
+    margin: 2px;
+}
+
+/* Countdown timer. */
+#page-mod-quiz-attempt #region-main {
+    overflow-x: inherit;
+}
+
+#quiz-timer-wrapper {
+    display: none;
+    position: sticky;
+    justify-content: end;
+    top: $navbar-height + 5px;
+    z-index: $zindex-sticky;
+    #quiz-timer {
+        border: $border-width solid $red;
+        background-color: $white;
+    }
+}
+.pagelayout-embedded #quiz-timer-wrapper {
+    top: 5px;
+}
+
+@for $i from 0 through 16 {
+    #quiz-timer-wrapper #quiz-timer.timeleft#{$i} {
+        $bg: lighten($red, ($i * 3%));
+        background-color: $bg;
+        color: color-yiq($bg);
+    }
 }
 
 // Assign.
@@ -1293,6 +1395,8 @@ $popout-header-height: 4rem;
 
 .path-mod-assign [data-region="grade-panel"] .mform .fitem.has-popout .felement {
     width: 100%;
+    overflow: auto;
+    height: calc(100% - 4rem);
 }
 
 .path-mod-assign [data-region="grade-panel"] .mform .fitem .felement {
@@ -1319,7 +1423,9 @@ $popout-header-height: 4rem;
 
 
 .path-mod-assign [data-region="grade-panel"] .popout > .col-md-3 {
-    @extend .modal-header;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
     font-size: $popout-header-font-size;
 }
 
@@ -1379,8 +1485,12 @@ $popout-header-height: 4rem;
 }
 
 .assignfeedback_editpdf_widget .label {
-    @extend .alert;
-    @extend .alert-info;
+    position: relative;
+    padding: $alert-padding-y $alert-padding-x;
+    margin-bottom: $alert-margin-bottom;
+    border: $alert-border-width solid transparent;
+    @include border-radius($alert-border-radius);
+    @include alert-variant(theme-color-level('info', $alert-bg-level), theme-color-level('info', $alert-border-level), theme-color-level('info', $alert-color-level)); /* stylelint-disable-line max-line-length */
 }
 
 .assignfeedback_editpdf_menu {

@@ -17,7 +17,6 @@
  * Policy actions.
  *
  * @module     tool_policy/policyactions
- * @package    tool_policy
  * @copyright  2018 Sara Arjona (sara@moodle.com)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -25,12 +24,13 @@ define([
     'jquery',
     'core/ajax',
     'core/notification',
-    'core/modal_factory',
-    'core/modal_events'],
-function($, Ajax, Notification, ModalFactory, ModalEvents) {
+    'core/modal',
+], function($, Ajax, Notification, Modal) {
 
     /**
      * PolicyActions class.
+     *
+     * @param {jQuery} root
      */
     var PolicyActions = function(root) {
         this.registerEvents(root);
@@ -38,6 +38,8 @@ function($, Ajax, Notification, ModalFactory, ModalEvents) {
 
     /**
      * Register event listeners.
+     *
+     * @param {jQuery} root
      */
     PolicyActions.prototype.registerEvents = function(root) {
         root.on("click", function(e) {
@@ -59,24 +61,12 @@ function($, Ajax, Notification, ModalFactory, ModalEvents) {
             var modalTitle = $.Deferred();
             var modalBody = $.Deferred();
 
-            var modal = ModalFactory.create({
+            var modal = Modal.create({
                 title: modalTitle,
                 body: modalBody,
-                large: true
-            })
-            .then(function(modal) {
-                // Handle hidden event.
-                modal.getRoot().on(ModalEvents.hidden, function() {
-                    // Destroy when hidden.
-                    modal.destroy();
-                });
-
-                return modal;
-            })
-            .then(function(modal) {
-                modal.show();
-
-                return modal;
+                large: true,
+                removeOnClose: true,
+                show: true,
             })
             .catch(Notification.exception);
 
@@ -94,7 +84,6 @@ function($, Ajax, Notification, ModalFactory, ModalEvents) {
             }).catch(function(message) {
                 modal.then(function(modal) {
                     modal.hide();
-                    modal.destroy();
 
                     return modal;
                 })
@@ -116,6 +105,7 @@ function($, Ajax, Notification, ModalFactory, ModalEvents) {
          * Initialise the actions helper.
          *
          * @method init
+         * @param {object} root
          * @return {PolicyActions}
          */
         'init': function(root) {

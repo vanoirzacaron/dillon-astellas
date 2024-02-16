@@ -126,6 +126,10 @@ class provider implements
         // The 'question_statistics' table contains aggregated statistics about responses.
         // It does not contain any identifiable user data.
 
+        $items->add_database_table('question_bank_entries', [
+            'ownerid' => 'privacy:metadata:database:question_bank_entries:ownerid',
+        ], 'privacy:metadata:database:question_bank_entries');
+
         // The question subsystem makes use of the qtype, qformat, and qbehaviour plugin types.
         $items->add_plugintype_link('qtype', [], 'privacy:metadata:link:qtype');
         $items->add_plugintype_link('qformat', [], 'privacy:metadata:link:qformat');
@@ -165,7 +169,7 @@ class provider implements
         ]);
 
         foreach ($quba->get_attempt_iterator() as $qa) {
-            $question = $qa->get_question();
+            $question = $qa->get_question(false);
             $slotno = $qa->get_slot();
             $questionnocontext = array_merge($questionscontext, [$slotno]);
 
@@ -197,7 +201,6 @@ class provider implements
                 }
 
                 if ($options->manualcomment != \question_display_options::HIDDEN) {
-                    $behaviour = $qa->get_behaviour();
                     if ($qa->has_manual_comment()) {
                         // Note - the export of the step data will ensure that the files are exported.
                         // No need to do it again here.
@@ -211,7 +214,7 @@ class provider implements
                                 $step->get_id(),
                                 $comment
                             );
-                        $data->comment = $behaviour->format_comment($comment, $commentformat);
+                        $data->comment = $qa->get_behaviour(false)->format_comment($comment, $commentformat);
                     }
                 }
 
@@ -272,7 +275,6 @@ class provider implements
                 }
 
                 if ($step->has_behaviour_var('comment')) {
-                    $behaviour = $qa->get_behaviour();
                     $comment = $step->get_behaviour_var('comment');
                     $commentformat = $step->get_behaviour_var('commentformat');
 
@@ -300,7 +302,7 @@ class provider implements
                             $step->get_id()
                         );
 
-                    $stepdata->comment = $behaviour->format_comment($comment, $commentformat);
+                    $stepdata->comment = $qa->get_behaviour(false)->format_comment($comment, $commentformat);
                 }
 
                 // Export any response files associated with this step.
@@ -338,12 +340,13 @@ class provider implements
 
         // A user may have created or updated a question.
         // Questions are linked against a question category, which has a contextid field.
-        $sql = "SELECT cat.contextid
+        $sql = "SELECT qc.contextid
                   FROM {question} q
-            INNER JOIN {question_categories} cat ON cat.id = q.category
-                 WHERE
-                    q.createdby = :useridcreated OR
-                   q.modifiedby = :useridmodified";
+                  JOIN {question_versions} qv ON qv.questionid = q.id
+                  JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
+                  JOIN {question_categories} qc ON qc.id = qbe.questioncategoryid
+                 WHERE q.createdby = :useridcreated
+                       OR q.modifiedby = :useridmodified";
         $params = [
             'useridcreated' => $userid,
             'useridmodified' => $userid,
@@ -365,9 +368,10 @@ class provider implements
         // Questions are linked against a question category, which has a contextid field.
         $sql = "SELECT q.createdby, q.modifiedby
                   FROM {question} q
-                  JOIN {question_categories} cat
-                       ON cat.id = q.category
-                 WHERE cat.contextid = :contextid";
+                  JOIN {question_versions} qv ON qv.questionid = q.id
+                  JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
+                  JOIN {question_categories} qc ON qc.id = qbe.questioncategoryid
+                 WHERE qc.contextid = :contextid";
 
         $params = [
             'contextid' => $context->id
@@ -489,7 +493,8 @@ class provider implements
     /**
      * Delete all data for all users in the specified context.
      *
-     * @param   context                 $context   The specific context to delete data for.
+     * @param \context $context The specific context to delete data for.
+     * @throws \dml_exception
      */
     public static function delete_data_for_all_users_in_context(\context $context) {
         global $DB;
@@ -498,17 +503,19 @@ class provider implements
         // user. They are still exported in the list of a users data, but they are not removed.
         // The userid is instead anonymised.
 
-        $DB->set_field_select('question', 'createdby', 0,
-            'category IN (SELECT id FROM {question_categories} WHERE contextid = :contextid)',
-            [
-                'contextid' => $context->id,
-            ]);
+        $sql = 'SELECT q.*
+                  FROM {question} q
+                  JOIN {question_versions} qv ON qv.questionid = q.id
+                  JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
+                  JOIN {question_categories} qc ON qc.id = qbe.questioncategoryid
+                 WHERE qc.contextid = ?';
 
-        $DB->set_field_select('question', 'modifiedby', 0,
-            'category IN (SELECT id FROM {question_categories} WHERE contextid = :contextid)',
-            [
-                'contextid' => $context->id,
-            ]);
+        $questions = $DB->get_records_sql($sql, [$context->id]);
+        foreach ($questions as $question) {
+            $question->createdby = 0;
+            $question->modifiedby = 0;
+            $DB->update_record('question', $question);
+        }
     }
 
     /**
@@ -525,15 +532,36 @@ class provider implements
 
         list($contextsql, $contextparams) = $DB->get_in_or_equal($contextlist->get_contextids(), SQL_PARAMS_NAMED);
         $contextparams['createdby'] = $contextlist->get_user()->id;
-        $DB->set_field_select('question', 'createdby', 0, "
-                category IN (SELECT id FROM {question_categories} WHERE contextid {$contextsql})
-            AND createdby = :createdby", $contextparams);
+        $questiondata = $DB->get_records_sql(
+            "SELECT q.*
+               FROM {question} q
+               JOIN {question_versions} qv ON qv.questionid = q.id
+               JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
+               JOIN {question_categories} qc ON qc.id = qbe.questioncategoryid
+              WHERE qc.contextid {$contextsql}
+                    AND q.createdby = :createdby", $contextparams);
+
+        foreach ($questiondata as $question) {
+            $question->createdby = 0;
+            $DB->update_record('question', $question);
+        }
 
         list($contextsql, $contextparams) = $DB->get_in_or_equal($contextlist->get_contextids(), SQL_PARAMS_NAMED);
         $contextparams['modifiedby'] = $contextlist->get_user()->id;
-        $DB->set_field_select('question', 'modifiedby', 0, "
-                category IN (SELECT id FROM {question_categories} WHERE contextid {$contextsql})
-            AND modifiedby = :modifiedby", $contextparams);
+        $questiondata = $DB->get_records_sql(
+            "SELECT q.*
+               FROM {question} q
+               JOIN {question_versions} qv ON qv.questionid = q.id
+               JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
+               JOIN {question_categories} qc ON qc.id = qbe.questioncategoryid
+              WHERE qc.contextid {$contextsql}
+                    AND q.modifiedby = :modifiedby", $contextparams);
+
+        foreach ($questiondata as $question) {
+            $question->modifiedby = 0;
+            $DB->update_record('question', $question);
+        }
+
     }
 
     /**
@@ -556,12 +584,32 @@ class provider implements
 
         $params = ['contextid' => $context->id];
 
-        $DB->set_field_select('question', 'createdby', 0, "
-                category IN (SELECT id FROM {question_categories} WHERE contextid = :contextid)
-            AND createdby {$createdbysql}", $params + $createdbyparams);
+        $questiondata = $DB->get_records_sql(
+            "SELECT q.*
+               FROM {question} q
+               JOIN {question_versions} qv ON qv.questionid = q.id
+               JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
+               JOIN {question_categories} qc ON qc.id = qbe.questioncategoryid
+              WHERE qc.contextid = :contextid
+                    AND q.createdby {$createdbysql}", $params + $createdbyparams);
 
-        $DB->set_field_select('question', 'modifiedby', 0, "
-                category IN (SELECT id FROM {question_categories} WHERE contextid = :contextid)
-            AND modifiedby {$modifiedbysql}", $params + $modifiedbyparams);
+        foreach ($questiondata as $question) {
+            $question->createdby = 0;
+            $DB->update_record('question', $question);
+        }
+
+        $questiondata = $DB->get_records_sql(
+            "SELECT q.*
+               FROM {question} q
+               JOIN {question_versions} qv ON qv.questionid = q.id
+               JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
+               JOIN {question_categories} qc ON qc.id = qbe.questioncategoryid
+              WHERE qc.contextid = :contextid
+                    AND q.modifiedby {$modifiedbysql}", $params + $modifiedbyparams);
+
+        foreach ($questiondata as $question) {
+            $question->modifiedby = 0;
+            $DB->update_record('question', $question);
+        }
     }
 }

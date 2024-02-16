@@ -962,7 +962,8 @@ class database_manager {
             'extracolumns' => true,
             'missingcolumns' => true,
             'changedcolumns' => true,
-            'missingindexes' => true
+            'missingindexes' => true,
+            'extraindexes' => true
         );
 
         $typesmap = array(
@@ -1002,6 +1003,7 @@ class database_manager {
 
             /** @var database_column_info[] $dbfields */
             $dbfields = $this->mdb->get_columns($tablename, false);
+            $dbindexes = $this->mdb->get_indexes($tablename);
             /** @var xmldb_field[] $fields */
             $fields = $table->getFields();
 
@@ -1037,52 +1039,60 @@ class database_manager {
                                     $errors[$tablename][] = "column '$fieldname' should allow NULL ($dbfield->meta_type)";
                                 }
                             }
-                            if ($dbtype == XMLDB_TYPE_TEXT) {
-                                // No length check necessary - there is one size only now.
+                            switch ($dbtype) {
+                                case XMLDB_TYPE_TEXT:
+                                case XMLDB_TYPE_BINARY:
+                                    // No length check necessary - there is one size only now.
+                                    break;
 
-                            } else if ($dbtype == XMLDB_TYPE_NUMBER) {
-                                if ($field->getType() == XMLDB_TYPE_FLOAT) {
+                                case XMLDB_TYPE_NUMBER:
+                                    $lengthmismatch = $field->getLength() != $dbfield->max_length;
+                                    $decimalmismatch = $field->getDecimals() != $dbfield->scale;
                                     // Do not use floats in any new code, they are deprecated in XMLDB editor!
+                                    if ($field->getType() != XMLDB_TYPE_FLOAT && ($lengthmismatch || $decimalmismatch)) {
+                                        $size = "({$field->getLength()},{$field->getDecimals()})";
+                                        $dbsize = "($dbfield->max_length,$dbfield->scale)";
+                                        $errors[$tablename][] = "column '$fieldname' size is $dbsize,".
+                                            " expected $size ($dbfield->meta_type)";
+                                    }
+                                    break;
 
-                                } else if ($field->getLength() != $dbfield->max_length or $field->getDecimals() != $dbfield->scale) {
-                                    $size = "({$field->getLength()},{$field->getDecimals()})";
-                                    $dbsize = "($dbfield->max_length,$dbfield->scale)";
-                                    $errors[$tablename][] = "column '$fieldname' size is $dbsize, expected $size ($dbfield->meta_type)";
-                                }
+                                case XMLDB_TYPE_CHAR:
+                                    // This is not critical, but they should ideally match.
+                                    if ($field->getLength() != $dbfield->max_length) {
+                                        $errors[$tablename][] = "column '$fieldname' length is $dbfield->max_length,".
+                                            " expected {$field->getLength()} ($dbfield->meta_type)";
+                                    }
+                                    break;
 
-                            } else if ($dbtype == XMLDB_TYPE_CHAR) {
-                                // This is not critical, but they should ideally match.
-                                if ($field->getLength() != $dbfield->max_length) {
-                                    $errors[$tablename][] = "column '$fieldname' length is $dbfield->max_length, expected {$field->getLength()} ($dbfield->meta_type)";
-                                }
+                                case XMLDB_TYPE_INTEGER:
+                                    // Integers may be bigger in some DBs.
+                                    $length = $field->getLength();
+                                    if ($length > 18) {
+                                        // Integers are not supposed to be bigger than 18.
+                                        $length = 18;
+                                    }
+                                    if ($length > $dbfield->max_length) {
+                                        $errors[$tablename][] = "column '$fieldname' length is $dbfield->max_length,".
+                                            " expected at least {$field->getLength()} ($dbfield->meta_type)";
+                                    }
+                                    break;
 
-                            } else if ($dbtype == XMLDB_TYPE_INTEGER) {
-                                // Integers may be bigger in some DBs.
-                                $length = $field->getLength();
-                                if ($length > 18) {
-                                    // Integers are not supposed to be bigger than 18.
-                                    $length = 18;
-                                }
-                                if ($length > $dbfield->max_length) {
-                                    $errors[$tablename][] = "column '$fieldname' length is $dbfield->max_length, expected at least {$field->getLength()} ($dbfield->meta_type)";
-                                }
+                                case XMLDB_TYPE_TIMESTAMP:
+                                    $errors[$tablename][] = "column '$fieldname' is a timestamp,".
+                                        " this type is not supported ($dbfield->meta_type)";
+                                    continue 2;
 
-                            } else if ($dbtype == XMLDB_TYPE_BINARY) {
-                                // Ignore binary types.
-                                continue;
+                                case XMLDB_TYPE_DATETIME:
+                                    $errors[$tablename][] = "column '$fieldname' is a datetime,".
+                                        "this type is not supported ($dbfield->meta_type)";
+                                    continue 2;
 
-                            } else if ($dbtype == XMLDB_TYPE_TIMESTAMP) {
-                                $errors[$tablename][] = "column '$fieldname' is a timestamp, this type is not supported ($dbfield->meta_type)";
-                                continue;
+                                default:
+                                    // Report all other unsupported types as problems.
+                                    $errors[$tablename][] = "column '$fieldname' has unknown type ($dbfield->meta_type)";
+                                    continue 2;
 
-                            } else if ($dbtype == XMLDB_TYPE_DATETIME) {
-                                $errors[$tablename][] = "column '$fieldname' is a datetime, this type is not supported ($dbfield->meta_type)";
-                                continue;
-
-                            } else {
-                                // Report all other unsupported types as problems.
-                                $errors[$tablename][] = "column '$fieldname' has unknown type ($dbfield->meta_type)";
-                                continue;
                             }
 
                             // Note: The empty string defaults are a bit messy...
@@ -1123,6 +1133,8 @@ class database_manager {
                         }
                         if (!$this->index_exists($table, $index)) {
                             $errors[$tablename][] = $this->get_missing_index_error($table, $index, $keyname);
+                        } else {
+                            $this->remove_index_from_dbindex($dbindexes, $index);
                         }
                     }
                 }
@@ -1132,7 +1144,20 @@ class database_manager {
                     foreach ($indexes as $index) {
                         if (!$this->index_exists($table, $index)) {
                             $errors[$tablename][] = $this->get_missing_index_error($table, $index, $index->getName());
+                        } else {
+                            $this->remove_index_from_dbindex($dbindexes, $index);
                         }
+                    }
+                }
+            }
+
+            // Check if we should show the extra indexes.
+            if ($options['extraindexes']) {
+                // Hack - skip for table 'search_simpledb_index' as this plugin adds indexes dynamically on install
+                // which are not included in install.xml. See search/engine/simpledb/db/install.php.
+                if ($tablename != 'search_simpledb_index') {
+                    foreach ($dbindexes as $indexname => $index) {
+                        $errors[$tablename][] = "Unexpected index '$indexname'.";
                     }
                 }
             }
@@ -1183,5 +1208,19 @@ class database_manager {
         $sqltoadd = reset($sqlarr);
 
         return "Missing index '" . $indexname . "' " . "(" . $index->readableInfo() . "). \n" . $sqltoadd;
+    }
+
+    /**
+     * Removes an index from the array $dbindexes if it is found.
+     *
+     * @param array $dbindexes
+     * @param xmldb_index $index
+     */
+    private function remove_index_from_dbindex(array &$dbindexes, xmldb_index $index) {
+        foreach ($dbindexes as $key => $dbindex) {
+            if ($dbindex['columns'] == $index->getFields()) {
+                unset($dbindexes[$key]);
+            }
+        }
     }
 }

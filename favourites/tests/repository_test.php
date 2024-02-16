@@ -14,29 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+namespace core_favourites;
+
+use core_favourites\local\repository\favourite_repository;
+use core_favourites\local\entity\favourite;
+
 /**
- * Testing the repository objects within core_favourites.
+ * Test class covering the favourite_repository.
  *
  * @package    core_favourites
  * @category   test
  * @copyright  2018 Jake Dallimore <jrhdallimore@gmail.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+class repository_test extends \advanced_testcase {
 
-defined('MOODLE_INTERNAL') || die();
-
-use \core_favourites\local\repository\favourite_repository;
-use \core_favourites\local\entity\favourite;
-
-/**
- * Test class covering the favourite_repository.
- *
- * @copyright  2018 Jake Dallimore <jrhdallimore@gmail.com>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-class favourite_repository_testcase extends advanced_testcase {
-
-    public function setUp() {
+    public function setUp(): void {
         $this->resetAfterTest();
     }
 
@@ -48,8 +41,8 @@ class favourite_repository_testcase extends advanced_testcase {
         $user2context = \context_user::instance($user2->id);
         $course1 = self::getDataGenerator()->create_course();
         $course2 = self::getDataGenerator()->create_course();
-        $course1context = context_course::instance($course1->id);
-        $course2context = context_course::instance($course2->id);
+        $course1context = \context_course::instance($course1->id);
+        $course2context = \context_course::instance($course2->id);
         return [$user1context, $user2context, $course1context, $course2context];
     }
 
@@ -85,28 +78,6 @@ class favourite_repository_testcase extends advanced_testcase {
 
         // Try to save the same record again and confirm the store throws an exception.
         $this->expectException('dml_write_exception');
-        $favouritesrepo->add($favcourse);
-    }
-
-    /**
-     * Tests that malformed favourites cannot be saved.
-     */
-    public function test_add_malformed_favourite() {
-        list($user1context, $user2context, $course1context, $course2context) = $this->setup_users_and_courses();
-
-        // Create a favourites repository and favourite a course.
-        $favouritesrepo = new favourite_repository($user1context);
-
-        $favcourse = new favourite(
-            'core_course',
-            'course',
-            $course1context->instanceid,
-            $course1context->id,
-            $user1context->instanceid
-        );
-        $favcourse->something = 'something';
-
-        $this->expectException('moodle_exception');
         $favouritesrepo->add($favcourse);
     }
 
@@ -200,7 +171,7 @@ class favourite_repository_testcase extends advanced_testcase {
 
         // Try to get a favourite we know doesn't exist.
         // We expect an exception in this case.
-        $this->expectException(dml_exception::class);
+        $this->expectException(\dml_exception::class);
         $favouritesrepo->find(0);
     }
 
@@ -302,6 +273,16 @@ class favourite_repository_testcase extends advanced_testcase {
         );
         $favouritesrepo->add($favourite);
 
+        // Add another favourite.
+        $favourite = new favourite(
+            'core_course',
+            'course_item',
+            $course1context->instanceid,
+            $course1context->id,
+            $user1context->instanceid
+        );
+        $favouritesrepo->add($favourite);
+
         // From the repo, get the list of favourites for the 'core_course/course' area.
         $userfavourites = $favouritesrepo->find_by(['component' => 'core_course', 'itemtype' => 'course']);
         $this->assertIsArray($userfavourites);
@@ -311,6 +292,16 @@ class favourite_repository_testcase extends advanced_testcase {
         $userfavourites = $favouritesrepo->find_by(['component' => 'core_cannibalism', 'itemtype' => 'course']);
         $this->assertIsArray($userfavourites);
         $this->assertCount(0, $userfavourites);
+
+        // From the repo, get the list of favourites for the 'core_course/course' area when passed as an array.
+        $userfavourites = $favouritesrepo->find_by(['component' => 'core_course', 'itemtype' => ['course']]);
+        $this->assertIsArray($userfavourites);
+        $this->assertCount(1, $userfavourites);
+
+        // From the repo, get the list of favourites for the 'core_course' area given multiple item_types.
+        $userfavourites = $favouritesrepo->find_by(['component' => 'core_course', 'itemtype' => ['course', 'course_item']]);
+        $this->assertIsArray($userfavourites);
+        $this->assertCount(2, $userfavourites);
     }
 
     /**

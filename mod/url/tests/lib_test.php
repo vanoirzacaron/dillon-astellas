@@ -22,6 +22,7 @@
  * @copyright  2012 Petr Skoda {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+namespace mod_url;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -34,13 +35,13 @@ defined('MOODLE_INTERNAL') || die();
  * @copyright  2011 Petr Skoda {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class mod_url_lib_testcase extends advanced_testcase {
+class lib_test extends \advanced_testcase {
 
     /**
      * Prepares things before this test case is initialised
      * @return void
      */
-    public static function setUpBeforeClass() {
+    public static function setUpBeforeClass(): void {
         global $CFG;
         require_once($CFG->dirroot . '/mod/url/lib.php');
         require_once($CFG->dirroot . '/mod/url/locallib.php');
@@ -53,6 +54,25 @@ class mod_url_lib_testcase extends advanced_testcase {
     public function test_url_appears_valid_url() {
         $this->assertTrue(url_appears_valid_url('http://example'));
         $this->assertTrue(url_appears_valid_url('http://www.example.com'));
+        $this->assertTrue(url_appears_valid_url('http://www.examplé.com'));
+        $this->assertTrue(url_appears_valid_url('http://💩.la'));
+        $this->assertTrue(url_appears_valid_url('http://香港大學.香港'));
+        $this->assertTrue(url_appears_valid_url('http://وزارة-الأتصالات.مصر'));
+        $this->assertTrue(url_appears_valid_url('http://www.теннис-алт.рф'));
+        $this->assertTrue(url_appears_valid_url('http://имена.бг'));
+        $this->assertTrue(url_appears_valid_url('http://straße.de'));
+        $this->assertTrue(url_appears_valid_url('http://キース.コム'));
+        $this->assertTrue(url_appears_valid_url('http://太亞.中国'));
+        $this->assertTrue(url_appears_valid_url('http://www.რეგისტრაცია.გე'));
+        $this->assertTrue(url_appears_valid_url('http://уміц.укр'));
+        $this->assertTrue(url_appears_valid_url('http://현대.한국'));
+        $this->assertTrue(url_appears_valid_url('http://мон.мон'));
+        $this->assertTrue(url_appears_valid_url('http://тест.қаз'));
+        $this->assertTrue(url_appears_valid_url('http://рнидс.срб'));
+        $this->assertTrue(url_appears_valid_url('http://اسماء.شبكة'));
+        $this->assertTrue(url_appears_valid_url('http://www.informationssäkerhet.se'));
+        $this->assertTrue(url_appears_valid_url('http://москва.рф/services'));
+        $this->assertTrue(url_appears_valid_url('http://detdumærker.dk'));
         $this->assertTrue(url_appears_valid_url('http://www.exa-mple2.com'));
         $this->assertTrue(url_appears_valid_url('http://www.example.com/~nobody/index.html'));
         $this->assertTrue(url_appears_valid_url('http://www.example.com#hmm'));
@@ -60,6 +80,7 @@ class mod_url_lib_testcase extends advanced_testcase {
         $this->assertTrue(url_appears_valid_url('http://www.example.com/žlutý koníček/lala.txt'));
         $this->assertTrue(url_appears_valid_url('http://www.example.com/žlutý koníček/lala.txt#hmmmm'));
         $this->assertTrue(url_appears_valid_url('http://www.example.com/index.php?xx=yy&zz=aa'));
+        $this->assertTrue(url_appears_valid_url('http://www.example.com:80/index.php?xx=yy&zz=aa'));
         $this->assertTrue(url_appears_valid_url('https://user:password@www.example.com/žlutý koníček/lala.txt'));
         $this->assertTrue(url_appears_valid_url('ftp://user:password@www.example.com/žlutý koníček/lala.txt'));
 
@@ -67,7 +88,6 @@ class mod_url_lib_testcase extends advanced_testcase {
         $this->assertFalse(url_appears_valid_url('http:/example.com'));
         $this->assertFalse(url_appears_valid_url('http://'));
         $this->assertFalse(url_appears_valid_url('http://www.exa mple.com'));
-        $this->assertFalse(url_appears_valid_url('http://www.examplé.com'));
         $this->assertFalse(url_appears_valid_url('http://@www.example.com'));
         $this->assertFalse(url_appears_valid_url('http://user:@www.example.com'));
 
@@ -88,7 +108,7 @@ class mod_url_lib_testcase extends advanced_testcase {
         $course = $this->getDataGenerator()->create_course(array('enablecompletion' => 1));
         $url = $this->getDataGenerator()->create_module('url', array('course' => $course->id),
                                                             array('completion' => 2, 'completionview' => 1));
-        $context = context_module::instance($url->cmid);
+        $context = \context_module::instance($url->cmid);
         $cm = get_coursemodule_from_instance('url', $url->id);
 
         // Trigger and capture the event.
@@ -111,7 +131,7 @@ class mod_url_lib_testcase extends advanced_testcase {
         $this->assertNotEmpty($event->get_name());
 
         // Check completion status.
-        $completion = new completion_info($course);
+        $completion = new \completion_info($course);
         $completiondata = $completion->get_data($cm);
         $this->assertEquals(1, $completiondata->completionstate);
     }
@@ -140,7 +160,7 @@ class mod_url_lib_testcase extends advanced_testcase {
             \core_completion\api::COMPLETION_EVENT_TYPE_DATE_COMPLETION_EXPECTED);
 
         // Mark the activity as completed.
-        $completion = new completion_info($course);
+        $completion = new \completion_info($course);
         $completion->set_module_viewed($cm);
 
         // Create an action factory.
@@ -212,7 +232,7 @@ class mod_url_lib_testcase extends advanced_testcase {
             \core_completion\api::COMPLETION_EVENT_TYPE_DATE_COMPLETION_EXPECTED);
 
         // Mark the activity as completed.
-        $completion = new completion_info($course);
+        $completion = new \completion_info($course);
         $completion->set_module_viewed($cm);
 
         // Create an action factory.
@@ -234,7 +254,7 @@ class mod_url_lib_testcase extends advanced_testcase {
      * @return bool|calendar_event
      */
     private function create_action_event($courseid, $instanceid, $eventtype) {
-        $event = new stdClass();
+        $event = new \stdClass();
         $event->name = 'Calendar event';
         $event->modulename  = 'url';
         $event->courseid = $courseid;
@@ -243,6 +263,6 @@ class mod_url_lib_testcase extends advanced_testcase {
         $event->eventtype = $eventtype;
         $event->timestart = time();
 
-        return calendar_event::create($event);
+        return \calendar_event::create($event);
     }
 }

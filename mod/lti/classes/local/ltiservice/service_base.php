@@ -207,7 +207,7 @@ abstract class service_base {
     abstract public function get_resources();
 
     /**
-     * Get the scope(s) permitted for this service.
+     * Get the scope(s) permitted for this service in the context of a particular tool type.
      *
      * A null value indicates that no scopes are required to access the service.
      *
@@ -218,11 +218,75 @@ abstract class service_base {
     }
 
     /**
+     * Get the scope(s) permitted for this service.
+     *
+     * A null value indicates that no scopes are required to access the service.
+     *
+     * @return array|null
+     */
+    public function get_scopes() {
+        return null;
+    }
+
+    /**
      * Returns the configuration options for this service.
      *
      * @param \MoodleQuickForm $mform Moodle quickform object definition
      */
     public function get_configuration_options(&$mform) {
+
+    }
+
+    /**
+     * Called when a new LTI Instance is added.
+     *
+     * @param object $lti LTI Instance.
+     */
+    public function instance_added(object $lti): void {
+
+    }
+
+    /**
+     * Called when a new LTI Instance is updated.
+     *
+     * @param object $lti LTI Instance.
+     */
+    public function instance_updated(object $lti): void {
+
+    }
+
+    /**
+     * Called when the launch data is created, offering a possibility to alter the
+     * target link URI.
+     *
+     * @param string $messagetype message type for this launch
+     * @param string $targetlinkuri current target link uri
+     * @param null|string $customstr concatenated list of custom parameters
+     * @param int $courseid
+     * @param null|object $lti LTI Instance.
+     *
+     * @return array containing the target link URL and the custom params string to use.
+     */
+    public function override_endpoint(string $messagetype, string $targetlinkuri,
+            ?string $customstr, int $courseid, ?object $lti = null): array {
+        return [$targetlinkuri, $customstr];
+    }
+
+    /**
+     * Called when a new LTI Instance is deleted.
+     *
+     * @param int $id LTI Instance.
+     */
+    public function instance_deleted(int $id): void {
+
+    }
+
+    /**
+     * Set the form data when displaying the LTI Instance form.
+     *
+     * @param object $defaultvalues Default form values.
+     */
+    public function set_instance_form_values(object $defaultvalues): void {
 
     }
 
@@ -287,6 +351,16 @@ abstract class service_base {
      */
     public function get_launch_parameters($messagetype, $courseid, $userid, $typeid, $modlti = null) {
         return array();
+    }
+
+    /**
+     * Return an array of key/claim mapping allowing LTI 1.1 custom parameters
+     * to be transformed to LTI 1.3 claims.
+     *
+     * @return array Key/value pairs of params to claim mapping.
+     */
+    public function get_jwt_claim_mappings(): array {
+        return [];
     }
 
     /**
@@ -471,5 +545,4 @@ abstract class service_base {
         return $ok;
 
     }
-
 }

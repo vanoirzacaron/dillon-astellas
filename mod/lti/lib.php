@@ -51,7 +51,7 @@ defined('MOODLE_INTERNAL') || die;
 /**
  * List of features supported in URL module
  * @param string $feature FEATURE_xx constant for requested feature
- * @return mixed True if module supports feature, false if not, null if doesn't know
+ * @return mixed True if module supports feature, false if not, null if doesn't know or string for the module purpose.
  */
 function lti_supports($feature) {
     switch ($feature) {
@@ -65,6 +65,8 @@ function lti_supports($feature) {
         case FEATURE_BACKUP_MOODLE2:
         case FEATURE_SHOW_DESCRIPTION:
             return true;
+        case FEATURE_MOD_PURPOSE:
+            return MOD_PURPOSE_CONTENT;
 
         default:
             return null;
@@ -118,6 +120,11 @@ function lti_add_instance($lti, $mform) {
         lti_grade_item_update($lti);
     }
 
+    $services = lti_get_services();
+    foreach ($services as $service) {
+        $service->instance_added( $lti );
+    }
+
     $completiontimeexpected = !empty($lti->completionexpected) ? $lti->completionexpected : null;
     \core_completion\api::update_completion_date_event($lti->coursemodule, 'lti', $lti->id, $completiontimeexpected);
 
@@ -165,6 +172,11 @@ function lti_update_instance($lti, $mform) {
         $lti->typeid = $lti->urlmatchedtypeid;
     }
 
+    $services = lti_get_services();
+    foreach ($services as $service) {
+        $service->instance_updated( $lti );
+    }
+
     $completiontimeexpected = !empty($lti->completionexpected) ? $lti->completionexpected : null;
     \core_completion\api::update_completion_date_event($lti->coursemodule, 'lti', $lti->id, $completiontimeexpected);
 
@@ -180,7 +192,8 @@ function lti_update_instance($lti, $mform) {
  * @return boolean Success/Failure
  **/
 function lti_delete_instance($id) {
-    global $DB;
+    global $DB, $CFG;
+    require_once($CFG->dirroot.'/mod/lti/locallib.php');
 
     if (! $basiclti = $DB->get_record("lti", array("id" => $id))) {
         return false;
@@ -201,35 +214,121 @@ function lti_delete_instance($id) {
     \core_completion\api::update_completion_date_event($cm->id, 'lti', $id, null);
 
     // We must delete the module record after we delete the grade item.
-    return $DB->delete_records("lti", array("id" => $basiclti->id));
+    if ($DB->delete_records("lti", array("id" => $basiclti->id)) ) {
+        $services = lti_get_services();
+        foreach ($services as $service) {
+            $service->instance_deleted( $id );
+        }
+        return true;
+    }
+    return false;
+
 }
 
 /**
- * Return aliases of this activity. LTI should have an alias for each configured tool type
- * This is so you can add an external tool types directly to the activity chooser
+ * Return the preconfigured tools which are configured for inclusion in the activity picker.
  *
- * @param stdClass $defaultitem default item that would be added to the activity chooser if this callback was not present.
- *     It has properties: archetype, name, title, help, icon, link
- * @return array An array of aliases for this activity. Each element is an object with same list of properties as $defaultitem,
- *     plus an additional property, helplink.
- *     Properties title and link are required
- **/
-function lti_get_shortcuts($defaultitem) {
-    global $CFG, $COURSE;
+ * @param \core_course\local\entity\content_item $defaultmodulecontentitem reference to the content item for the LTI module.
+ * @param \stdClass $user the user object, to use for cap checks if desired.
+ * @param stdClass $course the course to scope items to.
+ * @return array the array of content items.
+ */
+function lti_get_course_content_items(\core_course\local\entity\content_item $defaultmodulecontentitem, \stdClass $user,
+        \stdClass $course) {
+    global $CFG, $OUTPUT;
     require_once($CFG->dirroot.'/mod/lti/locallib.php');
 
-    $types = lti_get_configured_types($COURSE->id, $defaultitem->link->param('sr'));
-    $types[] = $defaultitem;
+    $types = [];
 
-    // Add items defined in ltisource plugins.
-    foreach (core_component::get_plugin_list('ltisource') as $pluginname => $dir) {
-        // LTISOURCE plugins can also implement callback get_shortcuts() to add items to the activity chooser.
-        // The return values are the same as of the 'mod' callbacks except that $defaultitem is only passed for reference and
-        // should not be added to the return value.
-        if ($moretypes = component_callback("ltisource_$pluginname", 'get_shortcuts', array($defaultitem))) {
-            $types = array_merge($types, $moretypes);
-        }
+    // Use of a tool type, whether site or course level, is controlled by the following cap.
+    if (!has_capability('mod/lti:addpreconfiguredinstance', \core\context\course::instance($course->id), $user)) {
+        return $types;
     }
+    $preconfiguredtools = lti_get_configured_types($course->id, $defaultmodulecontentitem->get_link()->param('sr'));
+
+    foreach ($preconfiguredtools as $preconfiguredtool) {
+
+        // Append the help link to the help text.
+        if (isset($preconfiguredtool->help)) {
+            if (isset($preconfiguredtool->helplink)) {
+                $linktext = get_string('morehelp');
+                $preconfiguredtool->help .= html_writer::tag('div',
+                    $OUTPUT->doc_link($preconfiguredtool->helplink, $linktext, true), ['class' => 'helpdoclink']);
+            }
+        } else {
+            $preconfiguredtool->help = '';
+        }
+
+        // Preconfigured tools take their own id + 1. This logic exists because, previously, the entry permitting manual instance
+        // creation (the $defaultmodulecontentitem, or 'External tool' item) was included and had the id 1. This logic prevented id
+        // collisions.
+        $types[] = new \core_course\local\entity\content_item(
+            $preconfiguredtool->id + 1,
+            $preconfiguredtool->name,
+            new \core_course\local\entity\string_title($preconfiguredtool->title),
+            $preconfiguredtool->link,
+            $preconfiguredtool->icon,
+            $preconfiguredtool->help,
+            $defaultmodulecontentitem->get_archetype(),
+            $defaultmodulecontentitem->get_component_name(),
+            $defaultmodulecontentitem->get_purpose()
+        );
+    }
+    return $types;
+}
+
+/**
+ * Return all content items which can be added to any course.
+ *
+ * @param \core_course\local\entity\content_item $defaultmodulecontentitem
+ * @return array the array of content items.
+ */
+function mod_lti_get_all_content_items(\core_course\local\entity\content_item $defaultmodulecontentitem): array {
+    global $OUTPUT, $CFG;
+    require_once($CFG->dirroot . '/mod/lti/locallib.php'); // For access to constants.
+
+    $types = [];
+
+    foreach (lti_get_lti_types() as $ltitype) {
+        if ($ltitype->coursevisible != LTI_COURSEVISIBLE_ACTIVITYCHOOSER) {
+            continue;
+        }
+        $type           = new stdClass();
+        $type->id       = $ltitype->id;
+        $type->modclass = MOD_CLASS_ACTIVITY;
+        $type->name     = 'lti_type_' . $ltitype->id;
+        // Clean the name. We don't want tags here.
+        $type->title    = clean_param($ltitype->name, PARAM_NOTAGS);
+        $trimmeddescription = trim($ltitype->description ?? '');
+        $type->help = '';
+        if ($trimmeddescription != '') {
+            // Clean the description. We don't want tags here.
+            $type->help     = clean_param($trimmeddescription, PARAM_NOTAGS);
+            $type->helplink = get_string('modulename_shortcut_link', 'lti');
+        }
+        if (empty($ltitype->icon)) {
+            $type->icon = $OUTPUT->pix_icon('monologo', '', 'lti', array('class' => 'icon'));
+        } else {
+            $type->icon = html_writer::empty_tag('img', array('src' => $ltitype->icon, 'alt' => $ltitype->name, 'class' => 'icon'));
+        }
+        $type->link = new moodle_url('/course/modedit.php', array('add' => 'lti', 'return' => 0, 'typeid' => $ltitype->id));
+
+        // Preconfigured tools take their own id + 1. This logic exists because, previously, the entry permitting manual instance
+        // creation (the $defaultmodulecontentitem, or 'External tool' item) was included and had the id 1. This logic prevented id
+        // collisions.
+        $types[] = new \core_course\local\entity\content_item(
+            $type->id + 1,
+            $type->name,
+            new \core_course\local\entity\string_title($type->title),
+            $type->link,
+            $type->icon,
+            $type->help,
+            $defaultmodulecontentitem->get_archetype(),
+            $defaultmodulecontentitem->get_component_name(),
+            $defaultmodulecontentitem->get_purpose()
+        );
+    }
+
     return $types;
 }
 
@@ -649,4 +748,21 @@ function mod_lti_core_calendar_provide_event_action(calendar_event $event,
         1,
         true
     );
+}
+
+/**
+ * Extend the course navigation with an "LTI External tools" link which redirects to a list of all tools available for course use.
+ *
+ * @param settings_navigation $navigation The settings navigation object
+ * @param stdClass $course The course
+ * @param stdclass $context Course context
+ * @return void
+ */
+function mod_lti_extend_navigation_course($navigation, $course, $context): void {
+    if (has_capability('mod/lti:addpreconfiguredinstance', $context)) {
+        $url = new moodle_url('/mod/lti/coursetools.php', ['id' => $course->id]);
+        $settingsnode = navigation_node::create(get_string('courseexternaltools', 'mod_lti'), $url, navigation_node::TYPE_SETTING,
+            null, 'coursetools', new pix_icon('i/settings', ''));
+        $navigation->add_node($settingsnode);
+    }
 }

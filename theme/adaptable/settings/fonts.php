@@ -17,11 +17,12 @@
 /**
  * Version details
  *
- * @package    theme_adaptable
- * @copyright  2015-2018 Jeremy Hopkins (Coventry University)
- * @copyright  2015-2018 Fernando Acedo (3-bits.com)
- * @copyright  2017-2018 Manoj Solanki (Coventry University)
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package   theme_adaptable
+ * @copyright 2020-2021 G J Barnard.
+ * @copyright 2015-2018 Jeremy Hopkins (Coventry University)
+ * @copyright 2015-2018 Fernando Acedo (3-bits.com)
+ * @copyright 2017-2018 Manoj Solanki (Coventry University)
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  *
  */
 
@@ -40,13 +41,20 @@ if ($ADMIN->fulltree) {
     $setting = new admin_setting_heading($name, $heading, '');
     $page->add($setting);
 
-    // Main Google Font Name.
+    // Google fonts.
+    $name = 'theme_adaptable/googlefonts';
+    $title = get_string('googlefonts', 'theme_adaptable');
+    $description = get_string('googlefontsdesc', 'theme_adaptable');
+    $default = false;
+    $setting = new admin_setting_configcheckbox($name, $title, $description, $default, true, false);
+    $page->add($setting);
+
+    // Main Font Name.
     $name = 'theme_adaptable/fontname';
     $title = get_string('fontname', 'theme_adaptable');
     $description = get_string('fontnamedesc', 'theme_adaptable');
-    $default = 'Open Sans';
-    $choices = $fontlist;
-    $setting = new admin_setting_configselect($name, $title, $description, $default, $choices);
+    $default = 'sans-serif';
+    $setting = new admin_setting_configselect($name, $title, $description, $default, $fontlist);
     $setting->set_updatedcallback('theme_reset_all_caches');
     $page->add($setting);
 
@@ -91,8 +99,7 @@ if ($ADMIN->fulltree) {
     $name = 'theme_adaptable/fontcolor';
     $title = get_string('fontcolor', 'theme_adaptable');
     $description = get_string('fontcolordesc', 'theme_adaptable');
-    $previewconfig = null;
-    $setting = new admin_setting_configcolourpicker($name, $title, $description, '#333333', $previewconfig);
+    $setting = new admin_setting_configcolourpicker($name, $title, $description, '#333333', null);
     $setting->set_updatedcallback('theme_reset_all_caches');
     $page->add($setting);
 
@@ -100,8 +107,7 @@ if ($ADMIN->fulltree) {
     $name = 'theme_adaptable/topmenufontsize';
     $title = get_string('topmenufontsize', 'theme_adaptable');
     $description = get_string('topmenufontsizedesc', 'theme_adaptable');
-    $radchoices = $standardfontsize;
-    $setting = new admin_setting_configselect($name, $title, $description, '14px', $radchoices);
+    $setting = new admin_setting_configselect($name, $title, $description, '14px', $standardfontsize);
     $setting->set_updatedcallback('theme_reset_all_caches');
     $page->add($setting);
 
@@ -109,8 +115,7 @@ if ($ADMIN->fulltree) {
     $name = 'theme_adaptable/menufontsize';
     $title = get_string('menufontsize', 'theme_adaptable');
     $description = get_string('menufontsizedesc', 'theme_adaptable');
-    $radchoices = $standardfontsize;
-    $setting = new admin_setting_configselect($name, $title, $description, '14px', $radchoices);
+    $setting = new admin_setting_configselect($name, $title, $description, '14px', $standardfontsize);
     $setting->set_updatedcallback('theme_reset_all_caches');
     $page->add($setting);
 
@@ -118,8 +123,7 @@ if ($ADMIN->fulltree) {
     $name = 'theme_adaptable/menufontpadding';
     $title = get_string('menufontpadding', 'theme_adaptable');
     $description = get_string('menufontpaddingdesc', 'theme_adaptable');
-    $radchoices = $from10to30px;
-    $setting = new admin_setting_configselect($name, $title, $description, '20px', $radchoices);
+    $setting = new admin_setting_configselect($name, $title, $description, '20px', $from10to30px);
     $setting->set_updatedcallback('theme_reset_all_caches');
     $page->add($setting);
 
@@ -127,9 +131,8 @@ if ($ADMIN->fulltree) {
     $name = 'theme_adaptable/fontheadername';
     $title = get_string('fontheadername', 'theme_adaptable');
     $description = get_string('fontheadernamedesc', 'theme_adaptable');
-    $default = 'Roboto';
-    $choices = $fontlist;
-    $setting = new admin_setting_configselect($name, $title, $description, $default, $choices);
+    $default = 'sans-serif';
+    $setting = new admin_setting_configselect($name, $title, $description, $default, $fontlist);
     $setting->set_updatedcallback('theme_reset_all_caches');
     $page->add($setting);
 
@@ -145,8 +148,7 @@ if ($ADMIN->fulltree) {
     $name = 'theme_adaptable/fontheadercolor';
     $title = get_string('fontheadercolor', 'theme_adaptable');
     $description = get_string('fontheadercolordesc', 'theme_adaptable');
-    $previewconfig = null;
-    $setting = new admin_setting_configcolourpicker($name, $title, $description, '#333333', $previewconfig);
+    $setting = new admin_setting_configcolourpicker($name, $title, $description, '#333333', null);
     $setting->set_updatedcallback('theme_reset_all_caches');
     $page->add($setting);
 
@@ -154,9 +156,8 @@ if ($ADMIN->fulltree) {
     $name = 'theme_adaptable/fonttitlename';
     $title = get_string('fonttitlename', 'theme_adaptable');
     $description = get_string('fonttitlenamedesc', 'theme_adaptable');
-    $default = 'Roboto Condensed';
-    $choices = $fontlist;
-    $setting = new admin_setting_configselect($name, $title, $description, $default, $choices);
+    $default = 'sans-serif';
+    $setting = new admin_setting_configselect($name, $title, $description, $default, $fontlist);
     $setting->set_updatedcallback('theme_reset_all_caches');
     $page->add($setting);
 
@@ -165,8 +166,7 @@ if ($ADMIN->fulltree) {
     $title = get_string('fonttitlesize', 'theme_adaptable');
     $description = get_string('fonttitlesizedesc', 'theme_adaptable');
     $default = '48px';
-    $choices = $standardfontsize;
-    $setting = new admin_setting_configselect($name, $title, $description, $default, $choices);
+    $setting = new admin_setting_configselect($name, $title, $description, $default, $standardfontsize);
     $setting->set_updatedcallback('theme_reset_all_caches');
     $page->add($setting);
 
@@ -182,8 +182,7 @@ if ($ADMIN->fulltree) {
     $name = 'theme_adaptable/fonttitlecolor';
     $title = get_string('fonttitlecolor', 'theme_adaptable');
     $description = get_string('fonttitlecolordesc', 'theme_adaptable');
-    $previewconfig = null;
-    $setting = new admin_setting_configcolourpicker($name, $title, $description, '#ffffff', $previewconfig);
+    $setting = new admin_setting_configcolourpicker($name, $title, $description, '#ffffff', null);
     $setting->set_updatedcallback('theme_reset_all_caches');
     $page->add($setting);
 
@@ -191,8 +190,7 @@ if ($ADMIN->fulltree) {
     $name = 'theme_adaptable/fonttitlecolorcourse';
     $title = get_string('fonttitlecolorcourse', 'theme_adaptable');
     $description = get_string('fonttitlecolorcoursedesc', 'theme_adaptable');
-    $previewconfig = null;
-    $setting = new admin_setting_configcolourpicker($name, $title, $description, '#ffffff', $previewconfig);
+    $setting = new admin_setting_configcolourpicker($name, $title, $description, '#ffffff', null);
     $setting->set_updatedcallback('theme_reset_all_caches');
     $page->add($setting);
 

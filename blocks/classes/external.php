@@ -24,9 +24,18 @@
  * @since      Moodle 3.3
  */
 
+use core_external\external_api;
+use core_external\external_files;
+use core_external\external_format_value;
+use core_external\external_function_parameters;
+use core_external\external_multiple_structure;
+use core_external\external_single_structure;
+use core_external\external_value;
+use core_external\external_warnings;
+
 defined('MOODLE_INTERNAL') || die;
 
-require_once("$CFG->libdir/externallib.php");
+require_once("$CFG->dirroot/my/lib.php");
 
 /**
  * Blocks external functions
@@ -59,7 +68,7 @@ class core_block_external extends external_api {
                 'visible'       => new external_value(PARAM_BOOL, 'Whether the block is visible.', VALUE_OPTIONAL),
                 'contents'      => new external_single_structure(
                     array(
-                        'title'         => new external_value(PARAM_TEXT, 'Block title.'),
+                        'title'         => new external_value(PARAM_RAW, 'Block title.'),
                         'content'       => new external_value(PARAM_RAW, 'Block contents.'),
                         'contentformat' => new external_format_value('content'),
                         'footer'        => new external_value(PARAM_RAW, 'Block footer.'),
@@ -91,6 +100,9 @@ class core_block_external extends external_api {
      */
     private static function get_all_current_page_blocks($includeinvisible = false, $returncontents = false) {
         global $PAGE, $OUTPUT;
+
+        // Set page URL to a fake URL to avoid errors.
+        $PAGE->set_url(new \moodle_url('/webservice/core_block_external/'));
 
         // Load the block instances for all the regions.
         $PAGE->blocks->load_blocks($includeinvisible);
@@ -218,6 +230,7 @@ class core_block_external extends external_api {
             array(
                 'userid'  => new external_value(PARAM_INT, 'User id (optional), default is current user.', VALUE_DEFAULT, 0),
                 'returncontents' => new external_value(PARAM_BOOL, 'Whether to return the block contents.', VALUE_DEFAULT, false),
+                'mypage' => new external_value(PARAM_TEXT, 'What my page to return blocks of', VALUE_DEFAULT, MY_PAGE_DEFAULT),
             )
         );
     }
@@ -225,20 +238,21 @@ class core_block_external extends external_api {
     /**
      * Returns blocks information for the given user dashboard.
      *
-     * @param int $userid The user id to retrive the blocks from, optional, default is to current user.
+     * @param int $userid The user id to retrieve the blocks from, optional, default is to current user.
      * @param bool $returncontents Whether to return the block contents
+     * @param string $mypage The page to get blocks of within my
      * @return array Blocks list and possible warnings
      * @throws moodle_exception
      * @since Moodle 3.6
      */
-    public static function get_dashboard_blocks($userid = 0, $returncontents = false) {
+    public static function get_dashboard_blocks($userid = 0, $returncontents = false, $mypage = MY_PAGE_DEFAULT) {
         global $CFG, $USER, $PAGE;
 
         require_once($CFG->dirroot . '/my/lib.php');
 
         $warnings = array();
         $params = self::validate_parameters(self::get_dashboard_blocks_parameters(),
-            ['userid' => $userid, 'returncontents' => $returncontents]);
+            ['userid' => $userid, 'returncontents' => $returncontents, 'mypage' => $mypage]);
 
         $userid = $params['userid'];
         if (empty($userid)) {
@@ -255,8 +269,14 @@ class core_block_external extends external_api {
         $context = context_user::instance($userid);;
         self::validate_context($context);
 
-        // Get the My Moodle page info.  Should always return something unless the database is broken.
-        if (!$currentpage = my_get_page($userid, MY_PAGE_PRIVATE)) {
+        $currentpage = null;
+        if ($params['mypage'] === MY_PAGE_DEFAULT) {
+            $currentpage = my_get_page($userid);
+        } else if ($params['mypage'] === MY_PAGE_COURSES) {
+            $currentpage = my_get_page($userid, MY_PAGE_PUBLIC, MY_PAGE_COURSES);
+        }
+
+        if (!$currentpage) {
             throw new moodle_exception('mymoodlesetup');
         }
 

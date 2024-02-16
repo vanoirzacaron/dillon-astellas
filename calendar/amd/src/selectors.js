@@ -14,10 +14,9 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * This module is responsible for the calendar filter.
+ * CSS selectors for the calendar.
  *
- * @module     core_calendar/calendar_selectors
- * @package    core_calendar
+ * @module     core_calendar/selectors
  * @copyright  2017 Andrew Nicols <andrew@nicols.co.uk>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -30,6 +29,7 @@ define([], function() {
             course: "[data-eventtype-course]",
             group: "[data-eventtype-group]",
             user: "[data-eventtype-user]",
+            other: "[data-eventtype-other]",
         },
         popoverType: {
             site: "[data-popover-eventtype-site]",
@@ -37,6 +37,7 @@ define([], function() {
             course: "[data-popover-eventtype-course]",
             group: "[data-popover-eventtype-group]",
             user: "[data-popover-eventtype-user]",
+            other: "[data-popover-eventtype-other]",
         },
         calendarPeriods: {
             month: "[data-period='month']",
@@ -48,9 +49,13 @@ define([], function() {
             edit: '[data-action="edit"]',
             remove: '[data-action="delete"]',
             viewEvent: '[data-action="view-event"]',
+            deleteSubscription: '[data-action="delete-subscription"]',
         },
         elements: {
             courseSelector: 'select[name="course"]',
+            dateContainer: '.clickable.hasevent',
+            dateContent: '[data-region="day-content"]',
+            monthDetailed: '.calendarmonth.calendartable',
         },
         today: '.today',
         day: '[data-region="day"]',
@@ -65,5 +70,7 @@ define([], function() {
         containers: {
             loadingIcon: '[data-region="overlay-icon-container"]',
         },
+        mainCalendar: '.maincalendar .heightcontainer',
+        fullCalendarView: 'page-calendar-view',
     };
 });
