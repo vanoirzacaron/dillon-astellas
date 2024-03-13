@@ -26,7 +26,21 @@
     max-width: none;
 }
 
-.path-grade-report-grader #region-main {
-    min-width: auto;
-    overflow-x: scroll;
+.path-grade-report-grader {
+    #maincontainer {
+        max-width: none;
+        width: auto;
+    }
+
+    .secondary-navigation .moremenu .nav {
+        margin: 0;
+    }
+
+    .gradeparent tr.heading {
+        top: 0;
+    }
+
+    &.hasstickyfooter .gradeparent tr.lastrow {
+        bottom: -1px;
+    }
 }

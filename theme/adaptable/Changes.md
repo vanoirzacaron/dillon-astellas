@@ -1,3 +1,93 @@
+Change Log in version 403.1.3 (2023111804)
+===========================================
+1. Fix missing logo in alternative header for header style one.
+2. Fix jssection setting value causing breakage.
+3. Fix jssectionrestricted setting value not in nofooter layout.
+4. Deprecated 'jssection' and 'jssectionrestricted' settings, please copy values to 'customjs' and 'customjsrestricted'
+   with any 'script' tags removed.
+5. Separated 'Custom CSS and JS' into two separate settings tabs, 'Custom CSS' and 'Custom JS', the latter is now in the
+   'Local Adaptable' plugin.
+6. Fix 'btn a' style.
+
+Change Log in version 403.1.2 (2023111803)
+===========================================
+1. Fix '$OUTPUT is null' - ref: https://moodle.org/mod/forum/discuss.php?d=453194#p1827606.
+
+Change Log in version 403.1.1 (2023111802)
+===========================================
+1. Put the course title back in the header.
+2. New setting 'headertitle' replaces 'sitetitle'.
+3. New CSS id 'headertitle' replaces 'sitetitle', now 'sitetitle' is on the actual site title for styling purposes.
+4. New setting 'responsiveheadertitle' replaces 'responsivecoursetitle' / 'responsivesitetitle'.
+5. New setting 'coursepageheaderhidetitle' replaces 'coursepageheaderhidesitetitle'.
+6. Fix 'Wrong context for theme_adaptable/savediscard'.
+7. Remove call to 'context_header' so that the course title is not duplicated on the page.
+8. Improved header logic.  On a course page then if the course title is set to show 'enablecoursetitle' then it is
+   shown with the 'categoryheadercustomtitleX' if there is one.  If not then the site title will show if 'sitetitle'
+   is set and with 'categoryheadercustomtitleX' if there is one.  On a site page, then just the 'sitetitle' logic.
+9. Fix 'Module menu delete item hover colour'.
+
+Change Log in version 403.1.0 (2023111801)
+===========================================
+1. Fix 'Grade report scrolling', ref: https://moodle.org/mod/forum/discuss.php?d=453194#p1821224.
+2. Tidy up header logic in relation to titles.
+3. Navbar and breadcrumb tidy.
+4. Fix 'error: class constructors must be invoked with 'new'' - ref: https://moodle.org/mod/forum/discuss.php?d=453804.
+5. Add 'buttontexthovercolor' setting to fix button hovers.
+6. Fix header search icon.
+7. Add 'headerbgimagetextcolour' and 'headertextcolor2' to fix lower header text colours.
+8. Fix position of '#savediscardsection'.
+9. Refactored layouts as a progressional aim towards use of templating to a greater extent.
+
+Change Log in version 403.0.1 (2023111800)
+===========================================
+1. Release candidate for Moodle 4.3.
+
+Change Log in version 402.0.2 (2023092501)
+===========================================
+1. Add the ability to show the marketing blocks when 'Logged out', 'Logged in' or 'Logged in or out',
+   'marketingvisible' setting.
+
+Change Log in version 402.0.1 (2023092500)
+===========================================
+1. Removed social wall format (https://moodle.org/plugins/format_socialwall/versions) as last known version was for Moodle 3.3.
+2. Add theme version of FontAwesome 6.4.2 from Foundation theme.
+3. Fix 'Dragging a block results in an unknown block region error'.
+4. Fix bars icon on navbar.
+5. Improved alert dismissal functionality.  The alert key only needs to change when the content does not.
+6. Corrected alert information that incorrectly stated that it was possible to restrict alerts to the front page.
+7. Move the 'Alerts', 'Category Headers', 'Login', 'My courses', 'News ticker', 'Tools menu', 'Tracking' and 'User profile'
+   functionality to a separate 'Local Adaptable' plugin that will be available to sponsors only.  This has been an
+   extremely difficult decision to make, however with the continued lack of support I consider that I have been
+   left with no choice and thus have targetted functionality unlikely to be used by small installations.
+
+Change Log in version 401.1.7 (2022112308)
+===========================================
+1. Add 'courseactivitynavigationenabled' setting in 'Courses' tab (changed from 'Course Formats') to turn on / off activity
+   navigation.  Disabled by default.
+2. Fix "Spelling mistakes in 'theme_adaptable | responsivesectionnav'" - #14.
+3. Fix 'Front Page Course Limited to 20' - ref: https://moodle.org/mod/forum/discuss.php?d=450609.
+4. Fix 'Option to default right drawer to open for guests' - #16.
+5. Removed social wall format (https://moodle.org/plugins/format_socialwall/versions) as last known version was for Moodle 3.3.
+6. Add theme version of FontAwesome 6.4.2 from Foundation theme.
+7. Fix 'Dragging a block results in an unknown block region error'.
+8. Fix 'Grader report headings not sticky' - ref: https://moodle.org/mod/forum/discuss.php?d=451315S.
+
+Change Log in version 401.1.6 (2022112307)
+===========================================
+1. Fix as much as possible URL's in strings - ref: https://moodle.org/mod/forum/discuss.php?d=446353.
+2. Fix long student names in the grade book - ref: https://moodle.org/mod/forum/discuss.php?d=447234.
+3. Fix 'Sidebars cannot be closed with sticky navbar' - ref: https://github.com/gjb2048/moodle-theme_adaptable/issues/8.
+4. Fix 'columns1 layout issue' - ref: https://moodle.org/mod/forum/discuss.php?d=446487#p1800161.
+5. Fix 'Block marketing - images' - #12.
+6. Fix 'Missing content region on dashboard'.
+7. Add link in the navbar to the 'My courses' page, with setting 'enablemycourses', not to be confused with the 'My courses' menu 'enablemysites'.
+8. Fix margin on 'Course overview' block has header buttons not lining up, fix is good but may impact on other unknown elements as removed style is too global in effect.
+9. Put back activity navigation.
+10. Add new setting 'slidervisible' to state when the slider should be shown, being one of 'Logged out', 'Logged in' or 'Logged in or out'.
+11. Re-fix use of $CFG->themedir for when it exists but Adaptable is still in the basedir - #273.
+12. Fix header search area too large.
+
 Change Log in version 401.1.5 (2022112306)
 ===========================================
 1. Fix zoom after header move in markup.

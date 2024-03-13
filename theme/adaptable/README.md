@@ -1,6 +1,5 @@
 Adaptable - the most adaptable moodle theme
 ===========================================
-
 Adaptable is a highly customizable responsive two column moodle theme based on the popular BCU theme adding:
 
 - Customizable fonts (Google Fonts)
@@ -50,11 +49,10 @@ This theme has been developed by the following:
 
 Required release of Moodle
 ==========================
-This release works with Moodle 4.1 version 2022112800.00 (Build: 20221128) and above within the MOODLE_401_STABLE branch until the
+This version works with Moodle 4.3 version 2023100900.00 (Build: 20231009) and above within the MOODLE_403_STABLE branch until the
 next release.
 
-Please ensure that your hardware and software complies with 'Requirements' in 'Installing Moodle' on
-'https://docs.moodle.org/401/en/Installing_Moodle'.
+Please ensure that your hardware and software complies with 'Requirements' in '[Installing Moodle](https://docs.moodle.org/403/en/Installing_Moodle)'.
 
 Installation
 ============
@@ -104,9 +102,6 @@ For more information on SemVer, please visit http://semver.org.
 
 Acknowledgments
 ===============
-Big thanks to all the volunteers that are collaborating and testing Adaptable continuously. We really appreciate your help and
-support to develop the most adaptable theme for moodle.
-
 Development contributions from:
 
 - Justin Hunt
@@ -130,13 +125,6 @@ Translation:
 
 - GermÃ¡n Valero (EspaÃ±ol - MÃ©xico)
 - Jordi Rodilla (CatalÃ   - Andorra)
-
-
-Contributions
-=============
-You are welcome to collaborate in the project. You can fix bugs, add new features or help in the translation to your language.
-See CONTRIBUTING.txt for more information
-
 
 Licenses
 ========
